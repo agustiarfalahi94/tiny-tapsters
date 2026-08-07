@@ -5,6 +5,17 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.0.1] — 2026-08-08
+
+### Changed
+- **App renamed to "Our Toddlers' Journey"** — the launcher label, app title,
+  and home screen header now match the project name.
+
+### Notes
+- `flutter analyze`: 0 issues; 3/3 tests passing.
+
+---
+
 ## [1.0.0] — 2026-08-08
 
 First release: five toddler games in one offline, permission-free Android app.
