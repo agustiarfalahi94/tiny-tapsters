@@ -1,0 +1,304 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../widgets/celebration_overlay.dart';
+import '../widgets/game_background.dart';
+import '../widgets/round_button.dart';
+
+/// Find It!: the game shows "Find the 🐶!" and a grid of animals; the toddler
+/// taps the matching one. Wrong taps just wobble the card. Find 5 animals to
+/// win; fewer wrong taps means more stars.
+class FindItScreen extends StatefulWidget {
+  const FindItScreen({super.key, this.cardsPerRound = 6});
+
+  /// Number of cards in the grid (6 = easy, 9 = medium, 12 = big).
+  final int cardsPerRound;
+
+  @override
+  State<FindItScreen> createState() => _FindItScreenState();
+}
+
+class _FindItScreenState extends State<FindItScreen> {
+  static const _pool = [
+    '🐶',
+    '🐱',
+    '🐭',
+    '🐹',
+    '🐰',
+    '🦊',
+    '🐻',
+    '🐼',
+    '🐨',
+    '🐯',
+    '🦁',
+    '🐮',
+    '🐷',
+    '🐸',
+    '🐵',
+    '🐔',
+    '🐧',
+    '🐦',
+    '🦄',
+    '🐙',
+    '🦋',
+    '🐢',
+  ];
+  static const _roundsToWin = 5;
+
+  late final int _cardsPerRound = widget.cardsPerRound;
+  late String _target;
+  late List<String> _cards;
+  late final List<GlobalKey<_FindCardState>> _cardKeys;
+
+  int _found = 0;
+  int _wrong = 0;
+  int? _happyIndex;
+  String? _lastTarget;
+  bool _won = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cardKeys = List.generate(_cardsPerRound, (_) => GlobalKey());
+    _newRound();
+  }
+
+  void _newRound() {
+    // Never ask for the same animal twice in a row.
+    final pool = [..._pool]
+      ..removeWhere((e) => e == _lastTarget)
+      ..shuffle();
+    _target = pool.first;
+    _lastTarget = _target;
+    _cards = [...pool.skip(1).take(_cardsPerRound - 1), _target]..shuffle();
+    setState(() => _happyIndex = null);
+  }
+
+  void _reset() {
+    setState(() {
+      _found = 0;
+      _wrong = 0;
+      _won = false;
+    });
+    _newRound();
+  }
+
+  void _onTap(int index) {
+    if (_won) return;
+    if (_cards[index] == _target) {
+      setState(() {
+        _found++;
+        _happyIndex = index;
+      });
+      HapticFeedback.mediumImpact();
+      Future.delayed(const Duration(milliseconds: 650), () {
+        if (!mounted) return;
+        if (_found >= _roundsToWin) {
+          setState(() => _won = true);
+        } else {
+          _newRound();
+        }
+      });
+    } else {
+      _cardKeys[index].currentState?.shake();
+      _wrong++;
+      HapticFeedback.lightImpact();
+    }
+  }
+
+  int get _stars {
+    if (_wrong == 0) return 3;
+    if (_wrong <= 2) return 2;
+    return 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          GameBackground(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      RoundButton(
+                        emoji: '🏠',
+                        onTap: () => Navigator.of(context).pop(),
+                      ),
+                      const Spacer(),
+                      // Round progress dots.
+                      Row(
+                        children: [
+                          for (var i = 0; i < _roundsToWin; i++)
+                            Container(
+                              width: 16,
+                              height: 16,
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: i < _found
+                                    ? const Color(0xFFFF9800)
+                                    : Colors.white.withValues(alpha: 0.6),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const Spacer(),
+                      RoundButton(emoji: '🔁', onTap: _reset),
+                    ],
+                  ),
+                ),
+                // Prompt: "Find the 🐶!"
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Find the ',
+                        style: TextStyle(fontSize: 20, color: Colors.black87),
+                      ),
+                      Text(_target, style: const TextStyle(fontSize: 44)),
+                      const Text(
+                        '!',
+                        style: TextStyle(fontSize: 20, color: Colors.black87),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: GridView.count(
+                    crossAxisCount: 3,
+                    padding: const EdgeInsets.all(16),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1,
+                    children: [
+                      for (var i = 0; i < _cards.length; i++)
+                        _FindCard(
+                          key: _cardKeys[i],
+                          emoji: _cards[i],
+                          happy: _happyIndex == i,
+                          onTap: () => _onTap(i),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_won)
+            CelebrationOverlay(
+              emoji: '🔍',
+              title: 'You found them all!',
+              stars: _stars,
+              primaryLabel: 'Play again 🔁',
+              onPrimary: _reset,
+              secondaryLabel: 'Home 🏠',
+              onSecondary: () => Navigator.of(context).pop(),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FindCard extends StatefulWidget {
+  const _FindCard({
+    super.key,
+    required this.emoji,
+    required this.happy,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final bool happy;
+  final VoidCallback onTap;
+
+  @override
+  State<_FindCard> createState() => _FindCardState();
+}
+
+class _FindCardState extends State<_FindCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 350),
+  );
+
+  @override
+  void dispose() {
+    _shake.dispose();
+    super.dispose();
+  }
+
+  void shake() => _shake.forward(from: 0);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      child: AnimatedBuilder(
+        animation: _shake,
+        builder: (context, _) {
+          final v = _shake.value;
+          // Decaying wiggle while shaking; the red tint is a triangle wave
+          // (up then back to 0) so the card returns to white when done.
+          final angle = math.sin(v * math.pi * 6) * 0.12 * (1 - v);
+          final redTint = v < 0.5 ? v * 2 : (1 - v) * 2;
+          return Transform.rotate(
+            angle: angle,
+            child: AnimatedScale(
+              scale: widget.happy ? 1.2 : 1.0,
+              duration: const Duration(milliseconds: 250),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Color.lerp(
+                    Colors.white,
+                    const Color(0xFFFF8A80),
+                    redTint * 0.8,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: widget.happy
+                      ? Border.all(color: const Color(0xFF66BB6A), width: 3)
+                      : null,
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    widget.emoji,
+                    style: const TextStyle(fontSize: 46),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
