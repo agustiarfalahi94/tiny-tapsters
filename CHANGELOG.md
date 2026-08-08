@@ -5,6 +5,21 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.3.4] — 2026-08-08
+
+### Improved
+- **Background music re-arranged** — the lullaby is now a full music-box
+  arrangement instead of a plain melody: chime-like tones (fast attack,
+  long decay), a harmony line a third below the melody, a deep soft C drone,
+  and a gentle two-tap echo. The piece develops: bell intro → solo melody →
+  melody + harmony duet → quiet outro. Still synthesized in-repo
+  (`tool/generate_music.dart`), fully original, ~56 s loop.
+
+### Notes
+- `flutter analyze`: 0 issues; 11/11 tests.
+
+---
+
 ## [1.3.3] — 2026-08-08
 
 ### Improved
