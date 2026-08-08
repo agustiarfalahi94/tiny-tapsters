@@ -7,6 +7,9 @@ Our Toddlers' Journey — Flutter toddler-games app (`com.lilianyoctoria.toddler
 ## Git flow
 
 - Work on **`develop`** (default branch).
+- **Improvements & features: always work on a dedicated branch** (e.g. `feature/<name>`) created from `develop` — never commit feature work directly on `develop`. Merge back to `develop` only after validation passes.
+- **Plan before execution**: write the plan in chat first (scope, files touched, validation steps), get user confirmation, then execute. This applies to all tasks, especially multi-agent ones.
+- **Sub-agent (multi-agent) tasks**: roles are separated — one implementer (disjoint write scope), one reviewer (read-only, fresh-eyes critique), one tester (runs `flutter analyze` / `dart format` / `flutter test` / release build). Synthesize their results; only merge when all pass.
 - Release: merge `develop` → `main` locally → push main → annotated tag `vX.Y.Z` → push tag.
 
 ## Validation (run before finishing any task)
