@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:toddlers_journey/main.dart';
 import 'package:toddlers_journey/screens/animal_food_screen.dart';
 import 'package:toddlers_journey/screens/bubble_pop_screen.dart';
+import 'package:toddlers_journey/screens/companion_screen.dart';
 import 'package:toddlers_journey/screens/find_it_screen.dart';
 import 'package:toddlers_journey/screens/jigsaw_game_screen.dart';
 import 'package:toddlers_journey/screens/memory_game_screen.dart';
@@ -177,6 +178,28 @@ void main() {
       findsNWidgets(3),
       reason: 'one piece should have snapped into its own slot',
     );
+  });
+
+  testWidgets('companion shows graceful message without an API key', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
+    await tester.pump();
+
+    expect(find.text('Buddy'), findsOneWidget);
+    // No GEMINI_API_KEY in the test environment → friendly fallback text.
+    expect(find.textContaining('magic key'), findsOneWidget);
+
+    // Tapping a chip without a key must not crash; it shows the same hint.
+    await tester.tap(find.textContaining('Tell me a story'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.textContaining('magic key'), findsWidgets);
+  });
+
+  testWidgets('home screen has the Buddy button', (tester) async {
+    await tester.pumpWidget(const ToddlerGamesApp());
+    expect(find.byTooltip('Talk to Buddy'), findsOneWidget);
   });
 
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {

@@ -1,7 +1,8 @@
 # Our Toddlers' Journey — Toddler Games
 
-Free, offline Android games for toddlers, built with Flutter. No ads, no
-permissions, no internet needed — just big colorful buttons and emoji.
+Free toddler games for Android, built with Flutter. No ads, no tracking —
+just big colorful buttons and emoji. **All games work fully offline**; the
+only online feature is the optional **Buddy 🐻 companion** (Google Gemini).
 
 ## Games
 
@@ -18,6 +19,10 @@ permissions, no internet needed — just big colorful buttons and emoji.
   get faster each round.
 - **Find It!** — "Find the 🐶!": tap the matching animal in the grid. Find 5 to
   win; fewer wrong taps means more stars. Easy (6), Medium (9), Big (12).
+- **Buddy 🐻** — a talking companion on the home screen (bottom-right button).
+  Replies stream in as speech bubbles and are spoken aloud. Toddler-friendly
+  tap chips plus a text field for grown-ups. Powered by Gemini; needs an API
+  key (see below).
 
 ## Run it
 
@@ -31,19 +36,35 @@ The release build is signed with the shared `random_recall` keystore
 (`android/key.properties` + `android/app/release-keystore.jks`, both
 git-ignored) and minified with R8.
 
+## Buddy (Gemini companion)
+
+To enable Buddy, build with your own free API key from
+<https://aistudio.google.com/apikey>:
+
+```sh
+flutter build apk --release --dart-define=GEMINI_API_KEY=your_key_here
+```
+
+The key is compiled into the APK and never committed to the repository.
+Chat messages are sent to Google's Gemini API. Without a key, Buddy shows a
+friendly fallback message.
+
 ## Project layout
 
 ```
 lib/
   main.dart                      # app entry (portrait + immersive mode)
   screens/
-    home_screen.dart             # game chooser
+    home_screen.dart             # game chooser + Buddy button
     levels_screen.dart           # shared difficulty picker
     jigsaw_game_screen.dart      # picture puzzle
     animal_food_screen.dart      # feed the animals
     memory_game_screen.dart      # matching pairs
     bubble_pop_screen.dart       # bubble popping
     find_it_screen.dart          # find the matching animal
+    companion_screen.dart        # Buddy chat (Gemini)
+  services/
+    buddy_service.dart           # Gemini API wrapper
   widgets/
     game_background.dart         # shared gradient background
     round_button.dart            # shared round emoji button

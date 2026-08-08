@@ -5,6 +5,34 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.1.0] — 2026-08-08
+
+### Added
+- **Buddy 🐻 — a talking companion** on the home screen (bottom-right
+  button). Tap it to chat: replies stream in as speech bubbles and are
+  spoken aloud with the system text-to-speech engine. Toddler-friendly tap
+  chips ("Tell me a story! 🐰", "What does a cow say? 🐮"…) plus a text
+  field for grown-ups. Powered by Google Gemini (default model
+  `gemini-2.5-flash`), with a toddler-safe system prompt (very short
+  answers, same language as the child, no dangerous suggestions).
+  - **API key**: passed at build time via
+    `--dart-define=GEMINI_API_KEY=...` — never stored in the repo. Without
+    a key the companion shows a friendly "ask a grown-up" message.
+  - New packages: `google_generative_ai`, `flutter_tts`.
+
+### Changed
+- **INTERNET permission added** — required for Buddy. All games still work
+  fully offline.
+- New `lib/services/buddy_service.dart`; home screen now has a
+  floating action button.
+
+### Notes
+- `flutter analyze`: 0 issues; tests passing (companion fallback + Buddy
+  button checks added).
+- Companion verified on-device; live Gemini replies require the API key.
+
+---
+
 ## [1.0.5] — 2026-08-08
 
 ### Fixed

@@ -5,7 +5,7 @@ import 'dart:typed_data';
 /// counting near-white pixels in a raw Android screencap.
 ///
 /// Usage:
-///   dart run tool/pixelcheck.dart <raw_screencap_file> <x1> <y1> <x2> <y2>
+///   dart run tool/pixelcheck.dart `file` `x1` `y1` `x2` `y2`
 ///
 /// The file must be a raw screencap (`adb exec-out screencap > file`, NOT
 /// `-p`), which is a 16-byte header (width, height, format, colorspace as
@@ -13,7 +13,8 @@ import 'dart:typed_data';
 void main(List<String> args) {
   if (args.length != 5) {
     stderr.writeln(
-        'usage: dart run tool/pixelcheck.dart <file> <x1> <y1> <x2> <y2>');
+      'usage: dart run tool/pixelcheck.dart <file> <x1> <y1> <x2> <y2>',
+    );
     exit(1);
   }
   final bytes = File(args[0]).readAsBytesSync();

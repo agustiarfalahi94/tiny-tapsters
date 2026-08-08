@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../widgets/game_background.dart';
 import 'animal_food_screen.dart';
 import 'bubble_pop_screen.dart';
+import 'companion_screen.dart';
 import 'find_it_screen.dart';
 import 'jigsaw_game_screen.dart';
 import 'levels_screen.dart';
@@ -15,6 +16,14 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Buddy 🐻 — the talking companion, always one tap away.
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _open(context, const CompanionScreen()),
+        backgroundColor: Colors.white,
+        elevation: 6,
+        tooltip: 'Talk to Buddy',
+        child: const Text('🐻', style: TextStyle(fontSize: 32)),
+      ),
       body: GameBackground(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
