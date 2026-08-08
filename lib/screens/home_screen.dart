@@ -36,7 +36,7 @@ class HomeScreen extends StatelessWidget {
               style: TextStyle(fontSize: 56),
             ),
             const Text(
-              "Our Toddlers' Journey",
+              'Tiny Tapsters',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 34,

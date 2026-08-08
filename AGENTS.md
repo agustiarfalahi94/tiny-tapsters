@@ -2,7 +2,10 @@
 
 ## Project
 
-Our Toddlers' Journey — Flutter toddler-games app (`com.lilianyoctoria.toddlers_journey`). v1.5.0 · Flutter 3.41.6 · **One external package: audioplayers (SFX)** · **Zero permissions** · Fully offline · Android-first · Emoji-based graphics (no image assets) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.6.0+21 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets, only `assets/sfx/pop.wav`) · Shared signing keystore with the `random_recall` project.
+
+**Packages**: `audioplayers` (SFX), `google_generative_ai` + `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev.
+**Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The six games are fully offline; Pollie is the sole network feature.
 
 ## Git flow
 
@@ -25,10 +28,9 @@ flutter build apk --release           # when native config or deps changed
 
 - Do NOT commit `android/key.properties` or `android/app/release-keystore.jks` (keystore secrets, git-ignored).
 - Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature. Permissions: INTERNET + RECORD_AUDIO (voice chat).
-- Never commit a Gemini API key: it is passed at build time via `--dart-define=GEMINI_API_KEY=...`.
-- Background music plays on home/games, NOT on the Pollie screen; pause/resume with app lifecycle.
+- Never commit a Gemini API key: it is passed at build time via `--dart-define=GEMINI_API_KEY=...` (CI reads the `GEMINI_API_KEY` repo secret).
 - All games must be playable without reading: big emoji, no required text.
-- Keep CHANGELOG.md + README.md in sync with real changes.
+- Keep CHANGELOG.md + README.md in sync with real changes, and CLAUDE.md consistent with this file.
 
 ## Key files
 
@@ -38,5 +40,6 @@ flutter build apk --release           # when native config or deps changed
 - `lib/services/pollie_service.dart` — Gemini wrapper for the Pollie companion (strict safety settings + kid-safe prompt).
 - `lib/services/kid_safety.dart` — local adult-word guard (input + output).
 - `lib/services/sound_effects.dart` — one-shot SFX (bubble pop); regenerate the asset with `dart run tool/generate_sfx.dart`.
-- `tool/generate_icon.dart` — pure-Dart launcher-icon generator (no Flutter engine); writes all mipmap PNGs + adaptive icon resources. Re-run with `dart run tool/generate_icon.dart` after changing the design.
-- `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety tests.
+- `tool/generate_icon.dart` — pure-Dart launcher-icon generator (no Flutter engine, no packages); derives all mipmap PNGs + adaptive icon resources from `assets/branding/tiny-tapsters-logo.png`. Contains its own PNG decoder and encoder. Re-run with `dart run tool/generate_icon.dart` after changing the logo. The master artwork is build-time only — never add it to `pubspec.yaml`.
+- `.github/workflows/release-apk.yml` — on `v*` tag push: analyze + test, sign with the real keystore, attach the APK to the GitHub release.
+- `test/widget_test.dart` — **16 tests**: home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety + quota tests, and the count-game flow (seeded RNG: wrong tap doesn't advance, star thresholds, double-tap guard, Big-mode boundary).

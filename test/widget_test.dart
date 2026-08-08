@@ -2,16 +2,16 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:toddlers_journey/main.dart';
-import 'package:toddlers_journey/screens/animal_food_screen.dart';
-import 'package:toddlers_journey/screens/bubble_pop_screen.dart';
-import 'package:toddlers_journey/screens/companion_screen.dart';
-import 'package:toddlers_journey/screens/count_game_screen.dart';
-import 'package:toddlers_journey/screens/find_it_screen.dart';
-import 'package:toddlers_journey/screens/jigsaw_game_screen.dart';
-import 'package:toddlers_journey/screens/memory_game_screen.dart';
-import 'package:toddlers_journey/services/kid_safety.dart';
-import 'package:toddlers_journey/services/pollie_service.dart';
+import 'package:tiny_tapsters/main.dart';
+import 'package:tiny_tapsters/screens/animal_food_screen.dart';
+import 'package:tiny_tapsters/screens/bubble_pop_screen.dart';
+import 'package:tiny_tapsters/screens/companion_screen.dart';
+import 'package:tiny_tapsters/screens/count_game_screen.dart';
+import 'package:tiny_tapsters/screens/find_it_screen.dart';
+import 'package:tiny_tapsters/screens/jigsaw_game_screen.dart';
+import 'package:tiny_tapsters/screens/memory_game_screen.dart';
+import 'package:tiny_tapsters/services/kid_safety.dart';
+import 'package:tiny_tapsters/services/pollie_service.dart';
 
 void main() {
   testWidgets('home screen shows all six games', (tester) async {
@@ -68,7 +68,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const ToddlerGamesApp());
-    final title = find.text("Our Toddlers' Journey");
+    final title = find.text('Tiny Tapsters');
 
     expect(
       tester.getCenter(title).dx,
