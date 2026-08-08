@@ -5,6 +5,19 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.4.3] — 2026-08-08
+
+### Added
+- **Quota-reset notice** — when Pollie is out of words for the day, the
+  message now includes when he'll be back, computed from Gemini's daily
+  reset (midnight Pacific, DST-aware): "He'll be back at 14:00 (in about
+  3 h 20 m) 😴".
+
+### Notes
+- `flutter analyze`: 0 issues; 13/13 tests (new: reset-label format test).
+
+---
+
 ## [1.4.2] — 2026-08-08
 
 ### Fixed

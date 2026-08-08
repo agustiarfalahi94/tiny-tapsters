@@ -8,6 +8,7 @@ import 'package:toddlers_journey/screens/find_it_screen.dart';
 import 'package:toddlers_journey/screens/jigsaw_game_screen.dart';
 import 'package:toddlers_journey/screens/memory_game_screen.dart';
 import 'package:toddlers_journey/services/kid_safety.dart';
+import 'package:toddlers_journey/services/pollie_service.dart';
 
 void main() {
   testWidgets('home screen shows all five games', (tester) async {
@@ -241,6 +242,17 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.textContaining("can't reach the internet"), findsOneWidget);
+  });
+
+  testWidgets('quota reset label is computed and formatted', (tester) async {
+    final label = PollieService().quotaResetLabel();
+    expect(
+      RegExp(
+        r'^at \d{2}:\d{2} \(in about (\d+ h \d+ m|\d+ m)\)$',
+      ).hasMatch(label),
+      isTrue,
+      reason: label,
+    );
   });
 
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {

@@ -191,8 +191,8 @@ class _CompanionScreenState extends State<CompanionScreen>
             text: awake
                 ? _greeting
                 : result == PolliePing.quota
-                ? "Pollie talked so much today that he's all out of "
-                      'words! He\'ll wake up tomorrow with new stories 😴'
+                ? 'Pollie is all out of words for today! '
+                      "He'll be back ${_pollie.quotaResetLabel()} 😴"
                 : 'Zzz… I can\'t reach the internet yet. '
                       'Tap me to try waking up again! 😴',
           ),
@@ -413,7 +413,7 @@ class _CompanionScreenState extends State<CompanionScreen>
             role: 'model',
             text: quota
                 ? 'Pollie is all out of words for today! '
-                      "He'll be back tomorrow 😴"
+                      "He'll be back ${_pollie.quotaResetLabel()} 😴"
                 : _pollie.isConfigured
                 ? 'Oops, I got lost for a moment! 😅 '
                       'Can you ask me again?'

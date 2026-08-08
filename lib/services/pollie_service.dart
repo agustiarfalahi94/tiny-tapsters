@@ -72,6 +72,54 @@ Rules:
       _lastPingOk != null &&
       DateTime.now().difference(_lastPingOk!) < const Duration(minutes: 5);
 
+  /// When the Gemini free-tier daily quota resets, in local time.
+  /// Google resets daily quotas at 12:00 AM Pacific Time.
+  DateTime nextDailyReset() {
+    final nowUtc = DateTime.now().toUtc();
+    var resetUtc = DateTime.utc(
+      nowUtc.year,
+      nowUtc.month,
+      nowUtc.day,
+      _pacificUtcMidnightHour(nowUtc),
+    );
+    if (!resetUtc.isAfter(nowUtc)) {
+      resetUtc = resetUtc.add(const Duration(days: 1));
+    }
+    return resetUtc.toLocal();
+  }
+
+  /// "at HH:MM (in about Xh Ym)" — the notice shown when Pollie is out of
+  /// words for the day.
+  String quotaResetLabel() {
+    final reset = nextDailyReset();
+    final diff = reset.difference(DateTime.now());
+    final hours = diff.inHours;
+    final minutes = diff.inMinutes % 60;
+    final time =
+        '${reset.hour.toString().padLeft(2, '0')}:'
+        '${reset.minute.toString().padLeft(2, '0')}';
+    final inText = hours > 0 ? 'about $hours h $minutes m' : 'about $minutes m';
+    return 'at $time (in $inText)';
+  }
+
+  /// Hour (UTC) at which it is 12:00 AM in the Pacific timezone, following
+  /// US daylight-saving rules (2nd Sunday of March → 1st Sunday of November).
+  int _pacificUtcMidnightHour(DateTime utc) {
+    final year = utc.year;
+    DateTime nthSunday(int month, int n) {
+      final first = DateTime.utc(year, month, 1);
+      final daysToFirstSunday = (7 - first.weekday) % 7;
+      return DateTime.utc(year, month, 1 + daysToFirstSunday + (n - 1) * 7);
+    }
+
+    // DST starts 02:00 PDT (= 09:00 UTC) on the 2nd Sunday of March and
+    // ends 02:00 PDT (= 09:00 UTC) on the 1st Sunday of November.
+    final dstStart = nthSunday(3, 2).add(const Duration(hours: 9));
+    final dstEnd = nthSunday(11, 1).add(const Duration(hours: 9));
+    final inDst = !utc.isBefore(dstStart) && utc.isBefore(dstEnd);
+    return inDst ? 7 : 8;
+  }
+
   /// Strictest possible safety blocking on every category, applied to both
   /// the child's input and Pollie's output.
   static final _safetySettings = [
