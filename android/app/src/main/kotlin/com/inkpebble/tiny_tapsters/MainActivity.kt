@@ -1,4 +1,4 @@
-package com.lilianyoctoria.toddlers_journey
+package com.inkpebble.tiny_tapsters
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -60,17 +60,17 @@ jobs:
         run: flutter build apk --release --dart-define=GEMINI_API_KEY=$GEMINI_API_KEY
 
       - name: Name the APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/our-toddlers-journey-${GITHUB_REF_NAME}.apk"
+        run: cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/tiny-tapsters-${GITHUB_REF_NAME}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: our-toddlers-journey-apk
-          path: build/app/outputs/flutter-apk/our-toddlers-journey-*.apk
+          name: tiny-tapsters-apk
+          path: build/app/outputs/flutter-apk/tiny-tapsters-*.apk
           if-no-files-found: error
 
       - name: Attach APK to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/our-toddlers-journey-*.apk
+          files: build/app/outputs/flutter-apk/tiny-tapsters-*.apk
