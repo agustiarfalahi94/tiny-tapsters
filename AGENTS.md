@@ -2,7 +2,7 @@
 
 ## Project
 
-Our Toddlers' Journey — Flutter toddler-games app (`com.lilianyoctoria.toddlers_journey`). v1.0.0 · Flutter 3.41.6 · **Zero external packages** · **Zero permissions** · Fully offline · Android-first · Emoji-based graphics (no image assets) · Shared signing keystore with the `random_recall` project.
+Our Toddlers' Journey — Flutter toddler-games app (`com.lilianyoctoria.toddlers_journey`). v1.5.0 · Flutter 3.41.6 · **One external package: audioplayers (SFX)** · **Zero permissions** · Fully offline · Android-first · Emoji-based graphics (no image assets) · Shared signing keystore with the `random_recall` project.
 
 ## Git flow
 
@@ -17,7 +17,7 @@ Our Toddlers' Journey — Flutter toddler-games app (`com.lilianyoctoria.toddler
 ```bash
 flutter analyze                       # must say "No issues found!"
 dart format --set-exit-if-changed lib/ test/
-flutter test                          # 3/3
+flutter test
 flutter build apk --release           # when native config or deps changed
 ```
 

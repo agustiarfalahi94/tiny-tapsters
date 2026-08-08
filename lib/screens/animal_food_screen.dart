@@ -8,6 +8,27 @@ import '../widgets/round_button.dart';
 /// Animal Food: the slots show each animal's favorite food (carrot, grass,
 /// hay…) and the drawer holds the animals. Drag the rabbit to the carrot, the
 /// cow to the grass, the horse to the hay!
+/// The 15 animals shared across games (Count the Animals! picks its question
+/// emojis from this pool). Must stay the single source of truth for the
+/// animal half of [_allPairs].
+const kAnimalEmojis = [
+  '🐰', // 0 rabbit → carrot
+  '🐮', // 1 cow → grass
+  '🐴', // 2 horse → apple (a classic horse treat)
+  '🐶', // 3 dog → bone
+  '🐱', // 4 cat → fish
+  '🐭', // 5 mouse → cheese
+  '🐵', // 6 monkey → banana
+  '🐻', // 7 bear → honey
+  '🐔', // 8 chicken → corn
+  '🦁', // 9 lion → meat
+  '🦒', // 10 giraffe → leaves
+  '🐘', // 11 elephant → watermelon
+  '🐸', // 12 frog → bug
+  '🐧', // 13 penguin → shrimp
+  '🦋', // 14 butterfly → flower
+];
+
 class AnimalFoodGameScreen extends StatefulWidget {
   const AnimalFoodGameScreen({super.key, required this.pairs});
 
@@ -20,22 +41,22 @@ class AnimalFoodGameScreen extends StatefulWidget {
 class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
   // 15 animal/food pairs with strong toddler stereotypes and clearly
   // distinct food emojis. Each game picks a shuffled subset.
-  static const _allPairs = [
-    ('🐰', '🥕'), // rabbit → carrot
-    ('🐮', '🌱'), // cow → grass
-    ('🐴', '🍎'), // horse → apple (a classic horse treat)
-    ('🐶', '🦴'), // dog → bone
-    ('🐱', '🐟'), // cat → fish
-    ('🐭', '🧀'), // mouse → cheese
-    ('🐵', '🍌'), // monkey → banana
-    ('🐻', '🍯'), // bear → honey
-    ('🐔', '🌽'), // chicken → corn
-    ('🦁', '🥩'), // lion → meat
-    ('🦒', '🍃'), // giraffe → leaves
-    ('🐘', '🍉'), // elephant → watermelon
-    ('🐸', '🐛'), // frog → bug
-    ('🐧', '🦐'), // penguin → shrimp
-    ('🦋', '🌸'), // butterfly → flower
+  static final _allPairs = [
+    (kAnimalEmojis[0], '🥕'), // rabbit → carrot
+    (kAnimalEmojis[1], '🌱'), // cow → grass
+    (kAnimalEmojis[2], '🍎'), // horse → apple (a classic horse treat)
+    (kAnimalEmojis[3], '🦴'), // dog → bone
+    (kAnimalEmojis[4], '🐟'), // cat → fish
+    (kAnimalEmojis[5], '🧀'), // mouse → cheese
+    (kAnimalEmojis[6], '🍌'), // monkey → banana
+    (kAnimalEmojis[7], '🍯'), // bear → honey
+    (kAnimalEmojis[8], '🌽'), // chicken → corn
+    (kAnimalEmojis[9], '🥩'), // lion → meat
+    (kAnimalEmojis[10], '🍃'), // giraffe → leaves
+    (kAnimalEmojis[11], '🍉'), // elephant → watermelon
+    (kAnimalEmojis[12], '🐛'), // frog → bug
+    (kAnimalEmojis[13], '🦐'), // penguin → shrimp
+    (kAnimalEmojis[14], '🌸'), // butterfly → flower
   ];
 
   late List<(String, String)> _pairs;

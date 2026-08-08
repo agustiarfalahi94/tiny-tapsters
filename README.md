@@ -19,6 +19,9 @@ only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
   get faster each round.
 - **Find It!** — "Find the 🐶!": tap the matching animal in the grid. Find 5 to
   win; fewer wrong taps means more stars. Easy (6), Medium (9), Big (12).
+- **Count the Animals!** — count the big animal emojis and tap the number card
+  (digit + dot pattern) that matches. Wrong taps shake and let you try again.
+  Easy (count to 3), Medium (to 5), Big (to 10).
 - **Pollie 🦜** — a talking companion on the home screen (bottom-right
   button). Pollie sleeps 😴 while offline and smiles 😊 when connected, then
   greets the child. **Talk to him with the 🎤 button** (speech is
@@ -83,6 +86,7 @@ lib/
     memory_game_screen.dart      # matching pairs
     bubble_pop_screen.dart       # bubble popping
     find_it_screen.dart          # find the matching animal
+    count_game_screen.dart       # count the animals
     companion_screen.dart        # Pollie chat (Gemini)
   services/
     pollie_service.dart          # Gemini API wrapper

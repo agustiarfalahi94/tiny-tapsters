@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toddlers_journey/main.dart';
 import 'package:toddlers_journey/screens/animal_food_screen.dart';
 import 'package:toddlers_journey/screens/bubble_pop_screen.dart';
 import 'package:toddlers_journey/screens/companion_screen.dart';
+import 'package:toddlers_journey/screens/count_game_screen.dart';
 import 'package:toddlers_journey/screens/find_it_screen.dart';
 import 'package:toddlers_journey/screens/jigsaw_game_screen.dart';
 import 'package:toddlers_journey/screens/memory_game_screen.dart';
@@ -11,7 +14,7 @@ import 'package:toddlers_journey/services/kid_safety.dart';
 import 'package:toddlers_journey/services/pollie_service.dart';
 
 void main() {
-  testWidgets('home screen shows all five games', (tester) async {
+  testWidgets('home screen shows all six games', (tester) async {
     await tester.pumpWidget(const ToddlerGamesApp());
     final scrollable = find.byType(Scrollable).first;
     for (final title in [
@@ -20,6 +23,7 @@ void main() {
       'Memory Match',
       'Bubble Pop',
       'Find It!',
+      'Count the Animals!',
     ]) {
       await tester.scrollUntilVisible(
         find.text(title),
@@ -42,6 +46,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.pumpWidget(
+      const MaterialApp(home: CountGameScreen(maxCount: 3)),
+    );
     await tester.pump(const Duration(milliseconds: 100));
 
     // Bubble Pop runs an endless animation; pump frames instead of settling.
@@ -255,6 +264,102 @@ void main() {
     );
   });
 
+  testWidgets('count game: wrong tap never advances, correct tap does', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: CountGameScreen(maxCount: 3, random: math.Random(42))),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Round 1: a wrong tap first — the card shakes but the round does NOT
+    // advance (easy cards are always exactly {1, 2, 3}, so any other value
+    // is a real wrong card).
+    final n = countQuestionAnimals(tester);
+    final wrong = n == 1 ? 2 : 1;
+    await tester.tap(find.byKey(ValueKey('answer-$wrong')));
+    await tester.pump(const Duration(milliseconds: 500)); // shake finishes
+    expect(
+      countQuestionAnimals(tester),
+      n,
+      reason: 'wrong tap must not start a new round',
+    );
+    expect(countRoundDotColor(tester, 0), isNot(const Color(0xFFFF9800)));
+
+    // The correct tap highlights, then advances after the ~600ms delay.
+    await tester.tap(find.byKey(ValueKey('answer-$n')));
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(
+      countRoundDotColor(tester, 0),
+      const Color(0xFFFF9800),
+      reason: 'round 1 complete',
+    );
+
+    // Finish the remaining 4 rounds perfectly.
+    for (var i = 0; i < 4; i++) {
+      final count = countQuestionAnimals(tester);
+      await tester.tap(find.byKey(ValueKey('answer-$count')));
+      await tester.pump(const Duration(milliseconds: 700));
+    }
+
+    // Exactly 1 wrong tap in the whole game → 3 stars.
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byIcon(Icons.star), findsNWidgets(3));
+    expect(find.byIcon(Icons.star_border), findsNothing);
+  });
+
+  testWidgets('count game: double tap during the advance delay counts once', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: CountGameScreen(maxCount: 3, random: math.Random(7))),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final n = countQuestionAnimals(tester);
+    await tester.tap(find.byKey(ValueKey('answer-$n')));
+    await tester.pump(
+      const Duration(milliseconds: 300),
+    ); // inside the 600ms window
+    await tester.tap(find.byKey(ValueKey('answer-$n'))); // guarded by _busy
+    await tester.pump(const Duration(milliseconds: 400)); // past the window
+
+    expect(
+      countRoundDotColor(tester, 0),
+      const Color(0xFFFF9800),
+      reason: 'round must advance exactly once',
+    );
+    expect(
+      countRoundDotColor(tester, 1),
+      isNot(const Color(0xFFFF9800)),
+      reason: 'the double tap must not skip a second round',
+    );
+  });
+
+  testWidgets('count game: big mode with many mistakes earns one star', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(home: CountGameScreen(maxCount: 10, random: math.Random(7))),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Answer wrong on every round: 5 mistakes total (≥4) → 1 star.
+    // maxCount 10 also exercises the full 10-animal / 10-dot layout.
+    for (var round = 0; round < 5; round++) {
+      final n = countQuestionAnimals(tester);
+      final wrong = countAnswerValues(tester).firstWhere((v) => v != n);
+      await tester.tap(find.byKey(ValueKey('answer-$wrong')));
+      await tester.pump(const Duration(milliseconds: 400)); // shake finishes
+      await tester.tap(find.byKey(ValueKey('answer-$n')));
+      await tester.pump(const Duration(milliseconds: 700)); // advance delay
+    }
+
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byIcon(Icons.star), findsOneWidget);
+    expect(find.byIcon(Icons.star_border), findsNWidgets(2));
+  });
+
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
 
@@ -293,4 +398,39 @@ void main() {
             as BoxDecoration;
     expect(cardBox.color, Colors.white);
   });
+}
+
+// --- Count the Animals! test helpers --------------------------------------
+
+/// The number of animal emojis in the question pill (each is a 40px Text).
+int countQuestionAnimals(WidgetTester tester) => tester
+    .widgetList<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('question-pill')),
+        matching: find.byWidgetPredicate(
+          (w) => w is Text && w.style?.fontSize == 40 && w.data != null,
+        ),
+      ),
+    )
+    .length;
+
+/// The three digit values shown on the answer cards this round.
+List<int> countAnswerValues(WidgetTester tester) => tester
+    .widgetList<Text>(
+      find.descendant(
+        of: find.byType(KeyedSubtree),
+        matching: find.byWidgetPredicate(
+          (w) => w is Text && w.style?.fontSize == 54 && w.data != null,
+        ),
+      ),
+    )
+    .map((t) => int.parse(t.data!))
+    .toList();
+
+/// Color of round-progress dot [i] (orange once round i is complete).
+Color countRoundDotColor(WidgetTester tester, int i) {
+  final box =
+      tester.widget<Container>(find.byKey(ValueKey('round-dot-$i'))).decoration!
+          as BoxDecoration;
+  return box.color!;
 }
