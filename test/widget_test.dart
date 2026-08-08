@@ -52,6 +52,39 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
   });
 
+  testWidgets('home title stays centered after returning from a game', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const ToddlerGamesApp());
+    final title = find.text("Our Toddlers' Journey");
+
+    expect(
+      tester.getCenter(title).dx,
+      closeTo(400, 5),
+    ); // 800x600 test viewport
+
+    // Find It! → Easy → back → back.
+    await tester.scrollUntilVisible(
+      find.text('Find It!'),
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
+    // scrollUntilVisible only guarantees partial visibility — scroll a bit
+    // more so the card is fully on screen before tapping it.
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Find It!'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Easy'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('🏠')); // back from the game
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('🏠')); // back from the level picker
+    await tester.pumpAndSettle();
+
+    expect(tester.getCenter(title).dx, closeTo(400, 5));
+  });
+
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
 

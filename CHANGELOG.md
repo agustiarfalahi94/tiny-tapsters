@@ -5,6 +5,21 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.0.2] — 2026-08-08
+
+### Fixed
+- **Jigsaw picture smaller than the board** — pieces were half the slot size
+  and scaled their cell region down to fit, so the assembled picture only
+  filled half the puzzle square. Pieces are now exactly slot-sized, so the
+  picture assembles 1:1 and fills the board.
+- **Home title could appear left-aligned** — the header texts now center
+  explicitly (regression-tested through game navigation).
+
+### Notes
+- `flutter analyze`: 0 issues; 4/4 tests passing.
+
+---
+
 ## [1.0.1] — 2026-08-08
 
 ### Changed

@@ -17,11 +17,17 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       body: GameBackground(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 16),
-            const Text('🌈', style: TextStyle(fontSize: 56)),
+            const Text(
+              '🌈',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 56),
+            ),
             const Text(
               "Our Toddlers' Journey",
+              textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 34,
                 fontWeight: FontWeight.bold,
@@ -32,6 +38,7 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 4),
             const Text(
               'Fun games for little learners',
+              textAlign: TextAlign.center,
               style: TextStyle(fontSize: 17, color: Colors.white),
             ),
             const SizedBox(height: 12),

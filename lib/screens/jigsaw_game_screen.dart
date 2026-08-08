@@ -96,8 +96,9 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
                     pairCount: widget.rows * widget.cols,
                     maxCols: widget.cols,
                     gap: 0,
-                    pieceScale: 0.5,
-                    pieceSizeCap: 64,
+                    // Pieces are exactly slot-sized so the assembled picture
+                    // fills the board 1:1 (smaller pieces would shrink the
+                    // whole picture down with them).
                     boardBackgroundBuilder: _buildBoardBackground,
                     slotBuilder: _buildSlot,
                     pieceBuilder: _buildSlice,
@@ -153,8 +154,8 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
   ) {
     final row = index ~/ widget.cols;
     final col = index % widget.cols;
-    final s = pieceSize / slotSize;
-    // Show the (row, col) cell of the picture, scaled to the piece size.
+    final s = pieceSize / slotSize; // 1.0 for the jigsaw (pieces = slots)
+    // Show the (row, col) cell of the picture at full size.
     return ClipRect(
       child: Stack(
         children: [
