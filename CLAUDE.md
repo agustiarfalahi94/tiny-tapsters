@@ -2,8 +2,8 @@
 
 ## Quick facts
 
-- **Our Toddlers' Journey**: Flutter toddler-games app (`com.lilianyoctoria.toddlers_journey`), **v1.5.0+20**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
-- **Dependencies**: `audioplayers` (SFX), `google_generative_ai` + `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. Only asset: `assets/sfx/pop.wav`.
+- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.6.0+21**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
+- **Dependencies**: `audioplayers` (SFX), `google_generative_ai` + `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. Only *bundled* asset: `assets/sfx/pop.wav` — `assets/branding/tiny-tapsters-logo.png` is build-time input for the icon generator and is deliberately not in `pubspec.yaml`.
 - **Permissions**: `INTERNET` + `RECORD_AUDIO` — both exist only for Pollie's voice chat. **All six games are fully offline**; Pollie is the sole network feature.
 - **Default branch is `develop`**; release = merge to `main` + annotated tag `vX.Y.Z` (push both).
 - **Features go on a dedicated `feature/<name>` branch** off `develop` — never commit feature work straight to `develop`. Plan in chat first, then execute.
@@ -26,7 +26,7 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
 - `lib/widgets/pair_drag_game.dart` — shared drag-to-slot engine (jigsaw + Animal Food).
 - `lib/widgets/celebration_overlay.dart` — shared win overlay (confetti + stars + buttons).
 - `lib/services/` — `pollie_service` (Gemini wrapper, strict safety settings), `kid_safety` (local adult-word guard on input *and* output), `sound_effects` (one-shot SFX).
-- `tool/` — dependency-free Dart generators: `generate_icon.dart` (launcher icon + adaptive resources), `generate_sfx.dart` (pop.wav), `pixelcheck.dart`.
+- `tool/` — dependency-free Dart generators: `generate_icon.dart` (crops the badge out of `assets/branding/tiny-tapsters-logo.png` and writes the legacy + adaptive launcher icons; has its own PNG decoder/encoder), `generate_sfx.dart` (pop.wav), `pixelcheck.dart`.
 - `.github/workflows/release-apk.yml` — on `v*` tag push: analyze + test, sign with the real keystore, attach the APK to the GitHub release.
 
 ## Constraints

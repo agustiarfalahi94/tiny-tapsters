@@ -1,7 +1,45 @@
 # Changelog
 
-All notable changes to Our Toddlers' Journey are documented here.
+All notable changes to Tiny Tapsters are documented here.
 Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
+
+---
+
+## [1.6.0] — 2026-08-08
+
+### Changed
+- **The app is now Tiny Tapsters** (was "Our Toddlers' Journey") — new name
+  across the launcher label, the home screen title, the window title, the
+  README and this changelog. The old name was cut off by every launcher
+  ("Our Toddlers'…"), was written from the parents' point of view rather than
+  the child's, and promised a "journey" the app does not actually track.
+- **Package renamed to `com.inkpebble.tiny_tapsters`** (was
+  `com.lilianyoctoria.toddlers_journey`), moving to the same `inkpebble`
+  developer prefix as the `random_recall` project. Android treats this as a
+  new application: it installs alongside the old one instead of updating it,
+  so the previous version must be uninstalled by hand. Done now, before any
+  Play Store publish would have frozen the old identifier forever.
+- **Dart package renamed** `toddlers_journey` → `tiny_tapsters`, and
+  `pubspec.yaml` finally has a real description instead of the Flutter
+  template's "A new Flutter project."
+- Release APKs are now named `tiny-tapsters-vX.Y.Z.apk`.
+
+### Added
+- **Real launcher icon from the Tiny Tapsters artwork** — the mint badge with
+  the tablet-holding baby, replacing the hand-drawn smiley. `assets/branding/`
+  holds the master logo; it is build-time only and is not bundled into the APK.
+
+### Improved
+- **`tool/generate_icon.dart` rewritten** to derive icons from the artwork
+  instead of drawing a design in code. Still pure Dart with no packages: it
+  now includes a small PNG *decoder* (8-bit truecolour) alongside the existing
+  encoder. It locates the badge, samples its mint fill, knocks the white page
+  colour out of the rounded corners by flood fill (which preserves the white
+  sparkles and eyes, since those are enclosed by ink), isolates the baby as
+  the largest connected blob, and fits it to the adaptive-icon safe zone.
+
+### Notes
+- `flutter analyze`: 0 issues; 16/16 tests.
 
 ---
 

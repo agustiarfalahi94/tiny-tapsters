@@ -1,4 +1,4 @@
-# Our Toddlers' Journey — Toddler Games
+# Tiny Tapsters — Toddler Games
 
 Free toddler games for Android, built with Flutter. No ads, no tracking —
 just big colorful buttons and emoji. **All games work fully offline**; the
@@ -44,8 +44,8 @@ git-ignored) and minified with R8.
 ## Download the APK
 
 Every release has a ready-to-install APK attached to it:
-<https://github.com/agustiarfalahi94/our-toddlers-journey/releases> —
-open a version and grab the `our-toddlers-journey-vX.Y.Z.apk` asset.
+<https://github.com/agustiarfalahi94/tiny-tapsters/releases> —
+open a version and grab the `tiny-tapsters-vX.Y.Z.apk` asset.
 
 - The APK is built automatically by the `Release APK` GitHub Actions
   workflow (analyze + tests must pass, then it signs with the real
@@ -90,6 +90,8 @@ lib/
     companion_screen.dart        # Pollie chat (Gemini)
   services/
     pollie_service.dart          # Gemini API wrapper
+    kid_safety.dart              # local adult-word guard (input + output)
+    sound_effects.dart           # one-shot SFX (bubble pop)
   widgets/
     game_background.dart         # shared gradient background
     round_button.dart            # shared round emoji button
@@ -97,7 +99,30 @@ lib/
     pair_drag_game.dart          # shared drag-to-slot engine (jigsaw + food)
     flip_card.dart               # 3D card flip animation
     confetti.dart                # celebration effect
+assets/
+  branding/
+    tiny-tapsters-logo.png       # master artwork (build-time only, not bundled)
+  sfx/pop.wav
+tool/
+  generate_icon.dart             # launcher icons, derived from the logo
+  generate_sfx.dart              # regenerates pop.wav
 ```
+
+## Branding
+
+The launcher icon is generated from `assets/branding/tiny-tapsters-logo.png`
+(the full Canva artwork) by a pure-Dart tool — no packages, no Flutter engine:
+
+```sh
+dart run tool/generate_icon.dart
+```
+
+It crops the badge out of the artwork, drops the wordmark (illegible at icon
+sizes), knocks the white page colour out of the rounded corners, and writes
+both the legacy mipmap PNGs and the adaptive icon — the baby isolated on
+transparency as the foreground, over the badge's own mint as a solid
+background. Re-run it after changing the logo. The artwork itself is *not*
+listed in `pubspec.yaml`, so it never ships inside the APK.
 
 ## Test
 
