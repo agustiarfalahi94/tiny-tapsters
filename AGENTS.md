@@ -33,5 +33,7 @@ flutter build apk --release           # when native config or deps changed
 - `lib/widgets/pair_drag_game.dart` — shared drag-to-slot engine (jigsaw + Animal Food). Piece movement must stay instant; never reintroduce animated slide-backs (they read as "trails").
 - `lib/widgets/celebration_overlay.dart` — shared win overlay (confetti + stars + buttons).
 - `lib/screens/levels_screen.dart` — shared difficulty picker.
-- `lib/services/pollie_service.dart` — Gemini wrapper for the Pollie companion.
-- `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback.
+- `lib/services/pollie_service.dart` — Gemini wrapper for the Pollie companion (strict safety settings + kid-safe prompt).
+- `lib/services/kid_safety.dart` — local adult-word guard (input + output).
+- `lib/services/music_player.dart` — background lullaby (suppressed on the Pollie screen).
+- `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety tests.

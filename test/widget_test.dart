@@ -7,6 +7,7 @@ import 'package:toddlers_journey/screens/companion_screen.dart';
 import 'package:toddlers_journey/screens/find_it_screen.dart';
 import 'package:toddlers_journey/screens/jigsaw_game_screen.dart';
 import 'package:toddlers_journey/screens/memory_game_screen.dart';
+import 'package:toddlers_journey/services/kid_safety.dart';
 
 void main() {
   testWidgets('home screen shows all five games', (tester) async {
@@ -202,6 +203,31 @@ void main() {
   testWidgets('home screen has the Pollie button', (tester) async {
     await tester.pumpWidget(const ToddlerGamesApp());
     expect(find.byTooltip('Talk to Pollie'), findsOneWidget);
+  });
+
+  testWidgets('companion blocks inappropriate input gently', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), 'fuck you');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+
+    // The child sees only Pollie's gentle redirect — never the bad word.
+    expect(find.textContaining('not a nice thing'), findsOneWidget);
+    expect(find.textContaining('fuck'), findsNothing);
+  });
+
+  testWidgets('KidSafety catches adult words but not innocent ones', (
+    tester,
+  ) async {
+    expect(KidSafety.containsBlocked('fuck this'), isTrue);
+    expect(KidSafety.containsBlocked('kontol'), isTrue);
+    expect(KidSafety.containsBlocked('you are stupid'), isTrue);
+    // Innocent words with similar substrings must pass.
+    expect(KidSafety.containsBlocked('hello friend'), isFalse);
+    expect(KidSafety.containsBlocked('my class is fun'), isFalse);
+    expect(KidSafety.containsBlocked('tell me a story'), isFalse);
   });
 
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {

@@ -5,6 +5,26 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.3.1] — 2026-08-08
+
+### Added
+- **Kid-safety layers for Pollie** (defense in depth):
+  - **Strictest Gemini safety filters** — every harm category (sexual,
+    harassment, hate speech, dangerous content) is blocked at the lowest
+    threshold (`BLOCK_LOW_AND_ABOVE`) for both input and output.
+  - **Hardened system prompt** — Pollie is forbidden from sex, dating,
+    violence, drugs, bad words; inappropriate talk gets a gentle redirect.
+  - **Local content guard** (`lib/services/kid_safety.dart`) — adult/abusive
+    words (English + Indonesian) are caught before they reach Google (input)
+    and before they reach the child (output); the child only ever sees a
+    gentle "that's not a nice thing to say" message.
+
+### Notes
+- `flutter analyze`: 0 issues; 11/11 tests (new: blocked-input widget test +
+  KidSafety unit test).
+
+---
+
 ## [1.3.0] — 2026-08-08
 
 ### Added

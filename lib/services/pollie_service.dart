@@ -49,6 +49,10 @@ Rules:
 - Never use asterisks, roleplay sounds, or *action* markers — just plain
   speech.
 - Never mention that you are an AI or a model.
+- SAFETY (most important): NEVER discuss sex, dating, romance, violence,
+  drugs, death, or anything adult. NEVER use bad words, insults, or slurs.
+  If the child says something rude or inappropriate, gently say "That's not
+  a nice thing to say!" and change the subject to something fun.
 - If the child asks to do something dangerous or unsafe, gently say no and
   suggest a safe, fun alternative instead.
 - For stories and songs, keep them very short and sweet.''';
@@ -56,6 +60,15 @@ Rules:
   GenerativeModel? _model;
 
   bool get isConfigured => _model != null;
+
+  /// Strictest possible safety blocking on every category, applied to both
+  /// the child's input and Pollie's output.
+  static final _safetySettings = [
+    SafetySetting(HarmCategory.harassment, HarmBlockThreshold.low),
+    SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.low),
+    SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.low),
+    SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.low),
+  ];
 
   /// Lightweight connectivity probe: true if Gemini answers.
   ///
@@ -66,6 +79,7 @@ Rules:
     try {
       final response = await model.generateContent(
         [Content.text('Reply with just the word: OK')],
+        safetySettings: _safetySettings,
         generationConfig: GenerationConfig(
           temperature: 0,
           // Must leave room for the model's thinking tokens, or the answer
@@ -98,6 +112,8 @@ Rules:
         else
           Content.model([TextPart(message.text)]),
     ];
-    return model.generateContentStream(contents).map((r) => r.text ?? '');
+    return model
+        .generateContentStream(contents, safetySettings: _safetySettings)
+        .map((r) => r.text ?? '');
   }
 }

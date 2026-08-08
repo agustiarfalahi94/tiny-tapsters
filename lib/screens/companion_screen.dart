@@ -5,6 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import '../services/kid_safety.dart';
 import '../services/music_player.dart';
 import '../services/pollie_service.dart';
 import '../widgets/game_background.dart';
@@ -50,6 +51,9 @@ class _CompanionScreenState extends State<CompanionScreen> {
     'tolong',
   ];
   static const _greeting = 'Hi kids! Let\'s talk with me 🦜';
+  static const _gentleMessage =
+      "Hmm, that's not a nice thing to say! Let's talk about something fun "
+      'instead 😊';
 
   /// Emoji (and symbol) ranges, stripped before speaking so the TTS only
   /// reads plain text. Includes variation selectors and ZWJ sequences.
@@ -169,6 +173,19 @@ class _CompanionScreenState extends State<CompanionScreen> {
     }
   }
 
+  /// Pollie's gentle response when the child (or the model) says something
+  /// inappropriate.
+  void _gentleRedirect() {
+    setState(() {
+      _bubbles.add(_Bubble(role: 'model', text: _gentleMessage));
+    });
+    _scrollToBottom();
+    _speak(
+      "Hmm, that's not a nice thing to say! Let's talk about "
+      'something fun instead.',
+    );
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
@@ -263,6 +280,14 @@ class _CompanionScreenState extends State<CompanionScreen> {
     final text = raw.trim();
     if (text.isEmpty || _busy) return;
 
+    // Local safety guard: inappropriate words never reach Gemini (or the
+    // conversation history).
+    if (KidSafety.containsBlocked(text)) {
+      _input.clear();
+      _gentleRedirect();
+      return;
+    }
+
     setState(() {
       _bubbles.add(_Bubble(role: 'user', text: text));
       _bubbles.add(_Bubble(role: 'model', text: '', streaming: true));
@@ -285,6 +310,22 @@ class _CompanionScreenState extends State<CompanionScreen> {
       final reply = buffer.toString().trim();
       if (reply.isEmpty) {
         throw StateError('Pollie said nothing — maybe try again?');
+      }
+      // Output safety guard: if anything inappropriate slipped through the
+      // model filters, the child never sees or hears it.
+      if (KidSafety.containsBlocked(reply)) {
+        if (mounted) {
+          setState(() {
+            _bubbles.removeLast();
+            _bubbles.add(_Bubble(role: 'model', text: _gentleMessage));
+            _busy = false;
+          });
+        }
+        _speak(
+          "Hmm, that's not a nice thing to say! Let's talk about "
+          'something fun instead.',
+        );
+        return;
       }
       _history.add(ChatMessage(role: 'model', text: reply));
       if (mounted) {
