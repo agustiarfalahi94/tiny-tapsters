@@ -33,6 +33,12 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
     '🐠',
   ];
 
+  /// The emoji is rendered at this moderate font size and enlarged with a
+  /// transform. Huge font sizes (300px+) can exhaust the glyph atlas on
+  /// Android and make ALL text/emoji in the app stop painting until the app
+  /// restarts — that is what made icons vanish app-wide.
+  static const _pictureFontSize = 128.0;
+
   late String _picture;
   late Key _gameKey;
   bool _won = false;
@@ -127,12 +133,13 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
   Widget _buildBoardBackground(BuildContext context, Size boardSize) {
     final cell = boardSize.width / widget.cols;
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(20),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2)),
+      // The faint reference picture, aligned with the slot grid. Clipped so
+      // the emoji's overscan (it intentionally fills past the board edges)
+      // stays inside the board.
+      child: ClipRect(
+        child: Opacity(opacity: 0.13, child: _pictureWidget(cell)),
       ),
-      // The faint reference picture, aligned with the slot grid.
-      child: Opacity(opacity: 0.13, child: _pictureWidget(cell)),
     );
   }
 
@@ -140,7 +147,7 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
     return CustomPaint(
       painter: _DashedBorderPainter(
         color: Colors.white70,
-        radius: 16,
+        radius: 0,
         dash: 9,
         gap: 7,
       ),
@@ -190,15 +197,18 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
         ),
       ),
       // No border or corner radius: a border would show up as a visible cut
-      // line between pieces. The emoji fills the whole board so the pieces
-      // blend together.
+      // line between pieces.
       child: Center(
-        // BoxFit.fill stretches the emoji to fill the whole board — emoji
-        // glyphs render smaller than their text box, so a "contain" fit
-        // leaves them floating in the middle.
-        child: FittedBox(
-          fit: BoxFit.fill,
-          child: Text(_picture, style: TextStyle(fontSize: boardMin * 1.05)),
+        // Moderate font size + transform scale (GPU-scaled, cheap and safe).
+        // The 1.15 factor compensates for the emoji glyph's internal padding
+        // so it visually fills the board; the tiny overscan is clipped at the
+        // board edges.
+        child: Transform.scale(
+          scale: boardMin / _pictureFontSize * 1.15,
+          child: Text(
+            _picture,
+            style: const TextStyle(fontSize: _pictureFontSize),
+          ),
         ),
       ),
     );

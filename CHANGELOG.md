@@ -5,6 +5,30 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.0.4] — 2026-08-08
+
+### Fixed
+- **Every icon in the app could disappear while playing the jigsaw** — the
+  puzzle picture was rendered as a 300px+ emoji glyph, which can exhaust the
+  Android glyph atlas and stop ALL text/emoji from painting anywhere in the
+  app (until restart), while the app still looks and feels interactive. The
+  picture emoji is now rendered at a moderate 128px and enlarged with a GPU
+  transform instead.
+- **Laggy piece placement in the jigsaw** — caused by the same giant glyph
+  rasterization; gone with the font fix.
+- **Jigsaw tiles were rounded while the picture pieces were square** — the
+  dashed slot outlines and the board background are now perfectly square.
+
+### Added
+- **Regression tests** — jigsaw pieces are slot-sized, no oversized fonts /
+  FittedBox in the jigsaw, tiles are square, and a real drag gesture test
+  proves a piece snaps only into its own slot (7 tests total).
+
+### Notes
+- `flutter analyze`: 0 issues; 7/7 tests passing.
+
+---
+
 ## [1.0.3] — 2026-08-08
 
 ### Fixed

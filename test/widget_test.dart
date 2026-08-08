@@ -112,6 +112,70 @@ void main() {
     expect(pieceSize.height, closeTo(slotSize.height, 0.5));
   });
 
+  testWidgets('jigsaw uses moderate font sizes and square tiles', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Huge font sizes can exhaust the Android glyph atlas and make every
+    // emoji in the app stop painting — cap the picture font size.
+    final fonts = tester
+        .widgetList<Text>(find.byType(Text))
+        .map((t) => t.style?.fontSize ?? 0);
+    expect(fonts.every((f) => f <= 200), isTrue);
+    expect(find.byType(FittedBox), findsNothing);
+
+    // Tiles are perfectly square boxes.
+    final slots = tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .where((c) => c.painter != null);
+    for (final slot in slots) {
+      final size = tester.getSize(find.byWidget(slot));
+      expect(size.width, closeTo(size.height, 0.5));
+    }
+  });
+
+  testWidgets('jigsaw piece snaps when dragged onto its own slot', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final pieceFinder = find.byWidgetPredicate(
+      (w) => w is GestureDetector && w.key is GlobalKey,
+    );
+    final slots = tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .where((c) => c.painter != null)
+        .toList();
+    expect(pieceFinder, findsNWidgets(4));
+
+    // The piece at drawer position 0 belongs to exactly one of the four
+    // slots — drag it onto each slot until it snaps (a wrong slot rejects
+    // it instantly, its own slot accepts it).
+    for (final slot in slots) {
+      if (pieceFinder.evaluate().length < 4) break; // snapped already
+      final pieceCenter = tester.getCenter(pieceFinder.first);
+      final slotCenter = tester.getCenter(find.byWidget(slot));
+      final gesture = await tester.startGesture(pieceCenter);
+      await gesture.moveTo(slotCenter);
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    expect(
+      pieceFinder,
+      findsNWidgets(3),
+      reason: 'one piece should have snapped into its own slot',
+    );
+  });
+
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
 
