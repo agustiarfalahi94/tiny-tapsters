@@ -4,6 +4,7 @@ import '../widgets/game_background.dart';
 import 'animal_food_screen.dart';
 import 'bubble_pop_screen.dart';
 import 'companion_screen.dart';
+import 'count_game_screen.dart';
 import 'find_it_screen.dart';
 import 'jigsaw_game_screen.dart';
 import 'levels_screen.dart';
@@ -235,6 +236,51 @@ class HomeScreen extends StatelessWidget {
                             onTap: () => _open(
                               context,
                               const FindItScreen(cardsPerRound: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _GameCard(
+                    emoji: '🔢',
+                    title: 'Count the Animals!',
+                    subtitle: 'Count the animals and tap the number!',
+                    onTap: () => _open(
+                      context,
+                      LevelsScreen(
+                        title: 'Count the Animals! 🔢',
+                        subtitle: 'Pick a level!',
+                        levels: [
+                          LevelOption(
+                            emoji: '🐣',
+                            name: 'Easy',
+                            detail: 'Count to 3',
+                            color: const Color(0xFF4CAF50),
+                            onTap: () => _open(
+                              context,
+                              const CountGameScreen(maxCount: 3),
+                            ),
+                          ),
+                          LevelOption(
+                            emoji: '🐥',
+                            name: 'Medium',
+                            detail: 'Count to 5',
+                            color: const Color(0xFFFF9800),
+                            onTap: () => _open(
+                              context,
+                              const CountGameScreen(maxCount: 5),
+                            ),
+                          ),
+                          LevelOption(
+                            emoji: '🐤',
+                            name: 'Big',
+                            detail: 'Count to 10',
+                            color: const Color(0xFFE91E63),
+                            onTap: () => _open(
+                              context,
+                              const CountGameScreen(maxCount: 10),
                             ),
                           ),
                         ],
