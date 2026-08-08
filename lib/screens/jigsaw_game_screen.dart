@@ -99,6 +99,8 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
                     // Pieces are exactly slot-sized so the assembled picture
                     // fills the board 1:1 (smaller pieces would shrink the
                     // whole picture down with them).
+                    pieceScale: 1.0,
+                    pieceSizeCap: 1000,
                     boardBackgroundBuilder: _buildBoardBackground,
                     slotBuilder: _buildSlot,
                     pieceBuilder: _buildSlice,

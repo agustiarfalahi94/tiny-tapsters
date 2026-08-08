@@ -85,6 +85,33 @@ void main() {
     expect(tester.getCenter(title).dx, closeTo(400, 5));
   });
 
+  testWidgets('jigsaw pieces are exactly slot-sized (picture fills board)', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Slots are the only CustomPaints with a painter in this screen.
+    final slots = tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .where((c) => c.painter != null)
+        .toList();
+    expect(slots.length, 4);
+    // Pieces are GestureDetectors with GlobalKeys (the InkWell buttons also
+    // build keyless GestureDetectors internally, so filter those out).
+    final pieces = find.byWidgetPredicate(
+      (w) => w is GestureDetector && w.key is GlobalKey,
+    );
+    expect(pieces, findsNWidgets(4));
+
+    final slotSize = tester.getSize(find.byWidget(slots.first));
+    final pieceSize = tester.getSize(pieces.first);
+    expect(pieceSize.width, closeTo(slotSize.width, 0.5));
+    expect(pieceSize.height, closeTo(slotSize.height, 0.5));
+  });
+
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
 

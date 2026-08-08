@@ -5,6 +5,20 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.0.3] — 2026-08-08
+
+### Fixed
+- **Jigsaw pieces still smaller than the board (v1.0.2 regression)** — the
+  previous fix left a comment but never applied `pieceScale: 1.0`, so pieces
+  silently fell back to the engine defaults and the picture still assembled
+  at half size. Pieces are now truly slot-sized, and a regression test
+  asserts piece size == slot size.
+
+### Notes
+- `flutter analyze`: 0 issues; 5/5 tests passing.
+
+---
+
 ## [1.0.2] — 2026-08-08
 
 ### Fixed
