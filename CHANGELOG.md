@@ -5,6 +5,24 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.4.4] — 2026-08-08
+
+### Added
+- **App launcher icon** — the app finally has a real icon: sky→pink gradient
+  with a cheerful white smiling face and gold sparkles, as a modern Android
+  adaptive icon (plus legacy PNGs for older launchers).
+- **`tool/generate_icon.dart`** — a pure-Dart, dependency-free generator that
+  rasterizes the icon analytically (no Flutter engine, no fonts) and writes
+  all mipmap sizes + adaptive icon resources. Re-run it anytime the design
+  changes: `dart run tool/generate_icon.dart`.
+
+### Notes
+- `flutter analyze`: 0 issues; 13/13 tests.
+- New icon verified in APK (adaptive icon resolves as the launcher icon) and
+  installed on device.
+
+---
+
 ## [1.4.3] — 2026-08-08
 
 ### Added

@@ -35,4 +35,5 @@ flutter build apk --release           # when native config or deps changed
 - `lib/services/pollie_service.dart` — Gemini wrapper for the Pollie companion (strict safety settings + kid-safe prompt).
 - `lib/services/kid_safety.dart` — local adult-word guard (input + output).
 - `lib/services/sound_effects.dart` — one-shot SFX (bubble pop); regenerate the asset with `dart run tool/generate_sfx.dart`.
+- `tool/generate_icon.dart` — pure-Dart launcher-icon generator (no Flutter engine); writes all mipmap PNGs + adaptive icon resources. Re-run with `dart run tool/generate_icon.dart` after changing the design.
 - `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety tests.
