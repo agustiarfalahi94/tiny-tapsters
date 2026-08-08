@@ -169,15 +169,17 @@ class _CompanionScreenState extends State<CompanionScreen>
   }
 
   /// Probes Gemini and flips Pollie's mood: smiling 😊 + greeting on
-  /// success, sleeping 😴 + a retry hint on failure.
+  /// success, sleeping 😴 + an honest reason on failure.
   Future<void> _wakeUp() async {
     if (_waking) return;
     setState(() {
       _waking = true;
       _status = _PollieStatus.sleeping;
     });
-    final awake = await _pollie.ping();
+    // Skip the network call when a successful ping happened recently.
+    final result = _pollie.recentlyAwake ? PolliePing.ok : await _pollie.ping();
     if (!mounted) return;
+    final awake = result == PolliePing.ok;
     setState(() {
       _waking = false;
       _status = awake ? _PollieStatus.awake : _PollieStatus.sleeping;
@@ -188,13 +190,16 @@ class _CompanionScreenState extends State<CompanionScreen>
             role: 'model',
             text: awake
                 ? _greeting
+                : result == PolliePing.quota
+                ? "Pollie talked so much today that he's all out of "
+                      'words! He\'ll wake up tomorrow with new stories 😴'
                 : 'Zzz… I can\'t reach the internet yet. '
                       'Tap me to try waking up again! 😴',
           ),
         );
     });
     if (awake) {
-      _speak('Hi kids! Let\'s talk with me!', thenListen: true);
+      _speak('Hi kids! Let\'s talk with me!');
     }
   }
 
@@ -400,12 +405,16 @@ class _CompanionScreenState extends State<CompanionScreen>
     } catch (e) {
       debugPrint('Pollie reply failed: $e');
       if (!mounted) return;
+      final quota = e.toString().toLowerCase().contains('quota');
       setState(() {
         _bubbles.removeLast();
         _bubbles.add(
           _Bubble(
             role: 'model',
-            text: _pollie.isConfigured
+            text: quota
+                ? 'Pollie is all out of words for today! '
+                      "He'll be back tomorrow 😴"
+                : _pollie.isConfigured
                 ? 'Oops, I got lost for a moment! 😅 '
                       'Can you ask me again?'
                 : "I can't talk yet — ask a grown-up for my magic key! 🔑",

@@ -10,6 +10,9 @@ class ChatMessage {
   final String text;
 }
 
+/// Result of a connectivity probe.
+enum PolliePing { ok, quota, unreachable }
+
 /// Thin wrapper around the Gemini API for the in-app companion (Pollie 🦜).
 ///
 /// The API key comes from the build environment:
@@ -58,8 +61,16 @@ Rules:
 - For stories and songs, keep them very short and sweet.''';
 
   GenerativeModel? _model;
+  DateTime? _lastPingOk;
 
   bool get isConfigured => _model != null;
+
+  /// True when a successful ping happened within the last few minutes — the
+  /// companion skips the network call in that case (free-tier quota is
+  /// precious: one request per open adds up fast for a toddler app).
+  bool get recentlyAwake =>
+      _lastPingOk != null &&
+      DateTime.now().difference(_lastPingOk!) < const Duration(minutes: 5);
 
   /// Strictest possible safety blocking on every category, applied to both
   /// the child's input and Pollie's output.
@@ -73,9 +84,9 @@ Rules:
   /// Lightweight connectivity probe: true if Gemini answers.
   ///
   /// This is what turns Pollie's face from sleeping 😴 to smiling 😊.
-  Future<bool> ping() async {
+  Future<PolliePing> ping() async {
     final model = _model;
-    if (model == null) return false;
+    if (model == null) return PolliePing.unreachable;
     try {
       final response = await model.generateContent(
         [Content.text('Reply with just the word: OK')],
@@ -87,10 +98,15 @@ Rules:
           maxOutputTokens: 200,
         ),
       );
-      return response.text?.trim().isNotEmpty ?? false;
+      final ok = response.text?.trim().isNotEmpty ?? false;
+      if (ok) _lastPingOk = DateTime.now();
+      return ok ? PolliePing.ok : PolliePing.unreachable;
     } catch (e) {
       debugPrint('Pollie ping failed: $e');
-      return false;
+      if (e.toString().toLowerCase().contains('quota')) {
+        return PolliePing.quota;
+      }
+      return PolliePing.unreachable;
     }
   }
 

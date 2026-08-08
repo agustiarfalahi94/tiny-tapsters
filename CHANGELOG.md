@@ -5,6 +5,22 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.4.2] — 2026-08-08
+
+### Fixed
+- **Pollie stuck sleeping — honest reason now**: the free-tier Gemini daily
+  quota can run out (it resets at midnight Pacific). Pollie now says he's
+  "all out of words for today" instead of the misleading "can't reach the
+  internet".
+- **Fewer API requests** — a successful wake-up is cached for 5 minutes, so
+  opening the companion repeatedly no longer burns a request every time
+  (free-tier quota is precious).
+
+### Notes
+- `flutter analyze`: 0 issues; 12/12 tests.
+
+---
+
 ## [1.4.1] — 2026-08-08
 
 ### Fixed
