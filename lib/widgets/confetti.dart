@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 
 /// A looping shower of emoji confetti. Purely decorative: it ignores taps so
 /// buttons underneath stay usable.
+///
+/// Performance: each piece's [TextPainter] is laid out ONCE when the widget
+/// is created and reused every frame — laying out text inside `paint()` is
+/// expensive and would jank the win celebration (and drain battery while the
+/// overlay is open).
 class Confetti extends StatefulWidget {
   const Confetti({super.key});
 
@@ -27,15 +32,24 @@ class _ConfettiState extends State<Confetti>
     )..repeat();
     final rnd = math.Random();
     _pieces = List.generate(70, (_) {
+      final emoji = _emojis[rnd.nextInt(_emojis.length)];
+      final size = 18 + rnd.nextDouble() * 26;
       return _Piece(
-        emoji: _emojis[rnd.nextInt(_emojis.length)],
+        emoji: emoji,
         x: rnd.nextDouble(),
         y: rnd.nextDouble() * 1.2 - 0.2,
-        size: 18 + rnd.nextDouble() * 26,
+        size: size,
         speed: 0.25 + rnd.nextDouble() * 0.35,
         drift: 0.5 + rnd.nextDouble() * 1.5,
         rotation: rnd.nextDouble() * math.pi * 2,
         rotationSpeed: (rnd.nextDouble() - 0.5) * 6,
+        textPainter: TextPainter(
+          text: TextSpan(
+            text: emoji,
+            style: TextStyle(fontSize: size),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(),
       );
     });
   }
@@ -73,6 +87,7 @@ class _Piece {
     required this.drift,
     required this.rotation,
     required this.rotationSpeed,
+    required this.textPainter,
   });
 
   final String emoji;
@@ -83,6 +98,9 @@ class _Piece {
   final double drift;
   final double rotation;
   final double rotationSpeed;
+
+  /// Pre-laid-out once; reused every frame.
+  final TextPainter textPainter;
 }
 
 class _ConfettiPainter extends CustomPainter {
@@ -99,20 +117,12 @@ class _ConfettiPainter extends CustomPainter {
           piece.x +
           math.sin(progress * 2 * math.pi * piece.drift + piece.x * 10) * 0.04;
 
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: piece.emoji,
-          style: TextStyle(fontSize: piece.size),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-
       canvas.save();
       canvas.translate(x * size.width, y * size.height);
       canvas.rotate(piece.rotation + progress * piece.rotationSpeed);
-      textPainter.paint(
+      piece.textPainter.paint(
         canvas,
-        Offset(-textPainter.width / 2, -textPainter.height / 2),
+        Offset(-piece.textPainter.width / 2, -piece.textPainter.height / 2),
       );
       canvas.restore();
     }

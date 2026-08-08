@@ -5,6 +5,23 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.3.2] — 2026-08-08
+
+### Improved
+- **Confetti is now cheap** — each emoji's text is laid out once and reused
+  every frame (previously 70 text layouts ran per frame at 60fps, which
+  janked win celebrations and drained battery while the overlay was open).
+- **Jigsaw drags repaint less** — each piece is isolated in a
+  `RepaintBoundary`, so dragging repaints only the piece under the finger
+  instead of all 9 pieces.
+- **Smoother chat auto-scroll** — streaming replies now jump instead of
+  restarting a scroll animation on every chunk (no more jitter).
+
+### Notes
+- `flutter analyze`: 0 issues; 11/11 tests.
+
+---
+
 ## [1.3.1] — 2026-08-08
 
 ### Added

@@ -323,10 +323,14 @@ class _PairDragGameState extends State<PairDragGame> {
         onPanUpdate: _onPanUpdate,
         onPanEnd: _onPanEnd,
         onPanCancel: _cancelDrag,
-        child: SizedBox(
-          width: _pieceSize,
-          height: _pieceSize,
-          child: widget.pieceBuilder(context, index, _pieceSize, _slotSize),
+        // Caches the static pieces so dragging only repaints the one piece
+        // under the finger (the others keep their last painted layer).
+        child: RepaintBoundary(
+          child: SizedBox(
+            width: _pieceSize,
+            height: _pieceSize,
+            child: widget.pieceBuilder(context, index, _pieceSize, _slotSize),
+          ),
         ),
       ),
     );

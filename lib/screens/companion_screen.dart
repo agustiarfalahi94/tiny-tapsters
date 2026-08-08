@@ -188,9 +188,16 @@ class _CompanionScreenState extends State<CompanionScreen> {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
+      if (!_scroll.hasClients) return;
+      final position = _scroll.position;
+      final atBottom = position.maxScrollExtent - position.pixels < 60;
+      if (atBottom) {
+        // Jump (not animate) while the reply streams in — restarting a
+        // scroll animation on every chunk would jitter.
+        position.jumpTo(position.maxScrollExtent);
+      } else {
+        position.animateTo(
+          position.maxScrollExtent,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
