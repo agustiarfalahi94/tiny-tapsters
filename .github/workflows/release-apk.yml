@@ -25,9 +25,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -60,8 +60,7 @@ jobs:
         run: flutter build apk --release --dart-define=GEMINI_API_KEY=$GEMINI_API_KEY
 
       - name: Name the APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk \
-              "build/app/outputs/flutter-apk/our-toddlers-journey-${GITHUB_REF_NAME}.apk"
+        run: cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/our-toddlers-journey-${GITHUB_REF_NAME}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
