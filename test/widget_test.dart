@@ -188,6 +188,7 @@ void main() {
 
     expect(find.text('Pollie'), findsOneWidget);
     expect(find.text('sleeping… 😴'), findsOneWidget);
+    expect(find.text('🎤'), findsOneWidget); // voice button present
     // No GEMINI_API_KEY in the test environment → friendly fallback text.
     expect(find.textContaining('magic key'), findsOneWidget);
 

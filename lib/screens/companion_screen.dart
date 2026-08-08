@@ -1,18 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../services/pollie_service.dart';
 import '../widgets/game_background.dart';
 import '../widgets/round_button.dart';
 
-enum _PollieStatus { sleeping, awake }
+enum _PollieStatus { sleeping, awake, listening, thinking, speaking }
 
 /// Pollie 🦜 — a talking companion powered by Gemini.
 ///
 /// Pollie sleeps 😴 while offline and smiles 😊 once Gemini answers a
-/// connectivity probe, then greets the child. Toddlers tap the big chips to
-/// chat; grown-ups can type too. Replies stream in as speech bubbles and are
-/// spoken aloud (system TTS).
+/// connectivity probe, then greets the child. Tap the 🎤 to talk: speech is
+/// transcribed (Google speech-to-text), answered by Gemini, and spoken aloud
+/// (system TTS) — then Pollie listens again automatically, so a toddler can
+/// just keep chatting like in the Gemini app. Toddlers can also tap the big
+/// chips; grown-ups can type.
 class CompanionScreen extends StatefulWidget {
   const CompanionScreen({super.key});
 
@@ -50,13 +56,19 @@ class _CompanionScreenState extends State<CompanionScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _tts = FlutterTts();
+  final _speech = SpeechToText();
   _PollieStatus _status = _PollieStatus.sleeping;
   bool _waking = false;
   bool _busy = false;
+  bool _speechAvailable = false;
+  String _localeId = 'en-US';
+  String _partial = '';
+  double _soundLevel = 0;
 
   @override
   void initState() {
     super.initState();
+    _initSpeechLocale();
     if (_pollie.isConfigured) {
       _bubbles.add(_Bubble(role: 'model', text: ''));
       _wakeUp();
@@ -77,6 +89,40 @@ class _CompanionScreenState extends State<CompanionScreen> {
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Picks the speech recognition locale from the device language
+  /// (Indonesian or English), falling back to en-US.
+  Future<void> _initSpeechLocale() async {
+    try {
+      final available = await _speech.initialize(
+        onError: _onSpeechError,
+        onStatus: (status) {
+          // Listening ended (timeout / stop): return to the idle smile.
+          if (status == 'done' && mounted) {
+            setState(() {
+              if (_status == _PollieStatus.listening) {
+                _status = _PollieStatus.awake;
+                _busy = false;
+                _partial = '';
+              }
+            });
+          }
+        },
+      );
+      if (!mounted) return;
+      setState(() => _speechAvailable = available);
+      if (available) {
+        final lang = (await _speech.systemLocale())?.localeId ?? '';
+        if (lang.startsWith('id') || lang.startsWith('in')) {
+          _localeId = 'id-ID';
+        } else if (lang.startsWith('en')) {
+          _localeId = 'en-US';
+        }
+      }
+    } catch (_) {
+      _speechAvailable = false;
+    }
   }
 
   /// Probes Gemini and flips Pollie's mood: smiling 😊 + greeting on
@@ -105,7 +151,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
         );
     });
     if (awake) {
-      _speak('Hi kids! Let\'s talk with me!');
+      _speak('Hi kids! Let\'s talk with me!', thenListen: true);
     }
   }
 
@@ -121,6 +167,83 @@ class _CompanionScreenState extends State<CompanionScreen> {
     });
   }
 
+  /// Starts listening; the mic button toggles it off.
+  Future<void> _startListening() async {
+    if (_status != _PollieStatus.awake || _busy) return;
+    if (!_speechAvailable) {
+      _bubbles.add(
+        _Bubble(
+          role: 'model',
+          text:
+              "I can't hear you! 🎤 Ask a grown-up to allow the "
+              'microphone, then tap the mic again.',
+        ),
+      );
+      _scrollToBottom();
+      return;
+    }
+    setState(() {
+      _status = _PollieStatus.listening;
+      _busy = true;
+      _partial = '';
+      _soundLevel = 0;
+    });
+    await _speech.listen(
+      onResult: (result) {
+        setState(() => _partial = result.recognizedWords);
+        if (result.finalResult && result.recognizedWords.trim().isNotEmpty) {
+          _speech.stop();
+          setState(() {
+            _busy = false;
+            _partial = '';
+          });
+          _send(result.recognizedWords.trim());
+        }
+      },
+      onSoundLevelChange: (level) =>
+          setState(() => _soundLevel = level.clamp(0, 1)),
+      listenOptions: SpeechListenOptions(
+        localeId: _localeId,
+        listenFor: const Duration(seconds: 12),
+        pauseFor: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _stopListening() {
+    _speech.stop();
+    setState(() {
+      _status = _PollieStatus.awake;
+      _busy = false;
+      _partial = '';
+    });
+  }
+
+  void _onSpeechError(SpeechRecognitionError error) {
+    if (!mounted) return;
+    // "No match" / timeout / silence is normal when nobody speaks — stay
+    // quiet instead of popping an error bubble.
+    final message = error.errorMsg.toLowerCase();
+    final quiet = message.contains('no match') ||
+        message.contains('timeout') ||
+        message.contains('no speech') ||
+        error.permanent;
+    if (!quiet) {
+      _bubbles.add(
+        _Bubble(
+          role: 'model',
+          text: "Oops, I didn't catch that! 😅 Tap the mic and try again?",
+        ),
+      );
+      _scrollToBottom();
+    }
+    setState(() {
+      _status = _PollieStatus.awake;
+      _busy = false;
+      _partial = '';
+    });
+  }
+
   Future<void> _send(String raw) async {
     final text = raw.trim();
     if (text.isEmpty || _busy) return;
@@ -129,6 +252,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
       _bubbles.add(_Bubble(role: 'user', text: text));
       _bubbles.add(_Bubble(role: 'model', text: '', streaming: true));
       _busy = true;
+      _status = _PollieStatus.thinking;
     });
     _history.add(ChatMessage(role: 'user', text: text));
     _input.clear();
@@ -156,7 +280,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
           _busy = false;
         });
       }
-      _speak(reply);
+      _speak(reply, thenListen: true);
     } catch (e) {
       debugPrint('Pollie reply failed: $e');
       if (!mounted) return;
@@ -178,21 +302,43 @@ class _CompanionScreenState extends State<CompanionScreen> {
     _scrollToBottom();
   }
 
-  Future<void> _speak(String text) async {
+  Future<void> _speak(String text, {bool thenListen = false}) async {
+    if (mounted) setState(() => _status = _PollieStatus.speaking);
     try {
       // Simple language guess so the TTS voice matches the conversation.
       final lower = text.toLowerCase();
       final indonesian = _idStopWords.any(lower.contains);
       await _tts.setLanguage(indonesian ? 'id-ID' : 'en-US');
       await _tts.setSpeechRate(0.45);
+      // Once the reply is spoken, re-arm the microphone for a hands-free
+      // conversation loop.
+      _tts.setCompletionHandler(() async {
+        if (!mounted) return;
+        setState(() => _status = _PollieStatus.awake);
+        if (thenListen && _speechAvailable && _pollie.isConfigured) {
+          await Future<void>.delayed(const Duration(milliseconds: 1200));
+          if (mounted) _startListening();
+        }
+      });
+      _tts.setErrorHandler((message) {
+        if (mounted) setState(() => _status = _PollieStatus.awake);
+      });
       await _tts.speak(text);
     } catch (_) {
       // TTS unavailable: the text bubble is still there.
+      if (mounted) {
+        setState(() => _status = _PollieStatus.awake);
+        if (thenListen && _speechAvailable && _pollie.isConfigured) {
+          await Future<void>.delayed(const Duration(milliseconds: 1200));
+          if (mounted) _startListening();
+        }
+      }
     }
   }
 
   void _reset() {
     _history.clear();
+    _stopListening();
     setState(() {
       _bubbles.clear();
       if (_pollie.isConfigured) {
@@ -214,7 +360,41 @@ class _CompanionScreenState extends State<CompanionScreen> {
 
   String get _statusText {
     if (_waking) return 'waking up…';
-    return _status == _PollieStatus.awake ? 'awake! 😊' : 'sleeping… 😴';
+    switch (_status) {
+      case _PollieStatus.sleeping:
+        return 'sleeping… 😴';
+      case _PollieStatus.awake:
+        return 'awake! 😊';
+      case _PollieStatus.listening:
+        return 'listening… 👂';
+      case _PollieStatus.thinking:
+        return 'thinking… 🤔';
+      case _PollieStatus.speaking:
+        return 'speaking… 🗣️';
+    }
+  }
+
+  String get _statusFace {
+    switch (_status) {
+      case _PollieStatus.sleeping:
+        return '😴';
+      case _PollieStatus.awake:
+        return '😊';
+      case _PollieStatus.listening:
+        return '👂';
+      case _PollieStatus.thinking:
+        return '🤔';
+      case _PollieStatus.speaking:
+        return '🗣️';
+    }
+  }
+
+  void _onMicTap() {
+    if (_status == _PollieStatus.listening) {
+      _stopListening();
+    } else {
+      _startListening();
+    }
   }
 
   @override
@@ -238,15 +418,16 @@ class _CompanionScreenState extends State<CompanionScreen> {
                         onTap: () => Navigator.of(context).pop(),
                       ),
                       const SizedBox(width: 12),
-                      // The face is the online indicator: sleeping 😴
-                      // offline, smiling 😊 online. Tap it to try waking up.
+                      // The face shows Pollie's mood; tap it to wake him up.
                       GestureDetector(
-                        onTap: _waking ? null : _wakeUp,
+                        onTap: _status == _PollieStatus.sleeping
+                            ? _wakeUp
+                            : null,
                         child: CircleAvatar(
                           radius: 26,
                           backgroundColor: Colors.white,
                           child: Text(
-                            _status == _PollieStatus.awake ? '😊' : '😴',
+                            _statusFace,
                             style: const TextStyle(fontSize: 30),
                           ),
                         ),
@@ -294,6 +475,36 @@ class _CompanionScreenState extends State<CompanionScreen> {
                         _buildBubble(_bubbles[index]),
                   ),
                 ),
+                // Live listening transcript.
+                if (_status == _PollieStatus.listening)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          const Text('👂', style: TextStyle(fontSize: 20)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _partial.isEmpty ? 'Listening…' : '$_partial …',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 // Quick chips for toddlers.
                 SizedBox(
                   height: 52,
@@ -316,11 +527,41 @@ class _CompanionScreenState extends State<CompanionScreen> {
                     },
                   ),
                 ),
-                // Input bar.
+                // Input bar: mic (talk) + text field + send.
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: Row(
                     children: [
+                      // The mic pulses with the sound level while listening.
+                      GestureDetector(
+                        onTap: _onMicTap,
+                        child: AnimatedScale(
+                          scale: _status == _PollieStatus.listening
+                              ? 1 + _soundLevel * 0.6
+                              : 1.0,
+                          duration: const Duration(milliseconds: 100),
+                          child: Material(
+                            color: _status == _PollieStatus.listening
+                                ? const Color(0xFFFF5252)
+                                : Colors.white,
+                            shape: const CircleBorder(),
+                            elevation: 3,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Text(
+                                '🎤',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  color: _status == _PollieStatus.listening
+                                      ? Colors.white
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _input,

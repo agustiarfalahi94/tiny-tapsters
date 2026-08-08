@@ -21,9 +21,10 @@ only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
   win; fewer wrong taps means more stars. Easy (6), Medium (9), Big (12).
 - **Pollie 🦜** — a talking companion on the home screen (bottom-right
   button). Pollie sleeps 😴 while offline and smiles 😊 when connected, then
-  greets the child. Replies stream in as speech bubbles and are spoken aloud.
-  Toddler-friendly tap chips plus a text field for grown-ups. Powered by
-  Gemini; needs an API key (see below).
+  greets the child. **Talk to him with the 🎤 button** (speech is
+  transcribed, answered, and spoken aloud — he listens again automatically
+  for a hands-free conversation). Toddler-friendly tap chips plus a text
+  field for grown-ups. Powered by Gemini; needs an API key (see below).
 
 ## Run it
 
@@ -47,8 +48,8 @@ flutter build apk --release --dart-define=GEMINI_API_KEY=your_key_here
 ```
 
 The key is compiled into the APK and never committed to the repository.
-Chat messages are sent to Google's Gemini API. Without a key, Pollie shows a
-friendly fallback message.
+Chat messages and voice input are sent to Google's Gemini and speech
+services. Without a key, Pollie shows a friendly fallback message.
 
 ## Project layout
 

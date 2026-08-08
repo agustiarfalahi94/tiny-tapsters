@@ -21,7 +21,7 @@ flutter build apk --release           # when native config or deps changed
 ## Constraints
 
 - Do NOT commit `android/key.properties` or `android/app/release-keystore.jks` (keystore secrets, git-ignored).
-- Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature, and the only permission (INTERNET).
+- Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature. Permissions: INTERNET + RECORD_AUDIO (voice chat).
 - Never commit a Gemini API key: it is passed at build time via `--dart-define=GEMINI_API_KEY=...`.
 - All games must be playable without reading: big emoji, no required text.
 - Keep CHANGELOG.md + README.md in sync with real changes.

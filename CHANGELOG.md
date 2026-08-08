@@ -5,6 +5,27 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.2.0] — 2026-08-08
+
+### Added
+- **Voice conversation with Pollie** — a big 🎤 button lets the child talk:
+  speech is transcribed (Google speech-to-text, device language), answered by
+  Gemini, and spoken aloud. After each reply Pollie **listens again
+  automatically**, so a toddler can chat hands-free like in the Gemini app.
+  - Live transcript bar shows what Pollie hears while listening.
+  - The mic pulses with the sound level; Pollie's face shows his mood:
+    😴 sleeping · 😊 awake · 👂 listening · 🤔 thinking · 🗣️ speaking.
+  - New permission: `RECORD_AUDIO` (prompted once on first use).
+  - New package: `speech_to_text`.
+
+### Notes
+- `flutter analyze`: 0 issues; tests passing.
+- Voice flow verified on-device (permission grant → listening state →
+  graceful timeout); actual speech recognition uses the device's Google
+  speech service.
+
+---
+
 ## [1.1.1] — 2026-08-08
 
 ### Changed
