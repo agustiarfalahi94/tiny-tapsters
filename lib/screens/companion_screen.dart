@@ -5,6 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import '../services/music_player.dart';
 import '../services/pollie_service.dart';
 import '../widgets/game_background.dart';
 import '../widgets/round_button.dart';
@@ -50,6 +51,16 @@ class _CompanionScreenState extends State<CompanionScreen> {
   ];
   static const _greeting = 'Hi kids! Let\'s talk with me 🦜';
 
+  /// Emoji (and symbol) ranges, stripped before speaking so the TTS only
+  /// reads plain text. Includes variation selectors and ZWJ sequences.
+  static final _emojiPattern = RegExp(
+    r'[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}'
+    r'\u{2190}-\u{21FF}\u{25A0}-\u{25FF}\u{FE0F}\u{200D}\u{20E3}'
+    r'\u{1F1E6}-\u{1F1FF}\u{00A9}\u{00AE}\u{2122}\u{203C}\u{2049}'
+    r'\u{3030}\u{303D}]',
+    unicode: true,
+  );
+
   final _pollie = PollieService();
   final _history = <ChatMessage>[];
   final _bubbles = <_Bubble>[];
@@ -68,6 +79,8 @@ class _CompanionScreenState extends State<CompanionScreen> {
   @override
   void initState() {
     super.initState();
+    // No background music while talking with Pollie.
+    MusicPlayer.instance.suppress();
     _initSpeechLocale();
     if (_pollie.isConfigured) {
       _bubbles.add(_Bubble(role: 'model', text: ''));
@@ -86,6 +99,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
 
   @override
   void dispose() {
+    MusicPlayer.instance.unsuppress();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -224,7 +238,8 @@ class _CompanionScreenState extends State<CompanionScreen> {
     // "No match" / timeout / silence is normal when nobody speaks — stay
     // quiet instead of popping an error bubble.
     final message = error.errorMsg.toLowerCase();
-    final quiet = message.contains('no match') ||
+    final quiet =
+        message.contains('no match') ||
         message.contains('timeout') ||
         message.contains('no speech') ||
         error.permanent;
@@ -302,14 +317,67 @@ class _CompanionScreenState extends State<CompanionScreen> {
     _scrollToBottom();
   }
 
+  /// Plain text for the TTS: emojis and roleplay markers removed.
+  String _cleanForSpeech(String text) {
+    return text
+        .replaceAll(_emojiPattern, '')
+        .replaceAll('*', '')
+        .replaceAll('…', '.')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  List<Map<dynamic, dynamic>>? _cachedVoices;
+
+  /// Picks the warmest available voice for the locale (highest quality,
+  /// preferring female voices — the closest to a "kid/Ms-Rachel" feel).
+  Future<void> _applyBestVoice(String lang) async {
+    try {
+      _cachedVoices ??= await _tts.getVoices as List<Map<dynamic, dynamic>>?;
+      final voices = _cachedVoices;
+      if (voices == null || voices.isEmpty) return;
+      final langCode = lang.split('-').first.toLowerCase();
+      final candidates = voices
+          .where(
+            (v) => (v['locale'] ?? '').toString().toLowerCase().startsWith(
+              langCode,
+            ),
+          )
+          .toList();
+      if (candidates.isEmpty) return;
+
+      Map<dynamic, dynamic> best = candidates.first;
+      for (final voice in candidates.skip(1)) {
+        final quality = (voice['quality'] as num?)?.toInt() ?? 0;
+        final bestQuality = (best['quality'] as num?)?.toInt() ?? 0;
+        final name = (voice['name'] ?? '').toString().toLowerCase();
+        final bestName = (best['name'] ?? '').toString().toLowerCase();
+        final female = name.contains('female') || name.contains('#f_');
+        final bestFemale =
+            bestName.contains('female') || bestName.contains('#f_');
+        if (quality > bestQuality ||
+            (quality == bestQuality && female && !bestFemale)) {
+          best = voice;
+        }
+      }
+      await _tts.setVoice(best.cast<String, String>());
+    } catch (_) {
+      // Default engine voice is fine when no choice exists.
+    }
+  }
+
   Future<void> _speak(String text, {bool thenListen = false}) async {
     if (mounted) setState(() => _status = _PollieStatus.speaking);
     try {
       // Simple language guess so the TTS voice matches the conversation.
       final lower = text.toLowerCase();
       final indonesian = _idStopWords.any(lower.contains);
-      await _tts.setLanguage(indonesian ? 'id-ID' : 'en-US');
-      await _tts.setSpeechRate(0.45);
+      final lang = indonesian ? 'id-ID' : 'en-US';
+      await _tts.setLanguage(lang);
+      await _applyBestVoice(lang);
+      // Slightly higher pitch + warm pace for a gentle, kid-friendly voice.
+      await _tts.setPitch(1.35);
+      await _tts.setSpeechRate(0.5);
       // Once the reply is spoken, re-arm the microphone for a hands-free
       // conversation loop.
       _tts.setCompletionHandler(() async {
@@ -323,7 +391,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
       _tts.setErrorHandler((message) {
         if (mounted) setState(() => _status = _PollieStatus.awake);
       });
-      await _tts.speak(text);
+      await _tts.speak(_cleanForSpeech(text));
     } catch (_) {
       // TTS unavailable: the text bubble is still there.
       if (mounted) {

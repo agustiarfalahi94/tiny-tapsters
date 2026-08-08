@@ -248,6 +248,7 @@ class HomeScreen extends StatelessWidget {
               padding: EdgeInsets.only(bottom: 10),
               child: Text(
                 'Made with ❤️ for our toddler',
+                textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14, color: Colors.white),
               ),
             ),

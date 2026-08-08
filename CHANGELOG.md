@@ -5,6 +5,31 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.3.0] — 2026-08-08
+
+### Added
+- **Background music** — a soft music-box lullaby (synthesized in-repo,
+  `tool/generate_music.dart`) loops on the home + game screens and pauses
+  while the app is in the background. It stops automatically while the
+  Pollie companion is open, and resumes when you leave it.
+
+### Changed
+- **Pollie speaks like a person** — the system prompt now asks for relaxed,
+  natural, casual replies (no robot-speak, no forced emojis, no *roleplay*
+  markers), and the spoken voice is picked from the device's best-quality
+  (preferably female) TTS voice with a gentle pitch + warm pace — closer to
+  a kid/Ms-Rachel feel.
+- **TTS reads plain text only** — emojis and asterisks are stripped before
+  speaking, so Pollie never reads "smiling face with heart eyes" aloud.
+- **Home footer centered** — "Made with ❤️ for our toddler" is now properly
+  centered.
+
+### Notes
+- `flutter analyze`: 0 issues; tests passing.
+- New package: `audioplayers`. New asset: `assets/music/lullaby.wav`.
+
+---
+
 ## [1.2.0] — 2026-08-08
 
 ### Added
