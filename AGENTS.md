@@ -21,7 +21,7 @@ flutter build apk --release           # when native config or deps changed
 ## Constraints
 
 - Do NOT commit `android/key.properties` or `android/app/release-keystore.jks` (keystore secrets, git-ignored).
-- Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Buddy companion (Gemini) — the only network feature, and the only permission (INTERNET).
+- Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature, and the only permission (INTERNET).
 - Never commit a Gemini API key: it is passed at build time via `--dart-define=GEMINI_API_KEY=...`.
 - All games must be playable without reading: big emoji, no required text.
 - Keep CHANGELOG.md + README.md in sync with real changes.
@@ -31,5 +31,5 @@ flutter build apk --release           # when native config or deps changed
 - `lib/widgets/pair_drag_game.dart` — shared drag-to-slot engine (jigsaw + Animal Food). Piece movement must stay instant; never reintroduce animated slide-backs (they read as "trails").
 - `lib/widgets/celebration_overlay.dart` — shared win overlay (confetti + stars + buttons).
 - `lib/screens/levels_screen.dart` — shared difficulty picker.
-- `lib/services/buddy_service.dart` — Gemini wrapper for the Buddy companion.
+- `lib/services/pollie_service.dart` — Gemini wrapper for the Pollie companion.
 - `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback.

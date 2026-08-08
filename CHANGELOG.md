@@ -5,6 +5,35 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.1.1] — 2026-08-08
+
+### Changed
+- **Buddy renamed to Pollie 🦜** (a cheerful little parrot) — name, avatar,
+  home button, and the Gemini system prompt now all say Pollie.
+- **Pollie now has a mood/status face** in the chat header: sleeping 😴 while
+  offline (or before the first connection), smiling 😊 once Gemini answers a
+  connectivity probe. Tapping the face retries waking up.
+- On wake, Pollie greets the child with a spoken and written
+  "Hi kids! Let's talk with me 🦜".
+
+### Notes
+- `flutter analyze`: 0 issues; tests passing.
+- Live Gemini build verified on-device (greeting + smiling status + a real
+  chat reply).
+
+### Fixed
+- **Pollie couldn't wake up / reply** — two API-generation issues:
+  - The tiny `maxOutputTokens` cap left nothing for the current (thinking)
+    flash models, which returned empty content (SDK threw "Unhandled format
+    for Content"). Budget raised generously.
+  - The SDK 0.4.7 sends `Content.system` as `systemInstruction` with a
+    `role: 'system'` field, which the current Gemini API rejects. Pollie's
+    rules now ride along as the first user turn instead.
+- Model set to `gemini-flash-latest` (the self-updating alias; named flash
+  models like 2.0/2.5 are no longer available to new free-tier keys).
+
+---
+
 ## [1.1.0] — 2026-08-08
 
 ### Added

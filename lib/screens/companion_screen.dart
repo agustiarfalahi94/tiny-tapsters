@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
-import '../services/buddy_service.dart';
+import '../services/pollie_service.dart';
 import '../widgets/game_background.dart';
 import '../widgets/round_button.dart';
 
-/// Buddy 🐻 — a talking companion powered by Gemini.
+enum _PollieStatus { sleeping, awake }
+
+/// Pollie 🦜 — a talking companion powered by Gemini.
 ///
-/// Toddlers tap the big chips to chat; grown-ups can type too. Buddy's
-/// replies stream in as speech bubbles and are spoken aloud (system TTS).
+/// Pollie sleeps 😴 while offline and smiles 😊 once Gemini answers a
+/// connectivity probe, then greets the child. Toddlers tap the big chips to
+/// chat; grown-ups can type too. Replies stream in as speech bubbles and are
+/// spoken aloud (system TTS).
 class CompanionScreen extends StatefulWidget {
   const CompanionScreen({super.key});
 
@@ -38,27 +42,34 @@ class _CompanionScreenState extends State<CompanionScreen> {
     'boleh',
     'tolong',
   ];
+  static const _greeting = 'Hi kids! Let\'s talk with me 🦜';
 
-  final _buddy = BuddyService();
+  final _pollie = PollieService();
   final _history = <ChatMessage>[];
   final _bubbles = <_Bubble>[];
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _tts = FlutterTts();
+  _PollieStatus _status = _PollieStatus.sleeping;
+  bool _waking = false;
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
-    _bubbles.add(
-      _Bubble(
-        role: 'model',
-        text: _buddy.isConfigured
-            ? "Hi! I'm Buddy! 🐻 What should we play today?"
-            : "Hi! I'm Buddy! 🐻 I can't talk yet — ask a grown-up to give "
-                  'me my magic key! 🔑',
-      ),
-    );
+    if (_pollie.isConfigured) {
+      _bubbles.add(_Bubble(role: 'model', text: ''));
+      _wakeUp();
+    } else {
+      _bubbles.add(
+        _Bubble(
+          role: 'model',
+          text:
+              "Hi! I'm Pollie! 🦜 I can't talk yet — ask a grown-up to "
+              'give me my magic key! 🔑',
+        ),
+      );
+    }
   }
 
   @override
@@ -66,6 +77,36 @@ class _CompanionScreenState extends State<CompanionScreen> {
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Probes Gemini and flips Pollie's mood: smiling 😊 + greeting on
+  /// success, sleeping 😴 + a retry hint on failure.
+  Future<void> _wakeUp() async {
+    if (_waking) return;
+    setState(() {
+      _waking = true;
+      _status = _PollieStatus.sleeping;
+    });
+    final awake = await _pollie.ping();
+    if (!mounted) return;
+    setState(() {
+      _waking = false;
+      _status = awake ? _PollieStatus.awake : _PollieStatus.sleeping;
+      _bubbles
+        ..clear()
+        ..add(
+          _Bubble(
+            role: 'model',
+            text: awake
+                ? _greeting
+                : 'Zzz… I can\'t reach the internet yet. '
+                      'Tap me to try waking up again! 😴',
+          ),
+        );
+    });
+    if (awake) {
+      _speak('Hi kids! Let\'s talk with me!');
+    }
   }
 
   void _scrollToBottom() {
@@ -95,7 +136,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
 
     try {
       final buffer = StringBuffer();
-      await for (final chunk in _buddy.reply(_history)) {
+      await for (final chunk in _pollie.reply(_history)) {
         buffer.write(chunk);
         if (mounted) {
           setState(() => _bubbles.last.text = buffer.toString());
@@ -104,7 +145,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
       }
       final reply = buffer.toString().trim();
       if (reply.isEmpty) {
-        throw StateError('Buddy said nothing — maybe try again?');
+        throw StateError('Pollie said nothing — maybe try again?');
       }
       _history.add(ChatMessage(role: 'model', text: reply));
       if (mounted) {
@@ -117,17 +158,20 @@ class _CompanionScreenState extends State<CompanionScreen> {
       }
       _speak(reply);
     } catch (e) {
+      debugPrint('Pollie reply failed: $e');
       if (!mounted) return;
       setState(() {
         _bubbles.removeLast();
         _bubbles.add(
           _Bubble(
             role: 'model',
-            text: _buddy.isConfigured
-                ? "Oops, I got lost for a moment! 😅 Can you ask me again?"
+            text: _pollie.isConfigured
+                ? 'Oops, I got lost for a moment! 😅 '
+                      'Can you ask me again?'
                 : "I can't talk yet — ask a grown-up for my magic key! 🔑",
           ),
         );
+        _status = _PollieStatus.sleeping;
         _busy = false;
       });
     }
@@ -147,6 +191,32 @@ class _CompanionScreenState extends State<CompanionScreen> {
     }
   }
 
+  void _reset() {
+    _history.clear();
+    setState(() {
+      _bubbles.clear();
+      if (_pollie.isConfigured) {
+        _bubbles.add(_Bubble(role: 'model', text: ''));
+        _status = _PollieStatus.sleeping;
+      } else {
+        _bubbles.add(
+          _Bubble(
+            role: 'model',
+            text:
+                "Hi! I'm Pollie! 🦜 I can't talk yet — ask a grown-up to "
+                'give me my magic key! 🔑',
+          ),
+        );
+      }
+    });
+    if (_pollie.isConfigured) _wakeUp();
+  }
+
+  String get _statusText {
+    if (_waking) return 'waking up…';
+    return _status == _PollieStatus.awake ? 'awake! 😊' : 'sleeping… 😴';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -155,7 +225,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
           GameBackground(
             child: Column(
               children: [
-                // Header: home button + Buddy avatar + status.
+                // Header: home button + Pollie status avatar + name.
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -168,18 +238,26 @@ class _CompanionScreenState extends State<CompanionScreen> {
                         onTap: () => Navigator.of(context).pop(),
                       ),
                       const SizedBox(width: 12),
-                      const CircleAvatar(
-                        radius: 26,
-                        backgroundColor: Colors.white,
-                        child: Text('🐻', style: TextStyle(fontSize: 30)),
+                      // The face is the online indicator: sleeping 😴
+                      // offline, smiling 😊 online. Tap it to try waking up.
+                      GestureDetector(
+                        onTap: _waking ? null : _wakeUp,
+                        child: CircleAvatar(
+                          radius: 26,
+                          backgroundColor: Colors.white,
+                          child: Text(
+                            _status == _PollieStatus.awake ? '😊' : '😴',
+                            style: const TextStyle(fontSize: 30),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 10),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Buddy',
+                            const Text(
+                              'Pollie',
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
@@ -190,8 +268,8 @@ class _CompanionScreenState extends State<CompanionScreen> {
                               ),
                             ),
                             Text(
-                              'your little friend',
-                              style: TextStyle(
+                              _statusText,
+                              style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.white,
                               ),
@@ -199,25 +277,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
                           ],
                         ),
                       ),
-                      RoundButton(
-                        emoji: '🔁',
-                        onTap: () => setState(() {
-                          _history.clear();
-                          _bubbles
-                            ..clear()
-                            ..add(
-                              _Bubble(
-                                role: 'model',
-                                text: _buddy.isConfigured
-                                    ? "Hi! I'm Buddy! 🐻 What should we "
-                                          'play today?'
-                                    : "Hi! I'm Buddy! 🐻 I can't talk yet — "
-                                          'ask a grown-up to give me my magic '
-                                          'key! 🔑',
-                              ),
-                            );
-                        }),
-                      ),
+                      RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),
                 ),
@@ -314,7 +374,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
             const CircleAvatar(
               radius: 18,
               backgroundColor: Colors.white,
-              child: Text('🐻', style: TextStyle(fontSize: 20)),
+              child: Text('🦜', style: TextStyle(fontSize: 20)),
             ),
             const SizedBox(width: 8),
           ],
@@ -345,11 +405,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
                     : bubble.streaming
                     ? '${bubble.text} …'
                     : bubble.text,
-                style: TextStyle(
-                  fontSize: 17,
-                  color: isUser ? Colors.black87 : Colors.black87,
-                  height: 1.3,
-                ),
+                style: const TextStyle(fontSize: 17, height: 1.3),
               ),
             ),
           ),

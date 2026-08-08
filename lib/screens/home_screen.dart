@@ -16,13 +16,13 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Buddy 🐻 — the talking companion, always one tap away.
+      // Pollie 🦜 — the talking companion, always one tap away.
       floatingActionButton: FloatingActionButton(
         onPressed: () => _open(context, const CompanionScreen()),
         backgroundColor: Colors.white,
         elevation: 6,
-        tooltip: 'Talk to Buddy',
-        child: const Text('🐻', style: TextStyle(fontSize: 32)),
+        tooltip: 'Talk to Pollie',
+        child: const Text('🦜', style: TextStyle(fontSize: 32)),
       ),
       body: GameBackground(
         child: Column(

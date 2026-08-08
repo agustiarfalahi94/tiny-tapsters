@@ -186,7 +186,8 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
     await tester.pump();
 
-    expect(find.text('Buddy'), findsOneWidget);
+    expect(find.text('Pollie'), findsOneWidget);
+    expect(find.text('sleeping… 😴'), findsOneWidget);
     // No GEMINI_API_KEY in the test environment → friendly fallback text.
     expect(find.textContaining('magic key'), findsOneWidget);
 
@@ -197,9 +198,9 @@ void main() {
     expect(find.textContaining('magic key'), findsWidgets);
   });
 
-  testWidgets('home screen has the Buddy button', (tester) async {
+  testWidgets('home screen has the Pollie button', (tester) async {
     await tester.pumpWidget(const ToddlerGamesApp());
-    expect(find.byTooltip('Talk to Buddy'), findsOneWidget);
+    expect(find.byTooltip('Talk to Pollie'), findsOneWidget);
   });
 
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {
