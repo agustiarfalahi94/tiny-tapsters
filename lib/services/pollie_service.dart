@@ -106,7 +106,9 @@ Rules:
       // ("Role 'system' is not supported"). Riding along as the first user
       // turn works on every API version instead.
       Content.text(_systemPrompt),
-      for (final message in history)
+      // Keep long sessions within the model's context window: only the
+      // most recent turns go with each request.
+      for (final message in _trimmedHistory(history))
         if (message.role == 'user')
           Content.text(message.text)
         else
@@ -115,5 +117,12 @@ Rules:
     return model
         .generateContentStream(contents, safetySettings: _safetySettings)
         .map((r) => r.text ?? '');
+  }
+
+  /// The last 20 conversation turns (a toddler chat never needs more).
+  static List<ChatMessage> _trimmedHistory(List<ChatMessage> history) {
+    return history.length <= 20
+        ? history
+        : history.sublist(history.length - 20);
   }
 }

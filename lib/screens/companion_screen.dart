@@ -28,7 +28,8 @@ class CompanionScreen extends StatefulWidget {
   State<CompanionScreen> createState() => _CompanionScreenState();
 }
 
-class _CompanionScreenState extends State<CompanionScreen> {
+class _CompanionScreenState extends State<CompanionScreen>
+    with WidgetsBindingObserver {
   static const _chips = [
     'Tell me a story! 🐰',
     'Sing a song! 🎵',
@@ -83,6 +84,7 @@ class _CompanionScreenState extends State<CompanionScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // No background music while talking with Pollie.
     MusicPlayer.instance.suppress();
     _initSpeechLocale();
@@ -103,10 +105,35 @@ class _CompanionScreenState extends State<CompanionScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // Never leave the mic or the TTS engine running after leaving Pollie.
+    try {
+      _speech.stop();
+      _tts.stop();
+    } catch (_) {}
     MusicPlayer.instance.unsuppress();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      // No mic/TTS while the app is in the background.
+      try {
+        _speech.stop();
+        _tts.stop();
+      } catch (_) {}
+      if (mounted && _status == _PollieStatus.listening) {
+        setState(() {
+          _status = _PollieStatus.awake;
+          _busy = false;
+          _partial = '';
+        });
+      }
+    }
   }
 
   /// Picks the speech recognition locale from the device language
@@ -226,26 +253,38 @@ class _CompanionScreenState extends State<CompanionScreen> {
       _partial = '';
       _soundLevel = 0;
     });
-    await _speech.listen(
-      onResult: (result) {
-        setState(() => _partial = result.recognizedWords);
-        if (result.finalResult && result.recognizedWords.trim().isNotEmpty) {
-          _speech.stop();
-          setState(() {
-            _busy = false;
-            _partial = '';
-          });
-          _send(result.recognizedWords.trim());
-        }
-      },
-      onSoundLevelChange: (level) =>
-          setState(() => _soundLevel = level.clamp(0, 1)),
-      listenOptions: SpeechListenOptions(
-        localeId: _localeId,
-        listenFor: const Duration(seconds: 12),
-        pauseFor: const Duration(seconds: 2),
-      ),
-    );
+    try {
+      await _speech.listen(
+        onResult: (result) {
+          setState(() => _partial = result.recognizedWords);
+          if (result.finalResult && result.recognizedWords.trim().isNotEmpty) {
+            _speech.stop();
+            setState(() {
+              _busy = false;
+              _partial = '';
+            });
+            _send(result.recognizedWords.trim());
+          }
+        },
+        onSoundLevelChange: (level) =>
+            setState(() => _soundLevel = level.clamp(0, 1)),
+        listenOptions: SpeechListenOptions(
+          localeId: _localeId,
+          listenFor: const Duration(seconds: 12),
+          pauseFor: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      // Speech engine hiccup: fall back to the idle smile, never crash.
+      debugPrint('Listening failed: $e');
+      if (mounted) {
+        setState(() {
+          _status = _PollieStatus.awake;
+          _busy = false;
+          _partial = '';
+        });
+      }
+    }
   }
 
   void _stopListening() {

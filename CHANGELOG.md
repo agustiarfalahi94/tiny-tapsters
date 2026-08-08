@@ -5,6 +5,25 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.3.3] — 2026-08-08
+
+### Improved
+- **Global error handling** — uncaught errors are logged instead of crashing;
+  the scary red debug screen is replaced with a friendly fallback
+  ("Oops! … keep playing! 🐻") so a build error can never frighten a toddler.
+- **Pollie cleans up properly** — leaving the companion (or backgrounding the
+  app) now stops the microphone and the TTS engine immediately; no stale
+  "listening" state after resume.
+- **Speech-engine hiccups are caught** — a failed `listen()` falls back to
+  the idle smile instead of an unhandled error.
+- **Long chats stay healthy** — only the last 20 conversation turns are sent
+  to Gemini, so marathon toddler sessions can't blow the context window.
+
+### Notes
+- `flutter analyze`: 0 issues; 11/11 tests.
+
+---
+
 ## [1.3.2] — 2026-08-08
 
 ### Improved
