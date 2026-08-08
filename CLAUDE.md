@@ -2,12 +2,12 @@
 
 ## Quick facts
 
-- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.6.0+21**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
+- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.6.1+22**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
 - **Dependencies**: `audioplayers` (SFX), `google_generative_ai` + `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. Only *bundled* asset: `assets/sfx/pop.wav` — `assets/branding/tiny-tapsters-logo.png` is build-time input for the icon generator and is deliberately not in `pubspec.yaml`.
 - **Permissions**: `INTERNET` + `RECORD_AUDIO` — both exist only for Pollie's voice chat. **All six games are fully offline**; Pollie is the sole network feature.
 - **Default branch is `develop`**; release = merge to `main` + annotated tag `vX.Y.Z` (push both).
 - **Features go on a dedicated `feature/<name>` branch** off `develop` — never commit feature work straight to `develop`. Plan in chat first, then execute.
-- **Validation before any commit:** `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**16/16**), `flutter build apk --release` (when native config or deps change).
+- **Validation before any commit:** `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**19/19**), `flutter build apk --release` (when native config or deps change).
 - **Never touch/commit**: `android/key.properties`, `android/app/release-keystore.jks`, or any Gemini API key. The key is injected at build time via `--dart-define=GEMINI_API_KEY=...` (CI reads it from the `GEMINI_API_KEY` repo secret).
 
 ## Commands
