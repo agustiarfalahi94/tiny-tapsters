@@ -112,21 +112,24 @@ void main() {
     expect(pieceSize.height, closeTo(slotSize.height, 0.5));
   });
 
-  testWidgets('jigsaw uses moderate font sizes and square tiles', (
-    tester,
-  ) async {
+  testWidgets('jigsaw uses no text scaling and square tiles', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    // Huge font sizes can exhaust the Android glyph atlas and make every
-    // emoji in the app stop painting — cap the picture font size.
-    final fonts = tester
-        .widgetList<Text>(find.byType(Text))
-        .map((t) => t.style?.fontSize ?? 0);
-    expect(fonts.every((f) => f <= 200), isTrue);
+    // Scaling text (FittedBox / non-identity Transform) makes the renderer
+    // re-rasterize emoji glyphs every animation frame — lag, and eventually
+    // every icon in the app stops painting. Guard against both.
     expect(find.byType(FittedBox), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is Transform &&
+            (w.transform.getMaxScaleOnAxis() - 1).abs() > 0.01,
+      ),
+      findsNothing,
+    );
 
     // Tiles are perfectly square boxes.
     final slots = tester

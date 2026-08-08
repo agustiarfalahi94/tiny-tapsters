@@ -33,12 +33,6 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
     '🐠',
   ];
 
-  /// The emoji is rendered at this moderate font size and enlarged with a
-  /// transform. Huge font sizes (300px+) can exhaust the glyph atlas on
-  /// Android and make ALL text/emoji in the app stop painting until the app
-  /// restarts — that is what made icons vanish app-wide.
-  static const _pictureFontSize = 128.0;
-
   late String _picture;
   late Key _gameKey;
   bool _won = false;
@@ -197,18 +191,16 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
         ),
       ),
       // No border or corner radius: a border would show up as a visible cut
-      // line between pieces.
+      // line between pieces. The emoji is rendered at its NATURAL font size —
+      // never wrap it in a FittedBox or Transform.scale: scaling text (in
+      // particular bitmap emoji fonts on Impeller) re-rasterizes glyphs on
+      // every animation frame, which lags and eventually breaks ALL emoji
+      // rendering app-wide. The slight overscan (fontSize = 1.1× the board's
+      // smallest side) is clipped at the board edges.
       child: Center(
-        // Moderate font size + transform scale (GPU-scaled, cheap and safe).
-        // The 1.15 factor compensates for the emoji glyph's internal padding
-        // so it visually fills the board; the tiny overscan is clipped at the
-        // board edges.
-        child: Transform.scale(
-          scale: boardMin / _pictureFontSize * 1.15,
-          child: Text(
-            _picture,
-            style: const TextStyle(fontSize: _pictureFontSize),
-          ),
+        child: Text(
+          _picture,
+          style: TextStyle(fontSize: boardMin * 1.1, height: 1),
         ),
       ),
     );

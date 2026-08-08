@@ -73,7 +73,6 @@ class _PairDragGameState extends State<PairDragGame> {
   int? _dragIndex;
   Offset _dragStart = Offset.zero;
   Offset _pieceStart = Offset.zero;
-  int? _popIndex;
   bool _done = false;
 
   // Layout values computed during build, used by drag callbacks.
@@ -151,13 +150,8 @@ class _PairDragGameState extends State<PairDragGame> {
           _pos[index] = stackBox.globalToLocal(
             slotCenter - Offset(_pieceSize / 2, _pieceSize / 2),
           );
-          _popIndex = index;
         });
         HapticFeedback.mediumImpact();
-        Future.delayed(const Duration(milliseconds: 350), () {
-          if (!mounted) return;
-          setState(() => _popIndex = null);
-        });
         if (_placed.every((p) => p)) {
           Future.delayed(const Duration(milliseconds: 600), () {
             if (!mounted) return;
@@ -289,24 +283,22 @@ class _PairDragGameState extends State<PairDragGame> {
             // Unplaced pieces (draggable).
             for (var i = 0; i < widget.pairCount; i++)
               if (!_placed[i]) _buildDraggablePiece(i),
-            // Placed pieces.
+            // Placed pieces. No scale pop: animating a transform on a piece
+            // that contains text re-rasterizes glyphs every frame (lag + can
+            // break all emoji rendering), so placement is instant and clean.
             for (var i = 0; i < widget.pairCount; i++)
               if (_placed[i])
                 Positioned(
                   left: _pos[i]!.dx,
                   top: _pos[i]!.dy,
-                  child: AnimatedScale(
-                    scale: _popIndex == i ? 1.18 : 1.0,
-                    duration: const Duration(milliseconds: 300),
-                    child: SizedBox(
-                      width: _pieceSize,
-                      height: _pieceSize,
-                      child: widget.pieceBuilder(
-                        context,
-                        i,
-                        _pieceSize,
-                        _slotSize,
-                      ),
+                  child: SizedBox(
+                    width: _pieceSize,
+                    height: _pieceSize,
+                    child: widget.pieceBuilder(
+                      context,
+                      i,
+                      _pieceSize,
+                      _slotSize,
                     ),
                   ),
                 ),

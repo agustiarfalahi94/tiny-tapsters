@@ -5,6 +5,29 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.0.5] — 2026-08-08
+
+### Fixed
+- **Laggy placement + vanishing icons, for real this time** — the previous
+  fixes scaled the picture emoji with FittedBox/Transform. Impeller
+  re-rasterizes text glyphs based on their transform scale, so every
+  animation frame re-rasterized a ~300px emoji (the lag) and the glyph atlas
+  eventually failed, stopping ALL emoji rendering app-wide (the vanishing
+  icons). The picture is now rendered at its natural font size with zero
+  transforms, and the placement pop animation (an animated transform on a
+  text-bearing piece) was removed entirely.
+
+### Changed
+- Piece placement is now instant (haptic + snap, no scale animation).
+
+### Notes
+- `flutter analyze`: 0 issues; 7/7 tests passing.
+- Verified on-device by playing a full 2×2 jigsaw round via adb (input
+  swipes + screenshots) — pieces snap cleanly and every icon stays visible
+  after placement and after the win overlay.
+
+---
+
 ## [1.0.4] — 2026-08-08
 
 ### Fixed
