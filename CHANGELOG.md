@@ -5,6 +5,22 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.5.0] — 2026-08-08
+
+### Added
+- **Count the Animals!** — a counting game: the toddler counts a group of big
+  animal emojis and taps the answer card (large digit + dot pattern, up to 2
+  rows of 5 dots) that matches. Wrong taps shake the card and let the child
+  try again; 5 rounds per game and fewer wrong taps means more stars. Easy
+  (count to 3), Medium (to 5), Big (to 10).
+
+### Notes
+- `flutter analyze`: 0 issues; 16/16 tests (new: count-game flow with a
+  seeded RNG — wrong tap doesn't advance, correct tap does, star
+  thresholds, double-tap guard, Big-mode boundary).
+
+---
+
 ## [1.4.4] — 2026-08-08
 
 ### Added

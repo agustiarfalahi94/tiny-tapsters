@@ -2,11 +2,14 @@
 
 ## Project
 
-Our Toddlers' Journey — Flutter toddler-games app (`com.lilianyoctoria.toddlers_journey`). v1.0.0 · Flutter 3.41.6 · **Zero external packages** · **Zero permissions** · Fully offline · Android-first · Emoji-based graphics (no image assets) · Shared signing keystore with the `random_recall` project.
+Our Toddlers' Journey — Flutter toddler-games app (`com.lilianyoctoria.toddlers_journey`). v1.5.0 · Flutter 3.41.6 · **One external package: audioplayers (SFX)** · **Zero permissions** · Fully offline · Android-first · Emoji-based graphics (no image assets) · Shared signing keystore with the `random_recall` project.
 
 ## Git flow
 
 - Work on **`develop`** (default branch).
+- **Improvements & features: always work on a dedicated branch** (e.g. `feature/<name>`) created from `develop` — never commit feature work directly on `develop`. Merge back to `develop` only after validation passes.
+- **Plan before execution**: write the plan in chat first (scope, files touched, validation steps), get user confirmation, then execute. This applies to all tasks, especially multi-agent ones.
+- **Sub-agent (multi-agent) tasks**: roles are separated — one implementer (disjoint write scope), one reviewer (read-only, fresh-eyes critique), one tester (runs `flutter analyze` / `dart format` / `flutter test` / release build). Synthesize their results; only merge when all pass.
 - Release: merge `develop` → `main` locally → push main → annotated tag `vX.Y.Z` → push tag.
 
 ## Validation (run before finishing any task)
@@ -14,7 +17,7 @@ Our Toddlers' Journey — Flutter toddler-games app (`com.lilianyoctoria.toddler
 ```bash
 flutter analyze                       # must say "No issues found!"
 dart format --set-exit-if-changed lib/ test/
-flutter test                          # 3/3
+flutter test
 flutter build apk --release           # when native config or deps changed
 ```
 
