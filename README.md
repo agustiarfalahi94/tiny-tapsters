@@ -38,6 +38,25 @@ The release build is signed with the shared `random_recall` keystore
 (`android/key.properties` + `android/app/release-keystore.jks`, both
 git-ignored) and minified with R8.
 
+## Download the APK
+
+Every release has a ready-to-install APK attached to it:
+<https://github.com/agustiarfalahi94/our-toddlers-journey/releases> —
+open a version and grab the `our-toddlers-journey-vX.Y.Z.apk` asset.
+
+- The APK is built automatically by the `Release APK` GitHub Actions
+  workflow (analyze + tests must pass, then it signs with the real
+  keystore and attaches the APK to the release).
+- **Repo access**: the repo is private, so only people you invite can
+  download. Make the repo public if you want anyone to grab it.
+- **First install**: Android will ask to allow installs from the browser
+  ("unknown sources") — that's normal for sideloaded APKs. Play Protect
+  may also show a scan warning; the APK is signed by your own key.
+- **Pollie works out of the box**: the release APK is built with the
+  Gemini key baked in, so the companion is fully functional in
+  downloaded copies too (the key lives in the APK, as with any
+  sideloaded app).
+
 ## Pollie (Gemini companion)
 
 To enable Pollie, build with your own free API key from
