@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
 import '../widgets/round_button.dart';
@@ -91,6 +92,7 @@ class _BubblePopScreenState extends State<BubblePopScreen>
       _popped++;
     });
     HapticFeedback.lightImpact();
+    SoundEffects.instance.pop();
     if (_popped >= _popsPerRound) {
       Future.delayed(const Duration(milliseconds: 600), () {
         if (!mounted) return;

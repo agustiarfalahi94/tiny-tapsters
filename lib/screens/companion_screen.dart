@@ -6,7 +6,6 @@ import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import '../services/kid_safety.dart';
-import '../services/music_player.dart';
 import '../services/pollie_service.dart';
 import '../widgets/game_background.dart';
 import '../widgets/round_button.dart';
@@ -85,8 +84,6 @@ class _CompanionScreenState extends State<CompanionScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // No background music while talking with Pollie.
-    MusicPlayer.instance.suppress();
     _initSpeechLocale();
     if (_pollie.isConfigured) {
       _bubbles.add(_Bubble(role: 'model', text: ''));
@@ -111,7 +108,6 @@ class _CompanionScreenState extends State<CompanionScreen>
       _speech.stop();
       _tts.stop();
     } catch (_) {}
-    MusicPlayer.instance.unsuppress();
     _input.dispose();
     _scroll.dispose();
     super.dispose();

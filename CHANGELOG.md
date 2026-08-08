@@ -5,6 +5,22 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.4.0] — 2026-08-08
+
+### Removed
+- **Background music removed entirely** — the lullaby player, asset, and
+  generator are gone. The app is silent again except for game effects.
+
+### Added
+- **Bubble Pop pop sound** — tapping a bubble now plays a playful
+  synthesized "pop" (`assets/sfx/pop.wav`, regenerated with
+  `tool/generate_sfx.dart`); rapid taps re-pop cleanly.
+
+### Notes
+- `flutter analyze`: 0 issues; 11/11 tests.
+
+---
+
 ## [1.3.4] — 2026-08-08
 
 ### Improved

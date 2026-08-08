@@ -24,7 +24,6 @@ flutter build apk --release           # when native config or deps changed
 - Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature. Permissions: INTERNET + RECORD_AUDIO (voice chat).
 - Never commit a Gemini API key: it is passed at build time via `--dart-define=GEMINI_API_KEY=...`.
 - Background music plays on home/games, NOT on the Pollie screen; pause/resume with app lifecycle.
-- Keep the music asset in sync: `dart run tool/generate_music.dart` regenerates `assets/music/lullaby.wav`.
 - All games must be playable without reading: big emoji, no required text.
 - Keep CHANGELOG.md + README.md in sync with real changes.
 
@@ -35,5 +34,5 @@ flutter build apk --release           # when native config or deps changed
 - `lib/screens/levels_screen.dart` — shared difficulty picker.
 - `lib/services/pollie_service.dart` — Gemini wrapper for the Pollie companion (strict safety settings + kid-safe prompt).
 - `lib/services/kid_safety.dart` — local adult-word guard (input + output).
-- `lib/services/music_player.dart` — background lullaby (suppressed on the Pollie screen).
+- `lib/services/sound_effects.dart` — one-shot SFX (bubble pop); regenerate the asset with `dart run tool/generate_sfx.dart`.
 - `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety tests.

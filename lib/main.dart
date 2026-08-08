@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
-import 'services/music_player.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,40 +44,8 @@ class _KidFriendlyError extends StatelessWidget {
   }
 }
 
-class ToddlerGamesApp extends StatefulWidget {
+class ToddlerGamesApp extends StatelessWidget {
   const ToddlerGamesApp({super.key});
-
-  @override
-  State<ToddlerGamesApp> createState() => _ToddlerGamesAppState();
-}
-
-class _ToddlerGamesAppState extends State<ToddlerGamesApp>
-    with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    // Gentle background lullaby across the home + game screens.
-    MusicPlayer.instance.start();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    MusicPlayer.instance.stop();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // No music while the app is in the background.
-    if (state == AppLifecycleState.resumed) {
-      MusicPlayer.instance.start();
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
-      MusicPlayer.instance.stop();
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
