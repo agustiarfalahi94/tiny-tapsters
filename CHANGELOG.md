@@ -5,6 +5,22 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.4.1] — 2026-08-08
+
+### Fixed
+- **Mic button could seem unresponsive** — tapping the mic while Pollie was
+  sleeping/thinking/speaking did nothing. Now: tapping the mic while he
+  sleeps **wakes him up**, and the mic **dims** whenever it can't listen so
+  it never looks broken. A speech-engine "busy" hiccup right after a
+  listening session now gets one quiet retry before giving up.
+- **Mic pulse rebuild storm** — sound-level updates are throttled, so the
+  screen no longer rebuilds dozens of times per second while listening.
+
+### Notes
+- `flutter analyze`: 0 issues; 12/12 tests (new: mic-always-responds test).
+
+---
+
 ## [1.4.0] — 2026-08-08
 
 ### Removed

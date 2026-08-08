@@ -230,6 +230,19 @@ void main() {
     expect(KidSafety.containsBlocked('tell me a story'), isFalse);
   });
 
+  testWidgets('companion mic tap always responds', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
+    await tester.pump();
+
+    // Pollie is asleep (no API key in tests) → tapping the mic wakes him
+    // instead of doing nothing. He then reports he can't reach the
+    // internet — either way, the mic always responds.
+    await tester.tap(find.text('🎤'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.textContaining("can't reach the internet"), findsOneWidget);
+  });
+
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
 

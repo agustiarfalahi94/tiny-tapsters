@@ -79,6 +79,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   String _localeId = 'en-US';
   String _partial = '';
   double _soundLevel = 0;
+  int _listenRetries = 0;
 
   @override
   void initState() {
@@ -141,6 +142,7 @@ class _CompanionScreenState extends State<CompanionScreen>
         onStatus: (status) {
           // Listening ended (timeout / stop): return to the idle smile.
           if (status == 'done' && mounted) {
+            _listenRetries = 0;
             setState(() {
               if (_status == _PollieStatus.listening) {
                 _status = _PollieStatus.awake;
@@ -254,6 +256,7 @@ class _CompanionScreenState extends State<CompanionScreen>
         onResult: (result) {
           setState(() => _partial = result.recognizedWords);
           if (result.finalResult && result.recognizedWords.trim().isNotEmpty) {
+            _listenRetries = 0;
             _speech.stop();
             setState(() {
               _busy = false;
@@ -262,8 +265,15 @@ class _CompanionScreenState extends State<CompanionScreen>
             _send(result.recognizedWords.trim());
           }
         },
-        onSoundLevelChange: (level) =>
-            setState(() => _soundLevel = level.clamp(0, 1)),
+        onSoundLevelChange: (level) {
+          // Throttle: only rebuild when the level actually moved, so the
+          // mic pulse never rebuilds the whole screen dozens of times a
+          // second.
+          final l = level.clamp(0.0, 1.0);
+          if ((l - _soundLevel).abs() > 0.015) {
+            setState(() => _soundLevel = l);
+          }
+        },
         listenOptions: SpeechListenOptions(
           localeId: _localeId,
           listenFor: const Duration(seconds: 12),
@@ -271,7 +281,8 @@ class _CompanionScreenState extends State<CompanionScreen>
         ),
       );
     } catch (e) {
-      // Speech engine hiccup: fall back to the idle smile, never crash.
+      // Speech engine hiccup (often "recognizer busy" right after another
+      // session): one quiet retry, then fall back to the idle smile.
       debugPrint('Listening failed: $e');
       if (mounted) {
         setState(() {
@@ -279,6 +290,13 @@ class _CompanionScreenState extends State<CompanionScreen>
           _busy = false;
           _partial = '';
         });
+      }
+      if (_listenRetries < 1) {
+        _listenRetries++;
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (mounted) await _startListening();
+      } else {
+        _listenRetries = 0;
       }
     }
   }
@@ -541,10 +559,18 @@ class _CompanionScreenState extends State<CompanionScreen>
   }
 
   void _onMicTap() {
-    if (_status == _PollieStatus.listening) {
-      _stopListening();
-    } else {
-      _startListening();
+    switch (_status) {
+      case _PollieStatus.listening:
+        _stopListening();
+      case _PollieStatus.sleeping:
+        // The mic always responds: tapping it while Pollie sleeps wakes him.
+        _wakeUp();
+      case _PollieStatus.awake:
+        _startListening();
+      case _PollieStatus.thinking:
+      case _PollieStatus.speaking:
+        // Momentarily busy — the dimmed mic shows this; ignore quietly.
+        break;
     }
   }
 
@@ -684,6 +710,8 @@ class _CompanionScreenState extends State<CompanionScreen>
                   child: Row(
                     children: [
                       // The mic pulses with the sound level while listening.
+                      // It dims when Pollie can't listen right now (sleeping,
+                      // thinking, speaking) so it never looks broken.
                       GestureDetector(
                         onTap: _onMicTap,
                         child: AnimatedScale(
@@ -691,21 +719,28 @@ class _CompanionScreenState extends State<CompanionScreen>
                               ? 1 + _soundLevel * 0.6
                               : 1.0,
                           duration: const Duration(milliseconds: 100),
-                          child: Material(
-                            color: _status == _PollieStatus.listening
-                                ? const Color(0xFFFF5252)
-                                : Colors.white,
-                            shape: const CircleBorder(),
-                            elevation: 3,
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Text(
-                                '🎤',
-                                style: TextStyle(
-                                  fontSize: 26,
-                                  color: _status == _PollieStatus.listening
-                                      ? Colors.white
-                                      : null,
+                          child: Opacity(
+                            opacity:
+                                (_status == _PollieStatus.awake ||
+                                    _status == _PollieStatus.listening)
+                                ? 1.0
+                                : 0.45,
+                            child: Material(
+                              color: _status == _PollieStatus.listening
+                                  ? const Color(0xFFFF5252)
+                                  : Colors.white,
+                              shape: const CircleBorder(),
+                              elevation: 3,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Text(
+                                  '🎤',
+                                  style: TextStyle(
+                                    fontSize: 26,
+                                    color: _status == _PollieStatus.listening
+                                        ? Colors.white
+                                        : null,
+                                  ),
                                 ),
                               ),
                             ),
