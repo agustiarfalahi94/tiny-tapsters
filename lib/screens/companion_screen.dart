@@ -81,6 +81,39 @@ class _CompanionScreenState extends State<CompanionScreen>
   double _soundLevel = 0;
   int _listenRetries = 0;
 
+  // --- one listening "turn" -------------------------------------------------
+  //
+  // Android's recogniser ends its session far sooner than a toddler ends a
+  // sentence: it has a "definitely finished" silence timer (which is the only
+  // one the plugin exposes, as pauseFor) and a much shorter "possibly
+  // finished" one that we cannot configure at all. Treating either as the end
+  // of the child's turn cuts them off mid-thought.
+  //
+  // So a turn is ours, not the recogniser's. Each session's words are banked,
+  // the mic is immediately re-armed, and the turn only ends — and the text
+  // only goes to Pollie — once the child has actually been quiet for
+  // [_quietWindow].
+  static const _quietWindow = Duration(seconds: 5);
+
+  /// Hard stop, so a turn can never leave the mic live forever.
+  static const _maxTurn = Duration(seconds: 45);
+
+  /// Give up on a turn where nothing at all was heard, rather than restarting
+  /// into an empty room until [_maxTurn].
+  static const _maxEmptySessions = 2;
+
+  /// Words banked from finished sessions in the current turn.
+  String _heard = '';
+  Timer? _quietTimer;
+  Timer? _turnTimer;
+  bool _turnActive = false;
+  int _emptySessions = 0;
+
+  /// What the child has said so far this turn: banked words plus whatever the
+  /// recogniser is currently guessing.
+  String get _transcript =>
+      [_heard, _partial].where((s) => s.isNotEmpty).join(' ');
+
   @override
   void initState() {
     super.initState();
@@ -104,7 +137,11 @@ class _CompanionScreenState extends State<CompanionScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // Never leave the mic or the TTS engine running after leaving Pollie.
+    // Never leave the mic, a pending turn, or the TTS engine running after
+    // leaving Pollie.
+    _turnActive = false;
+    _quietTimer?.cancel();
+    _turnTimer?.cancel();
     try {
       _speech.stop();
       _tts.stop();
@@ -118,7 +155,12 @@ class _CompanionScreenState extends State<CompanionScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      // No mic/TTS while the app is in the background.
+      // No mic/TTS while the app is in the background. Drop the turn rather
+      // than sending half a sentence the child never finished.
+      _turnActive = false;
+      _quietTimer?.cancel();
+      _turnTimer?.cancel();
+      _heard = '';
       try {
         _speech.stop();
         _tts.stop();
@@ -140,17 +182,28 @@ class _CompanionScreenState extends State<CompanionScreen>
       final available = await _speech.initialize(
         onError: _onSpeechError,
         onStatus: (status) {
-          // Listening ended (timeout / stop): return to the idle smile.
-          if (status == 'done' && mounted) {
-            _listenRetries = 0;
-            setState(() {
-              if (_status == _PollieStatus.listening) {
-                _status = _PollieStatus.awake;
-                _busy = false;
-                _partial = '';
+          if (status != 'done' || !mounted) return;
+          // A recogniser session ended. Mid-turn that is routine — it fires
+          // every time the child pauses — so re-arm instead of going idle.
+          if (_turnActive) {
+            if (_heard.isEmpty) {
+              _emptySessions++;
+              if (_emptySessions >= _maxEmptySessions) {
+                _endTurn(send: false);
+                return;
               }
-            });
+            }
+            _relisten();
+            return;
           }
+          _listenRetries = 0;
+          setState(() {
+            if (_status == _PollieStatus.listening) {
+              _status = _PollieStatus.awake;
+              _busy = false;
+              _partial = '';
+            }
+          });
         },
       );
       if (!mounted) return;
@@ -235,7 +288,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     });
   }
 
-  /// Starts listening; the mic button toggles it off.
+  /// Starts a listening turn; the mic button toggles it off.
   Future<void> _startListening() async {
     if (_status != _PollieStatus.awake || _busy) return;
     if (!_speechAvailable) {
@@ -250,25 +303,41 @@ class _CompanionScreenState extends State<CompanionScreen>
       _scrollToBottom();
       return;
     }
+    _heard = '';
+    _emptySessions = 0;
+    _listenRetries = 0;
+    _turnActive = true;
+    _turnTimer?.cancel();
+    _turnTimer = Timer(_maxTurn, () => _endTurn(send: true));
     setState(() {
       _status = _PollieStatus.listening;
       _busy = true;
       _partial = '';
       _soundLevel = 0;
     });
+    await _listenOnce();
+  }
+
+  /// One recogniser session. Several of these make up a turn.
+  Future<void> _listenOnce() async {
+    if (!_turnActive || !mounted) return;
     try {
       await _speech.listen(
         onResult: (result) {
+          if (!_turnActive) return;
           setState(() => _partial = result.recognizedWords);
-          if (result.finalResult && result.recognizedWords.trim().isNotEmpty) {
+          if (!result.finalResult) return;
+
+          final words = result.recognizedWords.trim();
+          if (words.isNotEmpty) {
+            _heard = _heard.isEmpty ? words : '$_heard $words';
+            _emptySessions = 0;
             _listenRetries = 0;
-            _speech.stop();
-            setState(() {
-              _busy = false;
-              _partial = '';
-            });
-            _send(result.recognizedWords.trim());
           }
+          setState(() => _partial = '');
+          // Don't send yet — the child may only be drawing breath.
+          _restartQuietTimer();
+          _relisten();
         },
         onSoundLevelChange: (level) {
           // Throttle: only rebuild when the level actually moved, so the
@@ -281,39 +350,84 @@ class _CompanionScreenState extends State<CompanionScreen>
         },
         listenOptions: SpeechListenOptions(
           localeId: _localeId,
-          listenFor: const Duration(seconds: 12),
-          pauseFor: const Duration(seconds: 2),
+          // Comfortably longer than the quiet window, so a session is ended
+          // by the child going quiet rather than by running out of time.
+          listenFor: const Duration(seconds: 20),
+          pauseFor: _quietWindow,
         ),
       );
     } catch (e) {
       // Speech engine hiccup (often "recognizer busy" right after another
-      // session): one quiet retry, then fall back to the idle smile.
+      // session): a couple of quiet retries, then end the turn.
       debugPrint('Listening failed: $e');
-      if (mounted) {
+      if (_turnActive && _listenRetries < 2) {
+        _listenRetries++;
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (mounted && _turnActive) await _listenOnce();
+      } else {
+        _endTurn(send: true);
+      }
+    }
+  }
+
+  /// Re-arms the mic after a session ends, so the turn survives the
+  /// recogniser's short endpointing. The small delay lets the previous
+  /// recogniser finish tearing down — restarting instantly earns a
+  /// "recognizer busy" error.
+  void _relisten() {
+    if (!_turnActive) return;
+    Future<void>.delayed(const Duration(milliseconds: 300), () async {
+      if (!mounted || !_turnActive || _speech.isListening) return;
+      await _listenOnce();
+    });
+  }
+
+  /// (Re)starts the countdown to the end of the turn. Only runs once
+  /// something has actually been banked: with nothing heard yet, a turn ends
+  /// through [_maxEmptySessions] instead.
+  void _restartQuietTimer() {
+    _quietTimer?.cancel();
+    if (_heard.isEmpty) return;
+    _quietTimer = Timer(_quietWindow, () => _endTurn(send: true));
+  }
+
+  /// Ends the turn, optionally sending everything banked during it.
+  void _endTurn({required bool send}) {
+    if (!_turnActive && _heard.isEmpty) {
+      // Already finished; still make sure the UI is idle.
+      if (mounted && _status == _PollieStatus.listening) {
         setState(() {
           _status = _PollieStatus.awake;
           _busy = false;
           _partial = '';
         });
       }
-      if (_listenRetries < 1) {
-        _listenRetries++;
-        await Future<void>.delayed(const Duration(milliseconds: 600));
-        if (mounted) await _startListening();
-      } else {
-        _listenRetries = 0;
-      }
+      return;
     }
-  }
+    _turnActive = false;
+    _quietTimer?.cancel();
+    _turnTimer?.cancel();
+    _quietTimer = null;
+    _turnTimer = null;
+    try {
+      _speech.stop();
+    } catch (_) {}
 
-  void _stopListening() {
-    _speech.stop();
+    final words = _heard.trim();
+    _heard = '';
+    _emptySessions = 0;
+    if (!mounted) return;
     setState(() {
       _status = _PollieStatus.awake;
       _busy = false;
       _partial = '';
+      _soundLevel = 0;
     });
+    if (send && words.isNotEmpty) _send(words);
   }
+
+  /// Tapping the mic while it is live means "I'm done" — send what we have.
+  void _stopListening() => _endTurn(send: true);
 
   void _onSpeechError(SpeechRecognitionError error) {
     if (!mounted) return;
@@ -325,6 +439,12 @@ class _CompanionScreenState extends State<CompanionScreen>
         message.contains('timeout') ||
         message.contains('no speech') ||
         error.permanent;
+
+    // Mid-turn, a "no match" just means the child paused longer than the
+    // recogniser's patience. Keep the turn alive: onStatus 'done' re-arms the
+    // mic, and the quiet timer decides when the turn is really over.
+    if (_turnActive && quiet) return;
+
     if (!quiet) {
       _bubbles.add(
         _Bubble(
@@ -333,6 +453,10 @@ class _CompanionScreenState extends State<CompanionScreen>
         ),
       );
       _scrollToBottom();
+    }
+    if (_turnActive) {
+      _endTurn(send: true);
+      return;
     }
     setState(() {
       _status = _PollieStatus.awake;
@@ -439,37 +563,17 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   List<Map<dynamic, dynamic>>? _cachedVoices;
 
-  /// Picks the warmest available voice for the locale (highest quality,
-  /// preferring female voices — the closest to a "kid/Ms-Rachel" feel).
+  /// Picks the most natural available voice for the locale.
   Future<void> _applyBestVoice(String lang) async {
     try {
       _cachedVoices ??= await _tts.getVoices as List<Map<dynamic, dynamic>>?;
-      final voices = _cachedVoices;
-      if (voices == null || voices.isEmpty) return;
-      final langCode = lang.split('-').first.toLowerCase();
-      final candidates = voices
-          .where(
-            (v) => (v['locale'] ?? '').toString().toLowerCase().startsWith(
-              langCode,
-            ),
-          )
-          .toList();
-      if (candidates.isEmpty) return;
-
-      Map<dynamic, dynamic> best = candidates.first;
-      for (final voice in candidates.skip(1)) {
-        final quality = (voice['quality'] as num?)?.toInt() ?? 0;
-        final bestQuality = (best['quality'] as num?)?.toInt() ?? 0;
-        final name = (voice['name'] ?? '').toString().toLowerCase();
-        final bestName = (best['name'] ?? '').toString().toLowerCase();
-        final female = name.contains('female') || name.contains('#f_');
-        final bestFemale =
-            bestName.contains('female') || bestName.contains('#f_');
-        if (quality > bestQuality ||
-            (quality == bestQuality && female && !bestFemale)) {
-          best = voice;
-        }
-      }
+      final best = pickBestVoice(_cachedVoices, lang);
+      if (best == null) return;
+      debugPrint(
+        'Pollie voice: ${best['name']} (${best['locale']}, '
+        'quality=${best['quality']}, network=${best['network_required']}, '
+        'score=${voiceScore(best, lang)})',
+      );
       await _tts.setVoice(best.cast<String, String>());
     } catch (_) {
       // Default engine voice is fine when no choice exists.
@@ -485,9 +589,11 @@ class _CompanionScreenState extends State<CompanionScreen>
       final lang = indonesian ? 'id-ID' : 'en-US';
       await _tts.setLanguage(lang);
       await _applyBestVoice(lang);
-      // Slightly higher pitch + warm pace for a gentle, kid-friendly voice.
-      await _tts.setPitch(1.35);
-      await _tts.setSpeechRate(0.5);
+      // Just above natural: enough to read as friendly, not so high that the
+      // synthesiser starts to sound like a chipmunk. Pushing pitch hard is
+      // what made Pollie sound robotic, not the speed.
+      await _tts.setPitch(1.1);
+      await _tts.setSpeechRate(0.45);
       // Once the reply is spoken, re-arm the microphone for a hands-free
       // conversation loop.
       _tts.setCompletionHandler(() async {
@@ -680,7 +786,9 @@ class _CompanionScreenState extends State<CompanionScreen>
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              _partial.isEmpty ? 'Listening…' : '$_partial …',
+                              _transcript.isEmpty
+                                  ? 'Listening…'
+                                  : '$_transcript …',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontStyle: FontStyle.italic,
@@ -857,4 +965,75 @@ class _Bubble {
   final String role; // 'user' | 'model'
   String text;
   bool streaming;
+}
+
+/// Android reports a voice's quality as a word, not a number. An earlier
+/// `as num?` cast therefore scored every voice zero, so the "pick the best
+/// voice" loop never actually picked anything and Pollie was left on whatever
+/// voice came first — usually a tinny local one. Hence the string table.
+const _qualityRank = {
+  'very high': 5,
+  'high': 4,
+  'normal': 3,
+  'low': 2,
+  'very low': 1,
+};
+
+/// Scores a `flutter_tts` voice map for how human it is likely to sound:
+/// quality first, then an exact locale match, then network (neural) voices,
+/// which are the ones that actually sound like a person, then female — warmer
+/// for a toddler. eSpeak is pushed to last; it is the most robotic engine on
+/// any device.
+///
+/// [wantedLocale] is the full locale being requested (e.g. `en-US`). Voices
+/// are shortlisted by language alone, so without this an `en-GB` voice could
+/// outrank the `en-US` one the conversation is actually in.
+int voiceScore(Map<dynamic, dynamic> voice, [String? wantedLocale]) {
+  final name = (voice['name'] ?? '').toString().toLowerCase();
+  final locale = (voice['locale'] ?? '').toString().toLowerCase();
+  final quality =
+      _qualityRank[(voice['quality'] ?? '').toString().toLowerCase()] ?? 0;
+  final networkVoice =
+      (voice['network_required'] ?? '').toString() == '1' ||
+      name.contains('network');
+  final female = name.contains('female') || name.contains('#f');
+  final espeak = name.contains('espeak');
+  final exactLocale =
+      wantedLocale != null && locale == wantedLocale.toLowerCase();
+
+  var score = quality * 100;
+  // Outweighs network + female together, so the right accent wins ties.
+  if (exactLocale) score += 60;
+  if (networkVoice) score += 40;
+  if (female) score += 10;
+  if (espeak) score -= 1000;
+  return score;
+}
+
+/// The best-sounding voice for [lang] out of [voices], or null when the list
+/// is empty or has nothing for that language.
+Map<dynamic, dynamic>? pickBestVoice(
+  List<Map<dynamic, dynamic>>? voices,
+  String lang,
+) {
+  if (voices == null || voices.isEmpty) return null;
+  final langCode = lang.split('-').first.toLowerCase();
+  final candidates = voices
+      .where(
+        (v) =>
+            (v['locale'] ?? '').toString().toLowerCase().startsWith(langCode),
+      )
+      .toList();
+  if (candidates.isEmpty) return null;
+
+  var best = candidates.first;
+  var bestScore = voiceScore(best, lang);
+  for (final voice in candidates.skip(1)) {
+    final score = voiceScore(voice, lang);
+    if (score > bestScore) {
+      best = voice;
+      bestScore = score;
+    }
+  }
+  return best;
 }

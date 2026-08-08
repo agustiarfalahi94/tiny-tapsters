@@ -5,6 +5,42 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.6.1] — 2026-08-09
+
+### Fixed
+- **Pollie's voice was never actually chosen.** `_applyBestVoice` read each
+  voice's quality with `(voice['quality'] as num?)`, but Android reports
+  quality as a *word* (`"very high"`), so the cast threw on the first
+  comparison, the surrounding `catch` swallowed it, and `setVoice()` was never
+  reached. Pollie has always spoken with whatever voice the system defaulted
+  to. Quality is now read from a string table, and voices are ranked by
+  quality → exact locale → network (neural) → female, with eSpeak pushed last.
+  The chosen voice is logged so it can be confirmed on a real device.
+- **The microphone cut the child off mid-sentence.** Android's recogniser has
+  two silence timers: the "definitely finished" one (exposed by the plugin as
+  `pauseFor`, previously 2s) and a much shorter "possibly finished" one that
+  `speech_to_text` never sets and cannot be configured. Ending the child's
+  turn on either was far too aggressive for a toddler.
+
+### Changed
+- **A listening turn is now the app's, not the recogniser's.** Each session's
+  words are banked and the mic is immediately re-armed; the turn ends — and
+  the text is only then sent to Pollie — once the child has genuinely been
+  quiet for 5 seconds. A turn is capped at 45s, and gives up after two
+  sessions that heard nothing at all. Tapping the mic while it is live still
+  means "I'm done" and sends what has been collected so far.
+- The live transcript now shows everything banked this turn, not just the
+  current fragment.
+- **Pollie sounds less synthetic**: pitch 1.35 → 1.1 and rate 0.5 → 0.45.
+  Pushing pitch that high is what made a mediocre voice sound robotic.
+
+### Notes
+- `flutter analyze`: 0 issues; 19/19 tests (new: voice ranking, including a
+  regression test that fails against the old numeric cast; locale preference;
+  empty and no-match voice lists).
+
+---
+
 ## [1.6.0] — 2026-08-08
 
 ### Changed

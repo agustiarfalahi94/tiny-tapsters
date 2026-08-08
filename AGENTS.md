@@ -2,7 +2,7 @@
 
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.6.0+21 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets, only `assets/sfx/pop.wav`) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.6.1+22 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets, only `assets/sfx/pop.wav`) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX), `google_generative_ai` + `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev.
 **Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The six games are fully offline; Pollie is the sole network feature.
@@ -38,8 +38,9 @@ flutter build apk --release           # when native config or deps changed
 - `lib/widgets/celebration_overlay.dart` — shared win overlay (confetti + stars + buttons).
 - `lib/screens/levels_screen.dart` — shared difficulty picker.
 - `lib/services/pollie_service.dart` — Gemini wrapper for the Pollie companion (strict safety settings + kid-safe prompt).
+- `lib/screens/companion_screen.dart` — Pollie. Two things here are easy to break: a listening **turn** is the app's, not the recogniser's (sessions are banked and the mic re-armed until the child is quiet for 5s — Android's short "possibly finished" endpointing is not configurable, so never go back to sending on the first final result); and `flutter_tts` reports voice quality as a **string**, so score voices with `voiceScore`/`pickBestVoice` and never cast `quality` to a number.
 - `lib/services/kid_safety.dart` — local adult-word guard (input + output).
 - `lib/services/sound_effects.dart` — one-shot SFX (bubble pop); regenerate the asset with `dart run tool/generate_sfx.dart`.
 - `tool/generate_icon.dart` — pure-Dart launcher-icon generator (no Flutter engine, no packages); derives all mipmap PNGs + adaptive icon resources from `assets/branding/tiny-tapsters-logo.png`. Contains its own PNG decoder and encoder. Re-run with `dart run tool/generate_icon.dart` after changing the logo. The master artwork is build-time only — never add it to `pubspec.yaml`.
 - `.github/workflows/release-apk.yml` — on `v*` tag push: analyze + test, sign with the real keystore, attach the APK to the GitHub release.
-- `test/widget_test.dart` — **16 tests**: home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety + quota tests, and the count-game flow (seeded RNG: wrong tap doesn't advance, star thresholds, double-tap guard, Big-mode boundary).
+- `test/widget_test.dart` — **19 tests**: home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety + quota tests, and the count-game flow (seeded RNG: wrong tap doesn't advance, star thresholds, double-tap guard, Big-mode boundary).
