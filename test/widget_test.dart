@@ -240,6 +240,84 @@ void main() {
     expect(KidSafety.containsBlocked('tell me a story'), isFalse);
   });
 
+  test('Pollie picks the highest-quality voice, not the first one', () {
+    // Android returns quality as a word ("very high"), so the old `as num?`
+    // cast scored every voice zero and the ranking collapsed to "first
+    // match, preferring female". This list is arranged so that broken
+    // ordering picks the low-quality female voice sitting at the front,
+    // while correct ranking reaches the far better male neural voice.
+    final voices = <Map<dynamic, dynamic>>[
+      {
+        'name': 'en-us-x-iol#female_1-local',
+        'locale': 'en-US',
+        'quality': 'normal',
+        'network_required': '0',
+      },
+      {
+        'name': 'en-us-x-tpd#male_3-network',
+        'locale': 'en-US',
+        'quality': 'very high',
+        'network_required': '1',
+      },
+      {
+        'name': 'en-gb-x-gba#female_1-local',
+        'locale': 'en-GB',
+        'quality': 'very high',
+        'network_required': '1',
+      },
+    ];
+
+    final best = pickBestVoice(voices, 'en-US');
+    expect(best?['name'], 'en-us-x-tpd#male_3-network');
+    // The en-GB voice is just as good on paper, but the conversation is in
+    // en-US and the accent should match.
+    expect(
+      pickBestVoice(voices, 'en-GB')?['name'],
+      'en-gb-x-gba#female_1-local',
+    );
+  });
+
+  test('Pollie voice ranking prefers network and female, avoids eSpeak', () {
+    int score(String name, String quality, String network) => voiceScore({
+      'name': name,
+      'locale': 'en-US',
+      'quality': quality,
+      'network_required': network,
+    });
+
+    // Quality dominates everything else.
+    expect(
+      score('a-local', 'very high', '0'),
+      greaterThan(score('b-network', 'normal', '1')),
+    );
+    // At equal quality, a network (neural) voice wins.
+    expect(
+      score('a-network', 'high', '1'),
+      greaterThan(score('b-local', 'high', '0')),
+    );
+    // At equal quality and network, female wins.
+    expect(
+      score('en-us-x-xxx#female_1-local', 'high', '0'),
+      greaterThan(score('en-us-x-xxx#male_1-local', 'high', '0')),
+    );
+    // eSpeak is last, even at nominally high quality.
+    expect(
+      score('espeak-en', 'very high', '1'),
+      lessThan(score('anything-local', 'very low', '0')),
+    );
+  });
+
+  test('a voice list with nothing for the language yields no pick', () {
+    final voices = <Map<dynamic, dynamic>>[
+      {'name': 'id-id-x-idc-local', 'locale': 'id-ID', 'quality': 'high'},
+    ];
+    expect(pickBestVoice(voices, 'en-US'), isNull);
+    expect(pickBestVoice(const [], 'en-US'), isNull);
+    expect(pickBestVoice(null, 'en-US'), isNull);
+    // Matching is by language, not exact locale.
+    expect(pickBestVoice(voices, 'id-ID')?['name'], 'id-id-x-idc-local');
+  });
+
   testWidgets('companion mic tap always responds', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
     await tester.pump();
