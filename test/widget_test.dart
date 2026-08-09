@@ -64,6 +64,44 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
   });
 
+  testWidgets('bubble pop header never shows a negative remaining count', (
+    tester,
+  ) async {
+    // Mirrors _popsPerRound in bubble_pop_screen.dart; kept in sync by
+    // hand since the constant is private to that screen.
+    const popsPerRound = 8;
+
+    await tester.pumpWidget(const MaterialApp(home: BubblePopScreen()));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Bubble emoji are 40px Text; the pop-sparkle that replaces one is
+    // 56px, so this finder always lands on a live, tappable bubble.
+    Finder bubbleTexts() => find.byWidgetPredicate(
+      (w) => w is Text && w.style?.fontSize == 40 && w.data != null,
+    );
+
+    for (var i = 0; i < popsPerRound; i++) {
+      await tester.tap(bubbleTexts().first);
+      await tester.pump(); // start the pop-sparkle animation
+      // Let the sparkle finish and the bubble respawn, staying well
+      // under the 600ms win delay so that delay can't mask this pump.
+      await tester.pump(const Duration(milliseconds: 450));
+    }
+
+    expect(find.text('Pop 0 more!'), findsOneWidget);
+
+    // Tap one more bubble before the 600ms win delay elapses.
+    await tester.tap(bubbleTexts().first);
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.textContaining('-'), findsNothing);
+    expect(find.text('Pop 0 more!'), findsOneWidget);
+
+    // Flush the pending 600ms win-delay timer so the test doesn't end
+    // with a dangling Future.delayed still outstanding.
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('home title stays centered after returning from a game', (
     tester,
   ) async {
