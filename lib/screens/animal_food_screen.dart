@@ -146,19 +146,26 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
                         emoji: '🏠',
                         onTap: () => Navigator.of(context).pop(),
                       ),
-                      const Spacer(),
-                      const Text(
-                        'Feed the animals!',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(color: Colors.black26, blurRadius: 6),
-                          ],
+                      // Expanded rather than Spacer-Text-Spacer: on a 360dp
+                      // phone the title plus two buttons is wider than the
+                      // row, and Spacers cannot give back space they do not
+                      // have.
+                      const Expanded(
+                        child: Text(
+                          'Feed the animals!',
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(color: Colors.black26, blurRadius: 6),
+                            ],
+                          ),
                         ),
                       ),
-                      const Spacer(),
                       RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),

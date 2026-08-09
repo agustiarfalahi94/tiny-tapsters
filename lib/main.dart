@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
 import 'services/music_route_observer.dart';
+import 'services/music_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +23,9 @@ void main() {
   // toddler experience.
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  // Locking the phone must stop the music, not leave it playing in a
+  // pocket. The games already paused their clocks; nothing told the music.
+  WidgetsBinding.instance.addObserver(MusicLifecycleObserver());
   runApp(const ToddlerGamesApp());
 }
 

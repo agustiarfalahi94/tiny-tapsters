@@ -208,31 +208,61 @@ class _PairDragGameState extends State<PairDragGame> {
         final boardRows =
             (widget.pairCount + widget.maxCols - 1) ~/ widget.maxCols;
 
-        double slotSize = math.min(
-          math.min((W - 32) / widget.maxCols, (H * 0.52) / boardRows),
-          140.0,
+        final drawerRows =
+            (widget.pairCount + widget.maxCols - 1) ~/ widget.maxCols;
+
+        // Chrome around the two blocks, kept as named values because the fit
+        // below has to subtract exactly what the layout below adds.
+        const sidePad = 16.0;
+        const topPad = 16.0;
+        const bottomPad = 12.0;
+        const drawerPad = 20.0;
+
+        // A caption hangs in the gap *under* its slot, so the last row needs
+        // one more gap beneath it than the row spacing provides. Without this
+        // the bottom row's words landed on top of the drawer.
+        final captionSpace = widget.slotCaption != null ? widget.gap : 0.0;
+
+        final rowGaps = (boardRows - 1) * widget.gap;
+        final drawerGaps = (drawerRows - 1) * widget.gap;
+
+        // Width has to pay for the gaps between columns too. Leaving them out
+        // made the board (maxCols - 1) × gap wider than the space allowed, so
+        // the outer slots hung off both edges.
+        final widthLimit =
+            (W - 2 * sidePad - (widget.maxCols - 1) * widget.gap) /
+            widget.maxCols;
+        final heightBudget = (H * 0.52 - rowGaps - captionSpace) / boardRows;
+        double slotSize = math.max(
+          1,
+          math.min(math.min(widthLimit, heightBudget), 140.0),
         );
         var pieceSize = math.min(
           slotSize * widget.pieceScale,
           widget.pieceSizeCap,
         );
-        final drawerRows =
-            (widget.pairCount + widget.maxCols - 1) ~/ widget.maxCols;
-        var drawerHeight =
-            drawerRows * pieceSize + (drawerRows - 1) * widget.gap + 20;
-        final boardHeight = boardRows * slotSize + (boardRows - 1) * widget.gap;
-        // Shrink everything if the board + drawer would overflow the screen.
-        final total = 16 + boardHeight + 16 + drawerHeight + 12;
-        if (total > H) {
-          final shrink = (H - 28) / (boardHeight + drawerHeight);
-          slotSize *= shrink;
+
+        double boardBlock(double slot) =>
+            boardRows * slot + rowGaps + captionSpace;
+        double drawerBlock(double piece) =>
+            drawerRows * piece + drawerGaps + drawerPad;
+
+        // Shrink to fit rather than overflow. Solving for the slot size (with
+        // the piece expressed as slot × pieceScale) lands in one step; the
+        // piece cap only ever makes pieces smaller, so ignoring it here is
+        // safe and leaves a little slack.
+        final available = H - topPad - bottomPad;
+        if (boardBlock(slotSize) + drawerBlock(pieceSize) > available) {
+          final fixed = rowGaps + captionSpace + drawerGaps + drawerPad;
+          final perSlot = boardRows + drawerRows * widget.pieceScale;
+          slotSize = math.max(24.0, (available - fixed) / perSlot);
           pieceSize = math.min(
             slotSize * widget.pieceScale,
             widget.pieceSizeCap,
           );
-          drawerHeight =
-              drawerRows * pieceSize + (drawerRows - 1) * widget.gap + 20;
         }
+        final drawerHeight = drawerBlock(pieceSize);
+        final boardHeight = boardRows * slotSize + rowGaps;
         _slotSize = slotSize;
         _pieceSize = pieceSize;
 

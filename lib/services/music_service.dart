@@ -1,5 +1,5 @@
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 /// The two background tracks: one for the menus, one for the games.
 enum MusicTrack { menu, game }
@@ -11,6 +11,11 @@ enum MusicTrack { menu, game }
 abstract interface class MusicSink {
   Future<void> loop(String assetPath, double volume);
   Future<void> stop();
+
+  /// Holds the track where it is. Unlike [stop], a later [resume] carries on
+  /// rather than starting the theme again from the top.
+  Future<void> pause();
+  Future<void> resume();
   Future<void> setVolume(double volume);
 }
 
@@ -33,7 +38,12 @@ class MusicService {
   };
 
   /// Music sits under the game, never over it — the pop has to cut through.
-  static const _baseVolume = 0.45;
+  ///
+  /// Every asset is normalised to the same RMS by `tool/normalize_audio.py`,
+  /// so this number now means something: the music really is about 9 dB under
+  /// a sound effect played at 0.9, rather than "whatever those two files
+  /// happened to be mastered at".
+  static const _baseVolume = 0.3;
 
   /// How far the music drops while a win or lose sound plays.
   static const _duckFactor = 0.25;
@@ -42,8 +52,13 @@ class MusicService {
   MusicSink get _out => _sink ??= _AudioPlayerSink();
 
   MusicTrack? _current;
+
+  /// The track actually loaded in the sink, which is not the same as the one
+  /// the app wants while muted or backgrounded.
+  MusicTrack? _loaded;
   bool _enabled = true;
   bool _ducked = false;
+  bool _backgrounded = false;
 
   /// The track that *should* be playing — tracked even while muted, so
   /// unmuting resumes wherever the child happens to be.
@@ -69,6 +84,16 @@ class MusicService {
     await _apply();
   }
 
+  /// Follows the app in and out of the foreground.
+  ///
+  /// Locking the phone mid-game used to leave the theme playing in a pocket:
+  /// the games paused their clocks on background but nothing told the music.
+  Future<void> setForeground(bool foreground) async {
+    if (_backgrounded != foreground) return;
+    _backgrounded = !foreground;
+    await _apply();
+  }
+
   /// Drops the volume so a finish sound is clearly audible over the music.
   Future<void> duck() => _setDucked(true);
 
@@ -87,15 +112,37 @@ class MusicService {
   Future<void> _apply() async {
     try {
       final track = _current;
+      if (_backgrounded) {
+        // Only the app went away, so hold the position — coming back should
+        // continue the track, not restart it.
+        if (_loaded != null) await _out.pause();
+        return;
+      }
       if (!_enabled || track == null) {
         await _out.stop();
+        _loaded = null;
+        return;
+      }
+      if (_loaded == track) {
+        await _out.resume();
+        await _out.setVolume(_volume);
         return;
       }
       await _out.loop(_assets[track]!, _volume);
+      _loaded = track;
     } catch (e) {
       // Music is decoration. Losing it must never take a game down with it.
       debugPrint('MusicService failed: $e');
     }
+  }
+}
+
+/// Pauses the music whenever the app leaves the foreground. Registered once
+/// in `main()`.
+class MusicLifecycleObserver extends WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    MusicService.instance.setForeground(state == AppLifecycleState.resumed);
   }
 }
 
@@ -113,6 +160,12 @@ class _AudioPlayerSink implements MusicSink {
 
   @override
   Future<void> stop() async => _player?.stop();
+
+  @override
+  Future<void> pause() async => _player?.pause();
+
+  @override
+  Future<void> resume() async => _player?.resume();
 
   @override
   Future<void> setVolume(double volume) async => _player?.setVolume(volume);

@@ -21,6 +21,12 @@ class FakeMusicSink implements MusicSink {
   Future<void> stop() async => calls.add('stop');
 
   @override
+  Future<void> pause() async => calls.add('pause');
+
+  @override
+  Future<void> resume() async => calls.add('resume');
+
+  @override
   Future<void> setVolume(double volume) async {
     this.volume = volume;
     calls.add('volume');
@@ -117,6 +123,57 @@ void main() {
       await music.duck();
 
       expect(sink.volume, ducked);
+    });
+  });
+
+  group('leaving the app', () {
+    test(
+      'locking the phone pauses the music and coming back resumes it',
+      () async {
+        final sink = FakeMusicSink();
+        final music = MusicService.withSink(sink);
+
+        await music.play(MusicTrack.game);
+        await music.setForeground(false);
+        // Paused, not stopped: the track carries on where it left off rather
+        // than restarting from the top.
+        expect(sink.calls.last, 'pause');
+
+        await music.setForeground(true);
+        expect(sink.calls, contains('resume'));
+        // And it did not reload the asset, which would have restarted it.
+        expect(sink.calls.where((c) => c.startsWith('loop')).length, 1);
+      },
+    );
+
+    test(
+      'the music does not start while the app is in the background',
+      () async {
+        final sink = FakeMusicSink();
+        final music = MusicService.withSink(sink);
+
+        await music.setForeground(false);
+        await music.play(MusicTrack.menu);
+
+        expect(sink.calls.where((c) => c.startsWith('loop')), isEmpty);
+
+        // It starts on the way back in.
+        await music.setForeground(true);
+        expect(sink.calls.last, 'loop music/main_theme.m4a');
+      },
+    );
+
+    test('coming back while muted stays silent', () async {
+      final sink = FakeMusicSink();
+      final music = MusicService.withSink(sink);
+
+      await music.play(MusicTrack.menu);
+      await music.setEnabled(false);
+      await music.setForeground(false);
+      await music.setForeground(true);
+
+      expect(sink.calls.last, isNot('resume'));
+      expect(music.enabled, isFalse);
     });
   });
 
