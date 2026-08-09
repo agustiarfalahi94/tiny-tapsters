@@ -10,16 +10,17 @@ Verified 2026-08-10.
 
 `assets/music/main_theme.m4a`, `assets/music/game_song.m4a`,
 `assets/sfx/win_high.m4a`, `assets/sfx/win_low.m4a`, `assets/sfx/lose.m4a` —
-commissioned for this app by the author (generated with Suno). Re-encoded to
-mono AAC.
+commissioned for this app by the author (generated with Suno). Normalised and
+re-encoded to mono AAC by `tool/normalize_audio.py`.
 
 `assets/sfx/pop.wav` — synthesised by `tool/generate_sfx.dart` in this repo.
 
 ## Animal calls
 
-From Wikimedia Commons, CC0 or public domain only. Each was trimmed to its
-loudest ~2 seconds, normalised, and encoded as mono AAC at 64 kbps by the
-pipeline described in the changelog.
+From Wikimedia Commons, CC0 or public domain only. Each is trimmed to its loudest ~2 seconds,
+normalised to −16 dBFS RMS and encoded as mono AAC at 96 kbps / 44.1 kHz by
+`tool/normalize_audio.py`. Re-fetch the sources from the links below to rebuild
+them.
 
 | Bundled as | Source | Licence |
 |---|---|---|

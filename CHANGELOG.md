@@ -5,6 +5,51 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.12.1] — 2026-08-10
+
+### Fixed
+- **Animal Food's food boxes hung off the screen.** The slot size was worked
+  out from the available width without paying for the gaps between columns, so
+  the board came out `(columns - 1) × gap` — 48 px — wider than the space it
+  had, and the outer boxes sat past both edges at every level.
+- **On Big, the food names landed on top of the animals.** A caption hangs in
+  the gap *beneath* its slot, and the layout never reserved that gap for the
+  bottom row, so the last row's words ran into the drawer.
+- **Four headers overflowed on a 360 dp phone.** Animal Food, Memory, Jigsaw
+  and Bubble Pop centred their titles with `Spacer`s, which cannot give back
+  space they do not have. They now use `Expanded`.
+- **The music kept playing when the phone was locked.** The games paused their
+  clocks on background, but nothing told the music. It pauses now — and
+  resumes where it left off rather than restarting the theme.
+
+### Improved
+- **The animal calls sound much better.** They were encoded at 22.05 kHz from
+  44.1 kHz sources, throwing away everything above 11 kHz — that is what made
+  them muffled — and at 64 kbps with up to 8× gain, which amplified the noise
+  floor. Now 44.1 kHz at 96 kbps.
+- **Every sound in the app is at one level.** Music, effects and animal calls
+  came from three different mastering processes and differed by more than
+  20 dB, so the music drowned the pop and a call could arrive inaudible or
+  startling. All of it is normalised to −16 dBFS RMS by the new
+  `tool/normalize_audio.py`, within 0.2 dB of each other. Player volumes now
+  mean something instead of compensating for unknown file levels.
+
+### Added
+- `tool/normalize_audio.py` — the audio build step, with the loudness targets
+  and the reasoning written down.
+- Layout tests that build every screen at 360 dp. `flutter_test` fails on
+  overflow, so this is what caught the four broken headers; at the default
+  800×600 test viewport they all fit and nothing ever complained.
+
+### Notes
+- `pop.wav` is deliberately left ~3 dB under the rest: it is a 0.12 s
+  transient, and matching a click's average level to a sustained sound makes
+  the click feel louder rather than equal.
+- `flutter analyze`: 0 issues; 76/76 tests. The layout tests were confirmed to
+  fail against the unfixed code.
+
+---
+
 ## [1.12.0] — 2026-08-10
 
 ### Added

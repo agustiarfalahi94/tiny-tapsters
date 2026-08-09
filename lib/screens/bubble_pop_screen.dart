@@ -183,22 +183,29 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                         emoji: '🏠',
                         onTap: () => Navigator.of(context).pop(),
                       ),
-                      const Spacer(),
-                      Text(
-                        // Clamped defensively: _roundComplete already stops
-                        // _popped from overshooting, but this keeps the
-                        // label honest even if that guard ever regresses.
-                        'Pop ${math.max(0, _popsPerRound - _popped)} more!',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(color: Colors.black26, blurRadius: 6),
-                          ],
+                      // Expanded rather than Spacer-Text-Spacer: on a 360dp
+                      // phone the title plus two buttons can be wider than the
+                      // row, and Spacers cannot give back space they do not
+                      // have.
+                      Expanded(
+                        child: Text(
+                          // Clamped defensively: _roundComplete already stops
+                          // _popped from overshooting, but this keeps the
+                          // label honest even if that guard ever regresses.
+                          'Pop ${math.max(0, _popsPerRound - _popped)} more!',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(color: Colors.black26, blurRadius: 6),
+                            ],
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
                       RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),

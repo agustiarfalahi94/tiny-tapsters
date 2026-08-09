@@ -19,7 +19,10 @@ class SoundEffects {
     try {
       _player ??= AudioPlayer();
       await _player!.stop(); // restart so rapid taps re-pop cleanly
-      await _player!.setVolume(0.9);
+      // pop.wav is a 0.12s transient and deliberately sits below the
+      // normalised assets: matching a click's average level to a sustained
+      // sound makes the click feel louder, not equal.
+      await _player!.setVolume(0.85);
       await _player!.play(AssetSource('sfx/pop.wav'));
     } catch (e) {
       debugPrint('SoundEffects failed: $e');
