@@ -10,6 +10,11 @@
 - **Validation before any commit:** `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**20/20**), `flutter build apk --release` (when native config or deps change).
 - **Never touch/commit**: `android/key.properties`, `android/app/release-keystore.jks`, or any Gemini API key. The key is injected at build time via `--dart-define=GEMINI_API_KEY=...` (CI reads it from the `GEMINI_API_KEY` repo secret).
 
+## Multi-part work
+
+- **Sub-agent workflow:** use `superpowers:subagent-driven-development` for tasks spanning multiple files — separate implementer per task, reviewer with fresh eyes, tester running validation (`flutter analyze` / `dart format` / `flutter test`).
+- **Skills must be invoked.** They don't run automatically; this file is the reminder to reach for them.
+
 ## Commands
 
 ```bash
