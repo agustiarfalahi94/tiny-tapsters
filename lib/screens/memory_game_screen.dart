@@ -109,7 +109,7 @@ class _MemoryGameScreenState extends State<MemoryGameScreen> {
         });
         HapticFeedback.mediumImpact();
         if (_pairsFound == widget.pairs) {
-          Future.delayed(const Duration(milliseconds: 700), () {
+          Future.delayed(const Duration(milliseconds: 400), () {
             if (!mounted) return;
             setState(() => _won = true);
           });
