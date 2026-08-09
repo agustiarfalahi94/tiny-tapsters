@@ -5,6 +5,33 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.12.0] — 2026-08-10
+
+### Added
+- **Which Animal? 🔊** — a seventh game. A big speaker button plays an animal's
+  call and the child taps who made it: 2 choices on Easy, 3 on Medium, 5 on
+  Big. The sound replays as often as they like; re-listening is the skill the
+  game is for, not a way around it.
+- `ASSET_CREDITS.md` — where every bundled sound came from and under what
+  licence.
+
+### Notes
+- **Only six animals have a call**: 🐱 🐴 🐔 🦁 🐘 🐸. Every recording is CC0 or
+  public domain from Wikimedia Commons, trimmed to its loudest ~2 seconds,
+  normalised and encoded as mono AAC — about 18 KB each.
+- **🐮 the cow and 🐶 the dog are missing**, which is a real gap: they are the
+  two animals a toddler knows best. No CC0 or public-domain recording of
+  either could be verified. Searching turns up plenty of *Lingua Libre* files —
+  humans pronouncing the word "cow" — which is exactly the trap this game must
+  not fall into. Closing the gap needs either free recordings or accepting
+  CC-BY material and shipping a credits screen.
+- The calls play through their own audio player. `pop()` stops its player
+  before every play, so sharing one would let a stray tap cut a call short —
+  and the call *is* the puzzle.
+- `flutter analyze`: 0 issues; 65/65 tests.
+
+---
+
 ## [1.11.0] — 2026-08-10
 
 ### Fixed

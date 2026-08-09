@@ -7,6 +7,7 @@ import '../widgets/game_timer.dart';
 import '../widgets/pollie_bird.dart';
 import '../widgets/round_button.dart';
 import 'animal_food_screen.dart';
+import 'animal_sound_screen.dart';
 import 'bubble_pop_screen.dart';
 import 'companion_screen.dart';
 import 'count_game_screen.dart';
@@ -369,6 +370,60 @@ class _HomeScreenState extends State<HomeScreen> {
                           context,
                           const FindItScreen(
                             cardsPerRound: 12,
+                            level: GameLevel.big,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _GameCard(
+                emoji: '🔊',
+                title: 'Which Animal?',
+                subtitle: 'Listen and find the animal!',
+                onTap: () => _openLevels(
+                  context,
+                  LevelsScreen(
+                    title: 'Which Animal? 🔊',
+                    subtitle: 'Listen, then tap who made that sound!',
+                    levels: [
+                      LevelOption(
+                        emoji: '🐣',
+                        name: 'Easy',
+                        detail: '2 to choose from',
+                        color: const Color(0xFF4CAF50),
+                        onTap: () => _openGame(
+                          context,
+                          const AnimalSoundScreen(
+                            choices: 2,
+                            level: GameLevel.easy,
+                          ),
+                        ),
+                      ),
+                      LevelOption(
+                        emoji: '🐥',
+                        name: 'Medium',
+                        detail: '3 to choose from',
+                        color: const Color(0xFFFF9800),
+                        onTap: () => _openGame(
+                          context,
+                          const AnimalSoundScreen(
+                            choices: 3,
+                            level: GameLevel.medium,
+                          ),
+                        ),
+                      ),
+                      LevelOption(
+                        emoji: '🐤',
+                        name: 'Big',
+                        detail: '5 to choose from',
+                        color: const Color(0xFFE91E63),
+                        onTap: () => _openGame(
+                          context,
+                          const AnimalSoundScreen(
+                            choices: 5,
                             level: GameLevel.big,
                           ),
                         ),
