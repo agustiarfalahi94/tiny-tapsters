@@ -5,16 +5,18 @@ import '../widgets/game_background.dart';
 import '../widgets/pair_drag_game.dart';
 import '../widgets/round_button.dart';
 
-/// Animal Food: the slots show each animal's favorite food (carrot, grass,
-/// hay…) and the drawer holds the animals. Drag the rabbit to the carrot, the
-/// cow to the grass, the horse to the hay!
+/// Animal Food: the slots show each animal's favorite food (carrot, hay,
+/// honey…) and the drawer holds the animals. Drag the rabbit to the carrot,
+/// the cow to the hay, the bear to the honey! Getting a pair right reveals
+/// the food's name under its slot.
+///
 /// The 15 animals shared across games (Count the Animals! picks its question
 /// emojis from this pool). Must stay the single source of truth for the
 /// animal half of [_allPairs].
 const kAnimalEmojis = [
   '🐰', // 0 rabbit → carrot
-  '🐮', // 1 cow → grass
-  '🐴', // 2 horse → apple (a classic horse treat)
+  '🐮', // 1 cow → hay
+  '🐴', // 2 horse → apple
   '🐶', // 3 dog → bone
   '🐱', // 4 cat → fish
   '🐭', // 5 mouse → cheese
@@ -23,7 +25,7 @@ const kAnimalEmojis = [
   '🐔', // 8 chicken → corn
   '🦁', // 9 lion → meat
   '🦒', // 10 giraffe → leaves
-  '🐘', // 11 elephant → watermelon
+  '🐘', // 11 elephant → branches
   '🐸', // 12 frog → bug
   '🐧', // 13 penguin → shrimp
   '🦋', // 14 butterfly → flower
@@ -39,27 +41,45 @@ class AnimalFoodGameScreen extends StatefulWidget {
 }
 
 class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
-  // 15 animal/food pairs with strong toddler stereotypes and clearly
-  // distinct food emojis. Each game picks a shuffled subset.
+  /// Animal, the food it eats, and the food's name (shown once the child
+  /// gets the match right, so a grown-up can say the word out loud).
+  ///
+  /// Accuracy notes, because these were picked deliberately:
+  /// - Cow eats **hay**, not the seedling 🌱 that used to be here — that
+  ///   glyph is a sprout and read as "some plant" rather than grass.
+  /// - Horse gets an apple. It is a treat rather than a staple, but feeding
+  ///   a horse an apple over the fence is a real, long-standing practice.
+  /// - Elephant eats **branches** — grass, leaves and bark are what it
+  ///   actually lives on. The watermelon that used to be here is a zoo treat,
+  ///   and the peanut everyone pictures is a myth.
+  /// - Rabbit/carrot and mouse/cheese are both closer to cartoon lore than
+  ///   diet (rabbits live on hay and greens; mice prefer grain). They stay
+  ///   because they are how a toddler already understands those animals.
   static final _allPairs = [
-    (kAnimalEmojis[0], '🥕'), // rabbit → carrot
-    (kAnimalEmojis[1], '🌱'), // cow → grass
-    (kAnimalEmojis[2], '🍎'), // horse → apple (a classic horse treat)
-    (kAnimalEmojis[3], '🦴'), // dog → bone
-    (kAnimalEmojis[4], '🐟'), // cat → fish
-    (kAnimalEmojis[5], '🧀'), // mouse → cheese
-    (kAnimalEmojis[6], '🍌'), // monkey → banana
-    (kAnimalEmojis[7], '🍯'), // bear → honey
-    (kAnimalEmojis[8], '🌽'), // chicken → corn
-    (kAnimalEmojis[9], '🥩'), // lion → meat
-    (kAnimalEmojis[10], '🍃'), // giraffe → leaves
-    (kAnimalEmojis[11], '🍉'), // elephant → watermelon
-    (kAnimalEmojis[12], '🐛'), // frog → bug
-    (kAnimalEmojis[13], '🦐'), // penguin → shrimp
-    (kAnimalEmojis[14], '🌸'), // butterfly → flower
+    (kAnimalEmojis[0], '🥕', 'carrot'),
+    (kAnimalEmojis[1], '🌾', 'hay'),
+    (kAnimalEmojis[2], '🍎', 'apple'),
+    (kAnimalEmojis[3], '🦴', 'bone'),
+    (kAnimalEmojis[4], '🐟', 'fish'),
+    (kAnimalEmojis[5], '🧀', 'cheese'),
+    (kAnimalEmojis[6], '🍌', 'banana'),
+    (kAnimalEmojis[7], '🍯', 'honey'),
+    (kAnimalEmojis[8], '🌽', 'corn'),
+    (kAnimalEmojis[9], '🥩', 'meat'),
+    (kAnimalEmojis[10], '🍃', 'leaves'),
+    (kAnimalEmojis[11], '🌿', 'branches'),
+    (kAnimalEmojis[12], '🐛', 'bug'),
+    (kAnimalEmojis[13], '🦐', 'shrimp'),
+    (kAnimalEmojis[14], '🌸', 'flower'),
   ];
 
-  late List<(String, String)> _pairs;
+  /// Foods that look too alike to share a board. 🍃 and 🌿 are both green
+  /// leaves; with both on screen the child cannot tell which belongs to the
+  /// giraffe and which to the elephant, so the puzzle stops being solvable by
+  /// looking. One of the two is dropped from every game.
+  static const _lookAlikeFoods = ['🍃', '🌿'];
+
+  late List<(String, String, String)> _pairs;
   late Key _gameKey;
   bool _won = false;
 
@@ -70,8 +90,15 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
     _gameKey = UniqueKey();
   }
 
-  List<(String, String)> _shuffledPairs() {
-    return ([..._allPairs]..shuffle()).take(widget.pairs).toList();
+  /// Picks this game's pairs, keeping at most one of the look-alike foods so
+  /// two near-identical green leaves never share a board.
+  List<(String, String, String)> _shuffledPairs() {
+    final pool = [..._allPairs]..shuffle();
+    final keptLookAlike = (<String>[..._lookAlikeFoods]..shuffle()).first;
+    pool.removeWhere(
+      (pair) => _lookAlikeFoods.contains(pair.$2) && pair.$2 != keptLookAlike,
+    );
+    return pool.take(widget.pairs).toList();
   }
 
   void _reset() {
@@ -124,6 +151,13 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
                     key: _gameKey,
                     pairCount: pairs.length,
                     maxCols: pairs.length <= 3 ? pairs.length : 3,
+                    // The food's name appears here once the child gets the
+                    // match right — a reward and a word for a grown-up to say
+                    // aloud, never a hint before the answer.
+                    slotCaption: (index) => pairs[index].$3,
+                    // Room under each slot for that caption; the default 12
+                    // would put the word into the next row of slots.
+                    gap: 24,
                     slotBuilder: (context, index, slotSize) {
                       return Container(
                         decoration: BoxDecoration(
