@@ -5,6 +5,52 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.6.3] — 2026-08-09
+
+### Fixed
+- **Pollie lost almost everything a child said.** 1.6.1's "banking" turn —
+  re-arming the mic after every recogniser endpoint and only sending once the
+  child went quiet — was a bad trade. Each restart costs a few hundred
+  milliseconds of dead air, and a child talking continuously loses most of
+  their words into those gaps; *"i accidentally throw my toys in the washing
+  machine and now it doesn't want to turn on"* arrived as **"want"**. Two
+  restarts also raced each other, because `_relisten()` was called from both
+  the final-result branch and the `done` status callback, so the loser threw
+  "recognizer busy" and churned.
+  There is now **one recogniser session per turn**. The pause tolerance is
+  bought from `pauseFor` instead, which Android does honour.
+- **A turn that ended any way except a final result sent nothing at all.**
+  `_endTurn` sent `_heard`, which is only ever written on the one path that
+  already sends — so tapping the mic to finish, the 45-second cap, and every
+  speech error silently discarded the whole utterance. That last one is the
+  common case, not an edge case: the Android plugin marks *every* error
+  `permanent`, including the `no match` it raises after streaming perfectly
+  good partial results. The turn now sends the full live transcript.
+- **Bubble Pop counted pops after the round was already won.** `_pop()`
+  guarded on `_won`, which is only set 600 ms later, so a bubble tapped during
+  the celebration delay still incremented the counter and the header rendered
+  **"Pop -1 more!"**. Completion is now recorded synchronously; the label and
+  progress bar are clamped as a backstop.
+- **Bubble Pop's celebration could appear over a fresh round.** The 600 ms win
+  timer was never cancelled, so hitting 🔁 inside that window let it fire over
+  the reset round. It is now a cancellable timer, cancelled on manual reset, on
+  the next round, and on dispose.
+- `onSoundLevelChange` could `setState` after dispose when leaving Pollie
+  mid-listen; it now carries the same guard as its sibling callbacks.
+
+### Changed
+- The silence needed to end a turn is **3 seconds** (was 5) — 5 felt like a
+  long wait before Pollie answered.
+
+### Notes
+- `flutter analyze`: 0 issues; 22/22 tests. The two new Bubble Pop tests were
+  each confirmed to fail against the unfixed code before being accepted.
+- Built with the `superpowers:subagent-driven-development` workflow: an
+  implementer per task, a reviewer after each, and a whole-branch review at
+  the end — which is what caught the empty-`_heard` regression above.
+
+---
+
 ## [1.6.2] — 2026-08-09
 
 ### Fixed
