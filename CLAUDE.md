@@ -2,14 +2,14 @@
 
 ## Quick facts
 
-- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.10.0+28**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
-- **Dependencies**: `audioplayers` (SFX + music), `google_generative_ai` + `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. Bundled assets: `assets/sfx/*` (pop, win_high, win_low, lose) and `assets/music/*` (main_theme, game_song) — `assets/branding/tiny-tapsters-logo.png` is build-time input for the icon generator and is deliberately not in `pubspec.yaml`.
+- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.11.0+29**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
+- **Dependencies**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. Bundled assets: `assets/sfx/*` (pop, win_high, win_low, lose) and `assets/music/*` (main_theme, game_song) — `assets/branding/tiny-tapsters-logo.png` is build-time input for the icon generator and is deliberately not in `pubspec.yaml`.
 - **Audio**: `MusicService` (looping music) is separate from `SoundEffects` (one-shots) on purpose — `pop()` stops its player before every play, so one shared player would let every tap kill the music. Track switching lives in `MusicRouteObserver`, not in each screen's `initState`, because popping a game does not re-run `HomeScreen.initState`. Re-encode new audio with `afconvert -f m4af -d aac -b 96000 --mix -c 1 in.mp3 out.m4a` (there is no ffmpeg on this machine).
 - **Permissions**: `INTERNET` + `RECORD_AUDIO` — both exist only for Pollie's voice chat. **All six games are fully offline**; Pollie is the sole network feature.
 - **Default branch is `develop`**; release = merge to `main` + annotated tag `vX.Y.Z` (push both).
 - **Features go on a dedicated `feature/<name>` branch** off `develop` — never commit feature work straight to `develop`. Plan in chat first, then execute.
-- **Validation before any commit:** `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**45/45**), `flutter build apk --release` (when native config or deps change).
-- **Never touch/commit**: `android/key.properties`, `android/app/release-keystore.jks`, or any Gemini API key. The key is injected at build time via `--dart-define=GEMINI_API_KEY=...` (CI reads it from the `GEMINI_API_KEY` repo secret).
+- **Validation before any commit:** `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**58/58**), `flutter build apk --release` (when native config or deps change).
+- **Never touch/commit**: `android/key.properties`, `android/app/release-keystore.jks`, or any Gemini API key. **The key no longer ships in the app at all** — it lives in the Cloudflare Worker under `worker/` (see its README). The app takes only `--dart-define=POLLIE_ENDPOINT=https://...`, which is a URL, not a secret; CI reads it from the `POLLIE_ENDPOINT` repo *variable*.
 
 ## Multi-part work
 
@@ -33,8 +33,9 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
 - `lib/widgets/celebration_overlay.dart` — shared win overlay (confetti + stars + buttons); fires the win sound itself.
 - `lib/widgets/game_timer.dart` — `GameLevel` (30s/1m/2m), `GameTimerController`, the no-digits `GameTimerBar`, and the `TimedGame` mixin every game uses. Clock starts on first interaction, pauses on background, stops the instant a game is won.
 - `lib/widgets/game_over_overlay.dart` — the "Time's up!" screen; a sibling of `CelebrationOverlay`, not a flag on it.
-- `lib/services/` — `pollie_service` (Gemini wrapper, strict safety settings), `kid_safety` (local adult-word guard on input *and* output), `sound_effects` (one-shot SFX), `music_service` + `music_route_observer` (looping background music).
+- `lib/services/` — `pollie_service` (HTTP client for the `worker/` proxy; model, prompt and safety settings live server-side), `kid_safety` (local adult-word guard on input *and* output), `sound_effects` (one-shot SFX), `music_service` + `music_route_observer` (looping background music).
 - `docs/superpowers/specs/` — design specs. Read the relevant one before touching a feature it covers.
+- `worker/` — the Cloudflare Worker holding Pollie's Gemini key. Setup steps in `worker/README.md`; deploying needs the user (interactive login + secret).
 - `tool/` — dependency-free Dart generators: `generate_icon.dart` (crops the badge out of `assets/branding/tiny-tapsters-logo.png` and writes the legacy + adaptive launcher icons; has its own PNG decoder/encoder), `generate_sfx.dart` (pop.wav), `pixelcheck.dart`.
 - `.github/workflows/release-apk.yml` — on `v*` tag push: analyze + test, sign with the real keystore, attach the APK to the GitHub release.
 

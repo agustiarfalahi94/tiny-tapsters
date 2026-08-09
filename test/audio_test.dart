@@ -176,6 +176,7 @@ void main() {
     });
 
     await tester.pumpWidget(const ToddlerGamesApp());
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('🔊'), findsOneWidget);
     await tester.tap(find.text('🔊'));
@@ -189,6 +190,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const ToddlerGamesApp());
+    await tester.pump(const Duration(milliseconds: 100));
     // 800x600 test viewport. The button is floated over the column precisely
     // so this stays true.
     expect(tester.getCenter(find.text('Tiny Tapsters')).dx, closeTo(400, 5));

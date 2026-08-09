@@ -5,7 +5,10 @@
 #   - workflow_dispatch -> manual test build (no release is created)
 #
 # Secrets required (set in repo settings > Secrets and variables > Actions):
-#   GEMINI_API_KEY  - Pollie's Gemini key (never commit it!)
+#   POLLIE_ENDPOINT - repo *variable* (not a secret): the Cloudflare Worker
+#                     URL that holds Pollie's Gemini key. See worker/README.md.
+#                     A URL in an APK is not a secret; the key it stands in
+#                     front of was, which is why it no longer ships.
 #   KEYSTORE_BASE64 - base64 of android/app/release-keystore.jks
 #   STORE_PASSWORD  - keystore password (from android/key.properties)
 #   KEY_PASSWORD    - key password (from android/key.properties)
@@ -56,8 +59,8 @@ jobs:
 
       - name: Build release APK
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: flutter build apk --release --dart-define=GEMINI_API_KEY=$GEMINI_API_KEY
+          POLLIE_ENDPOINT: ${{ vars.POLLIE_ENDPOINT }}
+        run: flutter build apk --release --dart-define=POLLIE_ENDPOINT=$POLLIE_ENDPOINT
 
       - name: Name the APK
         run: cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/tiny-tapsters-${GITHUB_REF_NAME}.apk"

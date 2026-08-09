@@ -2,7 +2,7 @@
 
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.10.0+28 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.11.0+29 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX), `google_generative_ai` + `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev.
 **Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The six games are fully offline; Pollie is the sole network feature.
@@ -28,7 +28,7 @@ flutter build apk --release           # when native config or deps changed
 
 - Do NOT commit `android/key.properties` or `android/app/release-keystore.jks` (keystore secrets, git-ignored).
 - Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature. Permissions: INTERNET + RECORD_AUDIO (voice chat).
-- Never commit a Gemini API key: it is passed at build time via `--dart-define=GEMINI_API_KEY=...` (CI reads the `GEMINI_API_KEY` repo secret).
+- Never commit a Gemini API key. **It no longer ships in the app at all** — it is a Cloudflare Worker secret (`worker/`, see its README). The app takes `--dart-define=POLLIE_ENDPOINT=https://...`, a URL rather than a secret; CI reads the `POLLIE_ENDPOINT` repo *variable*.
 - All games must be playable without reading: big emoji, no required text.
 - Keep CHANGELOG.md + README.md in sync with real changes, and CLAUDE.md consistent with this file.
 
@@ -37,7 +37,9 @@ flutter build apk --release           # when native config or deps changed
 - `lib/widgets/pair_drag_game.dart` — shared drag-to-slot engine (jigsaw + Animal Food). Piece movement must stay instant; never reintroduce animated slide-backs (they read as "trails").
 - `lib/widgets/celebration_overlay.dart` — shared win overlay (confetti + stars + buttons).
 - `lib/screens/levels_screen.dart` — shared difficulty picker.
-- `lib/services/pollie_service.dart` — Gemini wrapper for the Pollie companion (strict safety settings + kid-safe prompt).
+- `lib/services/pollie_service.dart` — HTTP client for Pollie's proxy. Streams newline-delimited JSON; the model, prompt and safety settings all live in `worker/src/index.ts`.
+- `lib/widgets/pollie_bird.dart` — the bobbing bird and the "Tap to talk!" bubble. **Translate and rotate only, never scale**: scaling text re-rasterises emoji glyphs every frame and eventually stops every emoji in the app painting.
+- `worker/` — the Cloudflare Worker holding the Gemini key. `worker/README.md` has the account setup.
 - `lib/screens/companion_screen.dart` — Pollie. Two things here are easy to break: a listening **turn** is the app's, not the recogniser's (sessions are banked and the mic re-armed until the child is quiet for 5s — Android's short "possibly finished" endpointing is not configurable, so never go back to sending on the first final result); and `flutter_tts` reports voice quality as a **string**, so score voices with `voiceScore`/`pickBestVoice` and never cast `quality` to a number.
 - `lib/services/kid_safety.dart` — local adult-word guard (input + output).
 - `lib/services/sound_effects.dart` — one-shot SFX (pop, win, lose); regenerate `pop.wav` with `dart run tool/generate_sfx.dart`.

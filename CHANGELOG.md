@@ -5,6 +5,58 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.11.0] — 2026-08-10
+
+### Fixed
+- **Pollie stops cutting the child off mid-sentence.** A recogniser session
+  ending is no longer the turn ending: its words are banked and the
+  microphone re-arms. The turn now ends when the child taps the mic, after
+  45 seconds, or on a real error — not when Android decides half a second of
+  silence means "finished".
+
+### Security
+- **The Gemini API key no longer ships inside the APK.** It was compiled into
+  `libapp.so` as a plain string, where `strings libapp.so | grep AIza` finds
+  it in seconds — and the signed APK is attached to public releases, so the
+  private repo never protected it. A Cloudflare Worker (`worker/`) holds the
+  key now; the app ships only a URL, which is not a secret. **The old key must
+  be rotated**, because every APK ever released still carries it.
+- Each install sends a random per-launch id so the proxy can rate limit. It
+  identifies nothing about the child and nothing is written to disk.
+
+### Improved
+- **Pollie answers much faster, especially far from Google's servers.** Three
+  things were stacked: the model was thinking before every reply, the whole
+  reply was generated before a single word was spoken, and the round trip was
+  long. Thinking is off, Pollie now speaks each sentence as it arrives instead
+  of waiting for the last one, and the proxy shortens the trip.
+
+### Added
+- **Pollie is alive.** She bobs on the home screen and says "Tap to talk! 💬"
+  after a few seconds — nothing else on that screen told a grown-up the bird
+  was a button. On her own screen she leans in while listening and nods while
+  speaking.
+
+### Removed
+- `google_generative_ai`. It is discontinued, and it cannot express
+  `thinkingConfig` at all, which is what made every reply slow. Replaced by a
+  small HTTP client — one dependency fewer, not one more.
+
+### Notes
+- The turn rework was tried once before and reverted, because
+  `onResult(finalResult: true)` and `onStatus('done')` both fire for one
+  session ending and both restarted the mic, racing into "recognizer busy".
+  A single-flight guard is the piece that was missing.
+- The model is pinned to `gemini-2.5-flash` **in the Worker**, because
+  `thinkingBudget: 0` does not exist on 3.x Flash and the `-latest` alias
+  would have silently gone slow again. Changing it is now a deploy, not a
+  release.
+- `KidSafety` still guards input and output in the app. A proxy the app trusts
+  is not the same as a guard the child is behind.
+- `flutter analyze`: 0 issues; 58/58 tests.
+
+---
+
 ## [1.10.0] — 2026-08-10
 
 ### Added

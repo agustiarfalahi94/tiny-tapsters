@@ -55,23 +55,31 @@ open a version and grab the `tiny-tapsters-vX.Y.Z.apk` asset.
 - **First install**: Android will ask to allow installs from the browser
   ("unknown sources") — that's normal for sideloaded APKs. Play Protect
   may also show a scan warning; the APK is signed by your own key.
-- **Pollie works out of the box**: the release APK is built with the
-  Gemini key baked in, so the companion is fully functional in
-  downloaded copies too (the key lives in the APK, as with any
-  sideloaded app).
+- **Pollie works out of the box**: the release APK points at the proxy,
+  so the companion is fully functional in downloaded copies without
+  anyone needing an API key of their own.
 
 ## Pollie (Gemini companion)
 
-To enable Pollie, build with your own free API key from
-<https://aistudio.google.com/apikey>:
+Pollie talks to a small Cloudflare Worker (`worker/`) that holds the
+Gemini key. The app ships only the Worker's URL:
 
 ```sh
-flutter build apk --release --dart-define=GEMINI_API_KEY=your_key_here
+flutter build apk --release \
+  --dart-define=POLLIE_ENDPOINT=https://pollie.your-subdomain.workers.dev
 ```
 
-The key is compiled into the APK and never committed to the repository.
-Chat messages and voice input are sent to Google's Gemini and speech
-services. Without a key, Pollie shows a friendly fallback message.
+The key used to be compiled into the APK. That was a mistake: a
+`--dart-define` string ends up in `libapp.so` in the clear, and
+`strings libapp.so | grep AIza` recovers it in seconds — the repo being
+private did not help, because the signed APK is attached to releases.
+Everyone also shared one free-tier quota. `worker/README.md` has the
+setup, which takes a free Cloudflare account and about five minutes.
+
+Chat messages and voice input are sent to Google's Gemini and to the
+device's speech services. Without an endpoint, Pollie shows a friendly
+fallback message and the six games are unaffected — they are all fully
+offline.
 
 ## Project layout
 
@@ -89,7 +97,7 @@ lib/
     count_game_screen.dart       # count the animals
     companion_screen.dart        # Pollie chat (Gemini)
   services/
-    pollie_service.dart          # Gemini API wrapper
+    pollie_service.dart          # HTTP client for Pollie's proxy (worker/)
     kid_safety.dart              # local adult-word guard (input + output)
     sound_effects.dart           # one-shot SFX (pop, win, lose)
     music_service.dart           # looping background music
