@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
+import 'services/music_route_observer.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +57,8 @@ class ToddlerGamesApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF7C4DFF)),
         useMaterial3: true,
       ),
+      // Keeps the background music in step with whichever screen is on top.
+      navigatorObservers: [MusicRouteObserver()],
       home: const HomeScreen(),
     );
   }
