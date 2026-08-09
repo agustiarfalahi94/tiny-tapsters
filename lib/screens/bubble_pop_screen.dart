@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -50,6 +51,13 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   /// past `_popsPerRound`, showing a negative "more!" count.
   bool _roundComplete = false;
 
+  /// The pending "show the celebration" timer scheduled by the pop that
+  /// completes a round. Must be cancelled on every path that resets the
+  /// round (manual reset, next round) and on dispose — otherwise it fires
+  /// late and sets `_won = true` over a round the player has already
+  /// restarted, popping up the celebration overlay mid-attempt.
+  Timer? _winTimer;
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +70,7 @@ class _BubblePopScreenState extends State<BubblePopScreen>
 
   @override
   void dispose() {
+    _winTimer?.cancel();
     _float.dispose();
     super.dispose();
   }
@@ -104,7 +113,7 @@ class _BubblePopScreenState extends State<BubblePopScreen>
     HapticFeedback.lightImpact();
     SoundEffects.instance.pop();
     if (_popped >= _popsPerRound) {
-      Future.delayed(const Duration(milliseconds: 600), () {
+      _winTimer = Timer(const Duration(milliseconds: 600), () {
         if (!mounted) return;
         setState(() => _won = true);
       });
@@ -112,6 +121,7 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   }
 
   void _nextRound() {
+    _winTimer?.cancel();
     setState(() {
       _round++;
       _popped = 0;
@@ -161,13 +171,16 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                       const Spacer(),
                       RoundButton(
                         emoji: '🔁',
-                        onTap: () => setState(() {
-                          _popped = 0;
-                          _roundComplete = false;
-                          for (var i = 0; i < _bubbles.length; i++) {
-                            _bubbles[i] = _spawn();
-                          }
-                        }),
+                        onTap: () {
+                          _winTimer?.cancel();
+                          setState(() {
+                            _popped = 0;
+                            _roundComplete = false;
+                            for (var i = 0; i < _bubbles.length; i++) {
+                              _bubbles[i] = _spawn();
+                            }
+                          });
+                        },
                       ),
                     ],
                   ),
