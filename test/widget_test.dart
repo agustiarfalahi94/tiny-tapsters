@@ -12,6 +12,7 @@ import 'package:tiny_tapsters/screens/jigsaw_game_screen.dart';
 import 'package:tiny_tapsters/screens/memory_game_screen.dart';
 import 'package:tiny_tapsters/services/kid_safety.dart';
 import 'package:tiny_tapsters/services/pollie_service.dart';
+import 'package:tiny_tapsters/widgets/pair_drag_game.dart';
 
 void main() {
   testWidgets('home screen shows all six games', (tester) async {
@@ -62,6 +63,75 @@ void main() {
       const MaterialApp(home: MemoryGameScreen(pairs: 2, columns: 2)),
     );
     await tester.pump(const Duration(milliseconds: 100));
+  });
+
+  testWidgets('animal food never shows both look-alike leaf foods at once', (
+    tester,
+  ) async {
+    // 🍃 (giraffe) and 🌿 (elephant) are both green leaves. With both on the
+    // board a toddler cannot tell which belongs to which, so the puzzle stops
+    // being solvable by looking. The shuffle drops one of them every game.
+    for (var attempt = 0; attempt < 20; attempt++) {
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey('attempt-$attempt'),
+          home: const AnimalFoodGameScreen(pairs: 9),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final hasLeaf = find.text('🍃').evaluate().isNotEmpty;
+      final hasBranch = find.text('🌿').evaluate().isNotEmpty;
+      expect(
+        hasLeaf && hasBranch,
+        isFalse,
+        reason: 'attempt $attempt put both leaf foods on the same board',
+      );
+    }
+  });
+
+  testWidgets('animal food names the food only after a correct match', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: AnimalFoodGameScreen(pairs: 3)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Nothing is named up front — a caption before the answer would let a
+    // reading adult hand the child the solution.
+    expect(visibleFoodNames(), 0);
+
+    // Pieces are GestureDetectors with GlobalKeys. Piece 0 belongs to exactly
+    // one slot; try each slot until it snaps, as the jigsaw test does.
+    final pieces = find.byWidgetPredicate(
+      (w) => w is GestureDetector && w.key is GlobalKey,
+    );
+    final slots = tester
+        .widgetList<Container>(
+          find.descendant(
+            of: find.byType(PairDragGame),
+            matching: find.byType(Container),
+          ),
+        )
+        .toList();
+    expect(slots, isNotEmpty);
+
+    for (var slot = 0; slot < 3; slot++) {
+      if (visibleFoodNames() > 0) break;
+      final target = find.text(foodEmojiAt(tester, slot));
+      final gesture = await tester.startGesture(tester.getCenter(pieces.first));
+      await gesture.moveTo(tester.getCenter(target));
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    expect(
+      visibleFoodNames(),
+      1,
+      reason: 'the solved slot — and only it — should be named',
+    );
   });
 
   testWidgets('bubble pop header never shows a negative remaining count', (
@@ -663,4 +733,47 @@ Color countRoundDotColor(WidgetTester tester, int i) {
       tester.widget<Container>(find.byKey(ValueKey('round-dot-$i'))).decoration!
           as BoxDecoration;
   return box.color!;
+}
+
+// --- Animal Food test helpers ---------------------------------------------
+
+/// Every food name the game can show. Kept here rather than imported because
+/// the pair table is private to the screen; if a name changes there, these
+/// tests fail loudly instead of silently checking nothing.
+const kFoodNames = [
+  'carrot',
+  'hay',
+  'apple',
+  'bone',
+  'fish',
+  'cheese',
+  'banana',
+  'honey',
+  'corn',
+  'meat',
+  'leaves',
+  'branches',
+  'bug',
+  'shrimp',
+  'flower',
+];
+
+/// How many food-name captions are on screen. A caption appears only for a
+/// slot whose animal has been correctly placed.
+int visibleFoodNames() =>
+    kFoodNames.where((n) => find.text(n).evaluate().isNotEmpty).length;
+
+/// The food emoji shown in slot [slot], read from the live widget tree so the
+/// test never assumes which pairs this shuffle picked.
+String foodEmojiAt(WidgetTester tester, int slot) {
+  final texts = tester
+      .widgetList<Text>(
+        find.descendant(
+          of: find.byType(PairDragGame),
+          matching: find.byType(Text),
+        ),
+      )
+      .where((t) => t.data != null && !kFoodNames.contains(t.data))
+      .toList();
+  return texts[slot].data!;
 }
