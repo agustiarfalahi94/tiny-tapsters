@@ -109,9 +109,14 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// Hard stop, so a turn can never leave the mic live forever.
   static const _maxTurn = Duration(seconds: 45);
 
-  /// Words banked from the turn's recogniser session. A single session can
-  /// still emit more than one final result, so this keeps accumulating —
-  /// it just never triggers another `listen()` call.
+  /// Words banked once the turn's recogniser session produces its final
+  /// result. (Not because a session can emit more than one — it can't, the
+  /// plugin drops everything after the first final — but the accumulating
+  /// join below is cheap insurance if that ever changes.) On every
+  /// turn-ending path other than that final result — the mic tapped to
+  /// mean "I'm done", the 45s `_maxTurn` cap, or a speech error — this
+  /// stays empty, and `_transcript` (this plus whatever `_partial` still
+  /// holds) is what `_endTurn` actually needs to send.
   String _heard = '';
   Timer? _turnTimer;
   bool _turnActive = false;
@@ -336,6 +341,11 @@ class _CompanionScreenState extends State<CompanionScreen>
           _endTurn(send: true);
         },
         onSoundLevelChange: (level) {
+          // Same guard as onResult above: dispose() flips `_turnActive`
+          // to false before firing-and-forgetting `_speech.stop()`, so a
+          // sound-level event already in flight when the child leaves the
+          // Pollie screen must not call setState on a defunct State.
+          if (!_turnActive) return;
           // Throttle: only rebuild when the level actually moved, so the
           // mic pulse never rebuilds the whole screen dozens of times a
           // second.
@@ -386,7 +396,13 @@ class _CompanionScreenState extends State<CompanionScreen>
       _speech.stop();
     } catch (_) {}
 
-    final words = _heard.trim();
+    // Capture the full transcript — banked words plus whatever the
+    // recogniser was still guessing — before the setState below clears
+    // `_partial`. `onResult`'s finalResult branch is the only path that
+    // ever writes `_heard`, so on every other turn-ending path (mic tap,
+    // the 45s cap, a speech error) `_heard` alone is empty and `_partial`
+    // is the only place the child's words are.
+    final words = _transcript.trim();
     _heard = '';
     if (!mounted) return;
     setState(() {
@@ -398,7 +414,9 @@ class _CompanionScreenState extends State<CompanionScreen>
     if (send && words.isNotEmpty) _send(words);
   }
 
-  /// Tapping the mic while it is live means "I'm done" — send what we have.
+  /// Tapping the mic while it is live means "I'm done" — send the full
+  /// transcript captured so far (banked words plus whatever was still
+  /// being guessed).
   void _stopListening() => _endTurn(send: true);
 
   void _onSpeechError(SpeechRecognitionError error) {

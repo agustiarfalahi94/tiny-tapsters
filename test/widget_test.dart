@@ -73,13 +73,28 @@ void main() {
     await popBubblesUntilRoundComplete(tester);
 
     expect(find.text('Pop 0 more!'), findsOneWidget);
+    // popBubblesUntilRoundComplete pumps 450ms after every tap — longer
+    // than the 400ms pop-sparkle animation — so no sparkle should still be
+    // mid-flight here. This is the baseline for the sparkle assertion
+    // below: any '✨' found after the next tap can only be a *new* pop.
+    expect(find.text('✨'), findsNothing);
 
-    // Tap one more bubble before the 600ms win delay elapses.
+    // Tap one more bubble before the 600ms win delay elapses. `_pop` guards
+    // on `_roundComplete`, so this must be rejected outright.
     await tester.tap(bubbleTexts().first);
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.textContaining('-'), findsNothing);
     expect(find.text('Pop 0 more!'), findsOneWidget);
+    // The label alone doesn't prove the tap was rejected — it's clamped
+    // with math.max(0, ...) and would keep reading "Pop 0 more!" even if
+    // `_popped` climbed past the target. A pop-sparkle ('✨' in
+    // _PopSparkle, lib/screens/bubble_pop_screen.dart) only ever appears
+    // when `_pop` actually accepts a tap and flips `bubble.popping = true`;
+    // since the extra tap should have been rejected by the
+    // `_roundComplete` guard, no sparkle should exist 100ms later (well
+    // within its 400ms animation window).
+    expect(find.text('✨'), findsNothing);
 
     // Flush the pending 600ms win-delay timer so the test doesn't end
     // with a dangling Future.delayed still outstanding.
