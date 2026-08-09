@@ -26,6 +26,31 @@ class SoundEffects {
     }
   }
 
+  AudioPlayer? _animalPlayer;
+
+  /// An animal's call, for "Which Animal?".
+  ///
+  /// A third player, because [pop] stops its own before every play — sharing
+  /// it would let a stray tap cut a call short, and the call *is* the puzzle.
+  /// The music ducks so a cow is not competing with a backing track.
+  Future<void> animal(String asset) async {
+    try {
+      final player = _animalPlayer ??= AudioPlayer();
+      await MusicService.instance.duck();
+      await player.stop();
+      await player.setVolume(1);
+      unawaited(
+        player.onPlayerComplete.first
+            .then((_) => MusicService.instance.unduck())
+            .catchError((_) {}),
+      );
+      await player.play(AssetSource(asset));
+    } catch (e) {
+      debugPrint('SoundEffects failed: $e');
+      await MusicService.instance.unduck();
+    }
+  }
+
   /// Which fanfare a star rating earns. Three stars get the big one.
   static String winAsset(int stars) =>
       stars >= 3 ? 'sfx/win_high.m4a' : 'sfx/win_low.m4a';

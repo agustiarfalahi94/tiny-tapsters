@@ -18,7 +18,7 @@ import 'package:tiny_tapsters/widgets/pair_drag_game.dart';
 void main() {
   // The home screen now has a perpetually bobbing Pollie, so these tests
   // pump frames instead of settling — the same reason Bubble Pop's do.
-  testWidgets('home screen shows all six games', (tester) async {
+  testWidgets('home screen shows all seven games', (tester) async {
     await tester.pumpWidget(const ToddlerGamesApp());
     await tester.pump(const Duration(milliseconds: 100));
     final scrollable = find.byType(Scrollable).first;
@@ -28,6 +28,7 @@ void main() {
       'Memory Match',
       'Bubble Pop',
       'Find It!',
+      'Which Animal?',
       'Count the Animals!',
     ]) {
       await tester.scrollUntilVisible(

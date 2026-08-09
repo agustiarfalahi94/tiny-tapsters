@@ -78,7 +78,7 @@ setup, which takes a free Cloudflare account and about five minutes.
 
 Chat messages and voice input are sent to Google's Gemini and to the
 device's speech services. Without an endpoint, Pollie shows a friendly
-fallback message and the six games are unaffected — they are all fully
+fallback message and the seven games are unaffected — they are all fully
 offline.
 
 ## Project layout
@@ -95,6 +95,7 @@ lib/
     bubble_pop_screen.dart       # bubble popping
     find_it_screen.dart          # find the matching animal
     count_game_screen.dart       # count the animals
+    animal_sound_screen.dart     # guess the animal by its call
     companion_screen.dart        # Pollie chat (Gemini)
   services/
     pollie_service.dart          # HTTP client for Pollie's proxy (worker/)
@@ -112,6 +113,7 @@ lib/
 assets/
   branding/
     tiny-tapsters-logo.png       # master artwork (build-time only, not bundled)
+  animal_sounds/*.m4a            # CC0 animal calls (see ASSET_CREDITS.md)
   sfx/pop.wav                    # bubble pop
   sfx/win_high.m4a               # 3-star fanfare
   sfx/win_low.m4a                # 1- and 2-star fanfare
