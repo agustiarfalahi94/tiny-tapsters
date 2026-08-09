@@ -110,7 +110,7 @@ class _CountGameScreenState extends State<CountGameScreen> {
       SoundEffects.instance.pop();
       // Brief green highlight, then the next round (or the win overlay).
       _advance?.cancel();
-      _advance = Timer(const Duration(milliseconds: 600), () {
+      _advance = Timer(const Duration(milliseconds: 350), () {
         if (!mounted) return;
         _busy = false;
         if (_round >= _roundsToWin) {

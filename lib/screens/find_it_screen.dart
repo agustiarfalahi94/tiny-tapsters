@@ -93,7 +93,7 @@ class _FindItScreenState extends State<FindItScreen> {
         _happyIndex = index;
       });
       HapticFeedback.mediumImpact();
-      Future.delayed(const Duration(milliseconds: 650), () {
+      Future.delayed(const Duration(milliseconds: 350), () {
         if (!mounted) return;
         if (_found >= _roundsToWin) {
           setState(() => _won = true);
