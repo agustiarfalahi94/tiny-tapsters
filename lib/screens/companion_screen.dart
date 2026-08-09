@@ -8,6 +8,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import '../services/kid_safety.dart';
 import '../services/pollie_service.dart';
 import '../widgets/game_background.dart';
+import '../widgets/pollie_bird.dart';
 import '../widgets/round_button.dart';
 
 enum _PollieStatus { sleeping, awake, listening, thinking, speaking }
@@ -20,6 +21,25 @@ enum _PollieStatus { sleeping, awake, listening, thinking, speaking }
 /// (system TTS) — then Pollie listens again automatically, so a toddler can
 /// just keep chatting like in the Gemini app. Toddlers can also tap the big
 /// chips; grown-ups can type.
+/// End of a sentence: terminal punctuation, any closing quote or bracket,
+/// then whitespace or the end of the text. Requiring that trailing whitespace
+/// is what keeps "3.5" in one piece.
+final _sentenceEnd = RegExp(r'[.!?…]+["\u2019\u201d)\]]*(\s|$)');
+
+/// Index just past the last *complete* sentence at or after [from], or [from]
+/// itself when nothing new has finished.
+///
+/// This is what lets Pollie start talking while the rest of her reply is still
+/// being generated, instead of the child waiting for generation and synthesis
+/// one after the other.
+int lastSentenceEnd(String text, int from) {
+  var cut = from;
+  for (final match in _sentenceEnd.allMatches(text, from)) {
+    cut = match.end;
+  }
+  return cut;
+}
+
 class CompanionScreen extends StatefulWidget {
   const CompanionScreen({super.key});
 
@@ -83,43 +103,46 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   // --- one listening "turn" -------------------------------------------------
   //
-  // Android's recogniser has two silence timers: a "definitely finished" one,
-  // which is the only one the plugin exposes (as `pauseFor`), and a much
-  // shorter "possibly finished" one we cannot configure at all. A previous
-  // version tried to dodge both by treating a turn as *ours*, not the
-  // recogniser's: every time a session ended, its words were banked and the
-  // mic was immediately re-armed, only really ending the turn once the child
-  // had been quiet for a while.
+  // Android's recogniser has two silence timers. `pauseFor` sets the long
+  // "definitely finished" one; the short "possibly finished" one — around
+  // 500ms on most devices — is set by an intent extra
+  // (EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS) that
+  // speech_to_text never sets and does not expose. That short timer is what
+  // ends a session while a child is still thinking mid-sentence.
   //
-  // That restart made things worse, not better. `onResult`'s final-result
-  // branch and `onStatus('done')` both fire for the same session ending, so
-  // two restarts raced each other into a "recognizer busy" error; and every
-  // restart — even the ones that didn't race — cost a few hundred
-  // milliseconds of dead air in which nothing was captured at all. A child
-  // talking continuously lost most of a sentence to those gaps, not to the
-  // recogniser's endpointing.
+  // So a turn is no longer one recogniser session. A session ending banks its
+  // words and re-arms the mic; the turn itself ends only when the child taps
+  // the mic, the 45s cap fires, a real error arrives, or the app goes to the
+  // background.
   //
-  // So a turn is exactly one recogniser session again. The pause tolerance is
-  // bought directly from the recogniser via `pauseFor: _quietWindow` instead
-  // of being rebuilt out of restarts. Do not reintroduce a restart loop here:
-  // restarting to dodge a short silence timer loses more speech to the
-  // restart gap than the timer ever cut off.
+  // An earlier version of this tried the same thing and was reverted, because
+  // `onResult(finalResult: true)` and `onStatus('done')` both fire for one
+  // session ending and both called restart — racing each other into
+  // "recognizer busy" and leaving the mic dead. `_restarting` is the missing
+  // piece: only the first of the two callers gets to restart, and it clears
+  // the flag once `listen()` has resolved. Do not remove that guard.
+  //
+  // The restart costs a few hundred milliseconds of dead air. That is a real
+  // cost, but it is only paid where the recogniser decided the child had
+  // stopped talking — which is exactly where there is least speech to lose.
+
   static const _quietWindow = Duration(seconds: 3);
 
   /// Hard stop, so a turn can never leave the mic live forever.
   static const _maxTurn = Duration(seconds: 45);
 
-  /// Words banked once the turn's recogniser session produces its final
-  /// result. (Not because a session can emit more than one — it can't, the
-  /// plugin drops everything after the first final — but the accumulating
-  /// join below is cheap insurance if that ever changes.) On every
-  /// turn-ending path other than that final result — the mic tapped to
-  /// mean "I'm done", the 45s `_maxTurn` cap, or a speech error — this
-  /// stays empty, and `_transcript` (this plus whatever `_partial` still
-  /// holds) is what `_endTurn` actually needs to send.
+  /// Everything the turn's finished sessions have produced so far. A turn now
+  /// spans however many sessions the recogniser decides to end, so this
+  /// accumulates across all of them; `_partial` holds whatever the live
+  /// session is still guessing.
   String _heard = '';
   Timer? _turnTimer;
   bool _turnActive = false;
+
+  /// Single-flight guard around re-arming the mic. Both `onResult`'s final
+  /// branch and `onStatus('done')` fire for one session ending; without this
+  /// they race into "recognizer busy" and the turn goes deaf.
+  bool _restarting = false;
 
   /// What the child has said so far this turn: banked words plus whatever the
   /// recogniser is currently guessing.
@@ -130,6 +153,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _initTts();
     _initSpeechLocale();
     if (_pollie.isConfigured) {
       _bubbles.add(_Bubble(role: 'model', text: ''));
@@ -185,6 +209,23 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
   }
 
+  /// Queue mode 1 is "add to the queue" — without it every new sentence
+  /// would interrupt the one before, which is precisely what speaking
+  /// sentence by sentence must not do.
+  Future<void> _initTts() async {
+    try {
+      await _tts.setQueueMode(1);
+      _tts.setCompletionHandler(_onUtteranceComplete);
+      _tts.setCancelHandler(_onUtteranceComplete);
+      _tts.setErrorHandler((message) {
+        debugPrint('Pollie TTS error: $message');
+        _onUtteranceComplete();
+      });
+    } catch (e) {
+      debugPrint('Pollie TTS setup failed: $e');
+    }
+  }
+
   /// Picks the speech recognition locale from the device language
   /// (Indonesian or English), falling back to en-US.
   Future<void> _initSpeechLocale() async {
@@ -193,10 +234,10 @@ class _CompanionScreenState extends State<CompanionScreen>
         onError: _onSpeechError,
         onStatus: (status) {
           if (status != 'done' || !mounted) return;
-          // The turn's one session just ended — that is the whole turn
-          // ending, too. Send whatever got banked, which may be nothing.
+          // A session ended, not the turn. Re-arm and keep listening; the
+          // child decides when they are finished, not the recogniser.
           if (_turnActive) {
-            _endTurn(send: true);
+            _restartSession();
             return;
           }
           _listenRetries = 0;
@@ -308,6 +349,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
     _heard = '';
     _listenRetries = 0;
+    _restarting = false;
     _turnActive = true;
     _turnTimer?.cancel();
     _turnTimer = Timer(_maxTurn, () => _endTurn(send: true));
@@ -336,9 +378,8 @@ class _CompanionScreenState extends State<CompanionScreen>
             _heard = _heard.isEmpty ? words : '$_heard $words';
           }
           setState(() => _partial = '');
-          // The one session just gave its final result — that's the turn
-          // done; send whatever was banked.
-          _endTurn(send: true);
+          // This session is done; the turn is not. Bank and listen again.
+          _restartSession();
         },
         onSoundLevelChange: (level) {
           // Same guard as onResult above: dispose() flips `_turnActive`
@@ -376,6 +417,27 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
   }
 
+  /// Re-arms the mic for the same turn after a session ends.
+  ///
+  /// Guarded so the two callbacks that fire for one session ending cannot
+  /// both restart — see the comment above [_quietWindow].
+  Future<void> _restartSession() async {
+    if (!_turnActive || !mounted || _restarting) return;
+    _restarting = true;
+    try {
+      // The plugin needs its previous session fully torn down before the
+      // next `listen()`, or the platform reports the recogniser busy.
+      try {
+        await _speech.stop();
+      } catch (_) {}
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!_turnActive || !mounted) return;
+      await _listenOnce();
+    } finally {
+      _restarting = false;
+    }
+  }
+
   /// Ends the turn, optionally sending everything banked during it.
   void _endTurn({required bool send}) {
     if (!_turnActive && _heard.isEmpty) {
@@ -390,18 +452,17 @@ class _CompanionScreenState extends State<CompanionScreen>
       return;
     }
     _turnActive = false;
+    _restarting = false;
     _turnTimer?.cancel();
     _turnTimer = null;
     try {
       _speech.stop();
     } catch (_) {}
 
-    // Capture the full transcript — banked words plus whatever the
-    // recogniser was still guessing — before the setState below clears
-    // `_partial`. `onResult`'s finalResult branch is the only path that
-    // ever writes `_heard`, so on every other turn-ending path (mic tap,
-    // the 45s cap, a speech error) `_heard` alone is empty and `_partial`
-    // is the only place the child's words are.
+    // Capture the full transcript — every finished session's words plus
+    // whatever the live one was still guessing — before the setState below
+    // clears `_partial`. On a mic tap mid-sentence, `_partial` is the only
+    // place the last few words exist.
     final words = _transcript.trim();
     _heard = '';
     if (!mounted) return;
@@ -430,12 +491,11 @@ class _CompanionScreenState extends State<CompanionScreen>
         message.contains('no speech') ||
         error.permanent;
 
-    // Mid-turn, a "no match"/timeout just means the single session found
-    // nothing worth transcribing (or the child never spoke) — end the turn
-    // quietly and send whatever was banked, rather than treating it as a
-    // real error.
-    if (_turnActive && quiet) {
-      _endTurn(send: true);
+    // Mid-turn, a "no match"/timeout just means that session heard nothing
+    // worth transcribing — a child thinking, not a child finished. Re-arm
+    // quietly. A permanent error is different: that mic is not coming back.
+    if (_turnActive && quiet && !error.permanent) {
+      _restartSession();
       return;
     }
 
@@ -483,20 +543,39 @@ class _CompanionScreenState extends State<CompanionScreen>
 
     try {
       final buffer = StringBuffer();
+      // Sentences already handed to the TTS engine, as an index into the
+      // reply built so far.
+      var spoken = 0;
+      var voiceReady = false;
+      await _beginSpeaking(thenListen: true, more: true);
       await for (final chunk in _pollie.reply(_history)) {
         buffer.write(chunk);
         if (mounted) {
           setState(() => _bubbles.last.text = buffer.toString());
           _scrollToBottom();
         }
+        final full = buffer.toString();
+        final cut = lastSentenceEnd(full, spoken);
+        if (cut <= spoken) continue;
+        final sentence = full.substring(spoken, cut);
+        spoken = cut;
+        // The voice is chosen once, from the first sentence: switching
+        // language mid-reply cuts off whatever is speaking.
+        if (!voiceReady) {
+          voiceReady = true;
+          await _applyVoiceFor(sentence);
+        }
+        await _enqueueSpeech(sentence);
       }
       final reply = buffer.toString().trim();
       if (reply.isEmpty) {
+        _moreComing = false;
         throw StateError('Pollie said nothing — maybe try again?');
       }
       // Output safety guard: if anything inappropriate slipped through the
       // model filters, the child never sees or hears it.
       if (KidSafety.containsBlocked(reply)) {
+        _moreComing = false;
         if (mounted) {
           setState(() {
             _bubbles.removeLast();
@@ -519,9 +598,17 @@ class _CompanionScreenState extends State<CompanionScreen>
           _busy = false;
         });
       }
-      _speak(reply, thenListen: true);
+      // Whatever never ended in punctuation still has to be said.
+      final tail = reply.length > spoken ? reply.substring(spoken) : '';
+      if (tail.trim().isNotEmpty) {
+        if (!voiceReady) await _applyVoiceFor(tail);
+        await _enqueueSpeech(tail);
+      }
+      _moreComing = false;
+      _finishSpeakingIfDone();
     } catch (e) {
       debugPrint('Pollie reply failed: $e');
+      _moreComing = false;
       if (!mounted) return;
       final quota = e.toString().toLowerCase().contains('quota');
       setState(() {
@@ -596,13 +683,55 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
   }
 
-  Future<void> _speak(String text, {bool thenListen = false}) async {
+  // --- speaking ------------------------------------------------------------
+  //
+  // Pollie speaks sentence by sentence as the reply streams in, rather than
+  // waiting for the whole thing. Generating two sentences and then
+  // synthesising them are both slow; doing them one after the other made the
+  // child wait for the sum. Now she starts talking as soon as the first
+  // sentence lands, and the rest is queued behind it.
+
+  /// Utterances handed to the TTS engine that have not finished yet.
+  int _pending = 0;
+
+  /// True while a reply is still streaming and may add more sentences.
+  bool _moreComing = false;
+
+  /// Whether to re-arm the mic once everything queued has been spoken.
+  bool _relisten = false;
+
+  /// Starts a spoken response. [more] is true when sentences are still
+  /// arriving, false for a one-shot line.
+  Future<void> _beginSpeaking({
+    required bool thenListen,
+    required bool more,
+  }) async {
+    _relisten = thenListen;
+    _moreComing = more;
     if (mounted) setState(() => _status = _PollieStatus.speaking);
+  }
+
+  /// Queues one sentence behind whatever is already speaking.
+  Future<void> _enqueueSpeech(String text) async {
+    final clean = _cleanForSpeech(text);
+    if (clean.isEmpty) return;
+    _pending++;
     try {
-      // Simple language guess so the TTS voice matches the conversation.
-      final lower = text.toLowerCase();
-      final indonesian = _idStopWords.any(lower.contains);
-      final lang = indonesian ? 'id-ID' : 'en-US';
+      await _tts.speak(clean);
+    } catch (_) {
+      // TTS unavailable: the text bubble is still there.
+      _pending--;
+      _finishSpeakingIfDone();
+    }
+  }
+
+  /// Applies the voice for [text]'s language. Called once per reply, before
+  /// the first sentence — switching voice mid-reply would cut it off.
+  Future<String> _applyVoiceFor(String text) async {
+    // Simple language guess so the TTS voice matches the conversation.
+    final indonesian = _idStopWords.any(text.toLowerCase().contains);
+    final lang = indonesian ? 'id-ID' : 'en-US';
+    try {
       await _tts.setLanguage(lang);
       await _applyBestVoice(lang);
       // Just above natural: enough to read as friendly, not so high that the
@@ -610,30 +739,34 @@ class _CompanionScreenState extends State<CompanionScreen>
       // what made Pollie sound robotic, not the speed.
       await _tts.setPitch(1.1);
       await _tts.setSpeechRate(0.45);
-      // Once the reply is spoken, re-arm the microphone for a hands-free
-      // conversation loop.
-      _tts.setCompletionHandler(() async {
-        if (!mounted) return;
-        setState(() => _status = _PollieStatus.awake);
-        if (thenListen && _speechAvailable && _pollie.isConfigured) {
-          await Future<void>.delayed(const Duration(milliseconds: 1200));
-          if (mounted) _startListening();
-        }
-      });
-      _tts.setErrorHandler((message) {
-        if (mounted) setState(() => _status = _PollieStatus.awake);
-      });
-      await _tts.speak(_cleanForSpeech(text));
-    } catch (_) {
-      // TTS unavailable: the text bubble is still there.
-      if (mounted) {
-        setState(() => _status = _PollieStatus.awake);
-        if (thenListen && _speechAvailable && _pollie.isConfigured) {
-          await Future<void>.delayed(const Duration(milliseconds: 1200));
-          if (mounted) _startListening();
-        }
-      }
+    } catch (e) {
+      debugPrint('Pollie voice setup failed: $e');
     }
+    return lang;
+  }
+
+  void _onUtteranceComplete() {
+    _pending = _pending > 0 ? _pending - 1 : 0;
+    _finishSpeakingIfDone();
+  }
+
+  void _finishSpeakingIfDone() {
+    if (_pending > 0 || _moreComing || !mounted) return;
+    setState(() => _status = _PollieStatus.awake);
+    if (_relisten && _speechAvailable && _pollie.isConfigured) {
+      _relisten = false;
+      Future<void>.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted && _status == _PollieStatus.awake) _startListening();
+      });
+    }
+  }
+
+  /// Says one complete line — the greeting, a gentle redirect, an apology.
+  Future<void> _speak(String text, {bool thenListen = false}) async {
+    await _beginSpeaking(thenListen: thenListen, more: false);
+    await _applyVoiceFor(text);
+    await _enqueueSpeech(text);
+    _finishSpeakingIfDone();
   }
 
   void _reset() {
@@ -734,9 +867,17 @@ class _CompanionScreenState extends State<CompanionScreen>
                         child: CircleAvatar(
                           radius: 26,
                           backgroundColor: Colors.white,
-                          child: Text(
-                            _statusFace,
-                            style: const TextStyle(fontSize: 30),
+                          child: PollieBird(
+                            emoji: _statusFace,
+                            fontSize: 30,
+                            // Still while asleep; leaning toward the child
+                            // while listening; a gentle bob otherwise.
+                            active: _status != _PollieStatus.sleeping,
+                            bob: _status == _PollieStatus.listening ? 2 : 3,
+                            lean: _status == _PollieStatus.listening ? 0.12 : 0,
+                            period: _status == _PollieStatus.speaking
+                                ? const Duration(milliseconds: 900)
+                                : const Duration(milliseconds: 2400),
                           ),
                         ),
                       ),

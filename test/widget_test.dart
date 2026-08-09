@@ -16,8 +16,11 @@ import 'package:tiny_tapsters/widgets/game_timer.dart';
 import 'package:tiny_tapsters/widgets/pair_drag_game.dart';
 
 void main() {
+  // The home screen now has a perpetually bobbing Pollie, so these tests
+  // pump frames instead of settling — the same reason Bubble Pop's do.
   testWidgets('home screen shows all six games', (tester) async {
     await tester.pumpWidget(const ToddlerGamesApp());
+    await tester.pump(const Duration(milliseconds: 100));
     final scrollable = find.byType(Scrollable).first;
     for (final title in [
       'Jigsaw Puzzle',
@@ -242,6 +245,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const ToddlerGamesApp());
+    await tester.pump(const Duration(milliseconds: 100));
     final title = find.text('Tiny Tapsters');
 
     expect(
@@ -258,15 +262,15 @@ void main() {
     // scrollUntilVisible only guarantees partial visibility — scroll a bit
     // more so the card is fully on screen before tapping it.
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -120));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('Find It!'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('Easy'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('🏠')); // back from the game
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('🏠')); // back from the level picker
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(tester.getCenter(title).dx, closeTo(400, 5));
   });
@@ -392,7 +396,29 @@ void main() {
 
   testWidgets('home screen has the Pollie button', (tester) async {
     await tester.pumpWidget(const ToddlerGamesApp());
+    await tester.pump(const Duration(milliseconds: 100));
     expect(find.byTooltip('Talk to Pollie'), findsOneWidget);
+    expect(find.text('🦜'), findsOneWidget);
+
+    // The nudge that tells a grown-up the bird is a button arrives a beat
+    // later, so it reads as Pollie noticing you rather than as a label.
+    expect(find.text('Tap to talk! 💬'), findsOneWidget);
+    final before = tester.widget<AnimatedOpacity>(
+      find.ancestor(
+        of: find.text('Tap to talk! 💬'),
+        matching: find.byType(AnimatedOpacity),
+      ),
+    );
+    expect(before.opacity, 0);
+
+    await tester.pump(const Duration(seconds: 4));
+    final after = tester.widget<AnimatedOpacity>(
+      find.ancestor(
+        of: find.text('Tap to talk! 💬'),
+        matching: find.byType(AnimatedOpacity),
+      ),
+    );
+    expect(after.opacity, 1);
   });
 
   testWidgets('companion blocks inappropriate input gently', (tester) async {
@@ -707,6 +733,14 @@ void main() {
             as BoxDecoration;
     expect(cardBox.color, Colors.white);
   });
+}
+
+/// `pumpAndSettle` never returns now that Pollie bobs forever on the home
+/// screen, so navigation steps pump a frame to start the route transition and
+/// then advance well past it.
+Future<void> settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 1));
 }
 
 // --- Bubble Pop test helpers ------------------------------------------------

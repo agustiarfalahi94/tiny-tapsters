@@ -4,6 +4,7 @@ import '../services/music_route_observer.dart';
 import '../services/music_service.dart';
 import '../widgets/game_background.dart';
 import '../widgets/game_timer.dart';
+import '../widgets/pollie_bird.dart';
 import '../widgets/round_button.dart';
 import 'animal_food_screen.dart';
 import 'bubble_pop_screen.dart';
@@ -33,13 +34,22 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Pollie 🦜 — the talking companion, always one tap away.
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _open(context, const CompanionScreen(), null),
-        backgroundColor: Colors.white,
-        elevation: 6,
-        tooltip: 'Talk to Pollie',
-        child: const Text('🦜', style: TextStyle(fontSize: 32)),
+      // Pollie 🦜 — the talking companion, always one tap away. She bobs, and
+      // after a few seconds says so, because nothing else on this screen tells
+      // a grown-up the bird is a button.
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          TapToTalkBubble(onTap: () => _openPollie(context)),
+          FloatingActionButton(
+            onPressed: () => _openPollie(context),
+            backgroundColor: Colors.white,
+            elevation: 6,
+            tooltip: 'Talk to Pollie',
+            child: const PollieBird(),
+          ),
+        ],
       ),
       body: GameBackground(
         child: Stack(
@@ -435,6 +445,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+
+  /// Pollie's screen asks for silence: music there would fight her voice, and
+  /// the microphone would hear it.
+  void _openPollie(BuildContext context) =>
+      _open(context, const CompanionScreen(), null);
 
   /// A level picker is still a menu, so the main theme keeps playing.
   void _openLevels(BuildContext context, Widget screen) =>

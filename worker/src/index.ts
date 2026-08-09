@@ -1,0 +1,221 @@
+/**
+ * Pollie's proxy.
+ *
+ * The Gemini key lives here as a Worker secret instead of inside the APK,
+ * where `strings libapp.so | grep AIza` recovers it in seconds. The app talks
+ * only to this Worker, which means the key, the model choice and the system
+ * prompt can all change without shipping a release.
+ */
+
+export interface Env {
+  GEMINI_API_KEY: string;
+  POLLIE_RATE_LIMIT: RateLimit;
+}
+
+interface RateLimit {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
+interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+}
+
+/**
+ * Pinned, not `gemini-flash-latest`.
+ *
+ * `thinkingBudget: 0` turns thinking off on 2.5 Flash and is unavailable on
+ * 3.x, so the alias would silently start paying for a reasoning pass before
+ * every "hello" the day it moved on. Pinning here rather than in the app means
+ * changing it later is a deploy, not a release.
+ */
+const MODEL = 'gemini-2.5-flash';
+
+const SYSTEM_PROMPT = `You are Pollie, a warm, friendly companion who talks to a young child.
+Rules:
+- Talk like a normal, warm person would: relaxed, casual, natural. Never
+  sound like a robot, a script, or a narrator.
+- Keep replies short: usually 2-3 sentences, sometimes just one. Use simple
+  words a 4-year-old understands.
+- Use the same language the child uses (English or Indonesian).
+- You may use ONE emoji occasionally, but not in every reply and never as
+  decoration on every sentence.
+- Never use asterisks, roleplay sounds, or *action* markers — just plain
+  speech.
+- Never mention that you are an AI or a model.
+- SAFETY (most important): NEVER discuss sex, dating, romance, violence,
+  drugs, death, or anything adult. NEVER use bad words, insults, or slurs.
+  If the child says something rude or inappropriate, gently say "That's not
+  a nice thing to say!" and change the subject to something fun.
+- If the child asks to do something dangerous or unsafe, gently say no and
+  suggest a safe, fun alternative instead.
+- For stories and songs, keep them very short and sweet.`;
+
+/** Strictest blocking on every category, on the child's input and Pollie's output. */
+const SAFETY_SETTINGS = [
+  'HARM_CATEGORY_HARASSMENT',
+  'HARM_CATEGORY_HATE_SPEECH',
+  'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+  'HARM_CATEGORY_DANGEROUS_CONTENT',
+].map((category) => ({ category, threshold: 'BLOCK_LOW_AND_ABOVE' }));
+
+const GENERATION_CONFIG = {
+  temperature: 0.9,
+  // Generous for two short sentences. With thinking off, nothing else is
+  // competing for the budget, and a smaller cap finishes the stream sooner.
+  maxOutputTokens: 200,
+  thinkingConfig: { thinkingBudget: 0 },
+};
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (request.method !== 'POST') {
+      return json({ error: 'method not allowed' }, 405);
+    }
+
+    // Every install sends a random id. It identifies nothing about the child —
+    // it exists so one user cannot drain the quota everyone shares.
+    const installId = request.headers.get('X-Install-Id');
+    if (!installId || installId.length < 8 || installId.length > 64) {
+      return json({ error: 'missing install id' }, 400);
+    }
+
+    const allowed = await env.POLLIE_RATE_LIMIT.limit({ key: installId });
+    if (!allowed.success) {
+      return json({ error: 'quota' }, 429, { 'Retry-After': '60' });
+    }
+
+    if (url.pathname === '/ping') return ping(env);
+    if (url.pathname === '/chat') return chat(request, env);
+    return json({ error: 'not found' }, 404);
+  },
+};
+
+/**
+ * Cheapest possible round trip that still proves Gemini answers *and* that the
+ * quota is not exhausted — which is exactly what turns Pollie's face from
+ * sleeping to smiling, so a mere "the Worker is up" would be a lie.
+ */
+async function ping(env: Env): Promise<Response> {
+  const response = await callGemini(env, 'generateContent', {
+    contents: [{ role: 'user', parts: [{ text: 'Reply with just the word: OK' }] }],
+    generationConfig: { ...GENERATION_CONFIG, temperature: 0, maxOutputTokens: 20 },
+    safetySettings: SAFETY_SETTINGS,
+  });
+
+  if (response.status === 429) return json({ error: 'quota' }, 429);
+  if (!response.ok) return json({ error: 'unreachable' }, 502);
+
+  const body = (await response.json()) as GeminiResponse;
+  const text = textOf(body);
+  return json({ ok: text.trim().length > 0 });
+}
+
+/** Streams the reply back as newline-delimited JSON: one `{"text": "..."}` per line. */
+async function chat(request: Request, env: Env): Promise<Response> {
+  let messages: ChatMessage[];
+  try {
+    ({ messages } = (await request.json()) as { messages: ChatMessage[] });
+  } catch {
+    return json({ error: 'bad request' }, 400);
+  }
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return json({ error: 'bad request' }, 400);
+  }
+
+  const upstream = await callGemini(env, 'streamGenerateContent?alt=sse', {
+    // The SDK used to serialise a system instruction with `role: 'system'`,
+    // which this API rejects. `systemInstruction` is the supported field.
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents: trimHistory(messages).map((m) => ({
+      role: m.role === 'model' ? 'model' : 'user',
+      parts: [{ text: m.text }],
+    })),
+    generationConfig: GENERATION_CONFIG,
+    safetySettings: SAFETY_SETTINGS,
+  });
+
+  if (upstream.status === 429) return json({ error: 'quota' }, 429);
+  if (!upstream.ok || !upstream.body) return json({ error: 'unreachable' }, 502);
+
+  return new Response(toNdjson(upstream.body), {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+/**
+ * Server-sent events in, one JSON object per line out.
+ *
+ * The app parses lines, not an SSE dialect — the less protocol the phone has
+ * to understand, the less there is to go wrong on a bad connection.
+ */
+function toNdjson(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = '';
+
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        buffer += decoder.decode(chunk, { stream: true });
+        const lines = buffer.split('\n');
+        // The last piece may be half a line; keep it for the next chunk.
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (!payload || payload === '[DONE]') continue;
+          try {
+            const text = textOf(JSON.parse(payload) as GeminiResponse);
+            if (text) {
+              controller.enqueue(encoder.encode(JSON.stringify({ text }) + '\n'));
+            }
+          } catch {
+            // A malformed chunk mid-stream is not worth failing the reply over.
+          }
+        }
+      },
+    }),
+  );
+}
+
+interface GeminiResponse {
+  candidates?: { content?: { parts?: { text?: string }[] } }[];
+}
+
+function textOf(body: GeminiResponse): string {
+  return (body.candidates?.[0]?.content?.parts ?? [])
+    .map((part) => part.text ?? '')
+    .join('');
+}
+
+/** The last 20 turns. A toddler chat never needs more, and the request stays small. */
+function trimHistory(messages: ChatMessage[]): ChatMessage[] {
+  return messages.length <= 20 ? messages : messages.slice(-20);
+}
+
+function callGemini(env: Env, method: string, body: unknown): Promise<Response> {
+  return fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:${method}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': env.GEMINI_API_KEY,
+      },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+function json(body: unknown, status = 200, headers: Record<string, string> = {}) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...headers },
+  });
+}
