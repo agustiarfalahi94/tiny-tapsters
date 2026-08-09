@@ -83,31 +83,38 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   // --- one listening "turn" -------------------------------------------------
   //
-  // Android's recogniser ends its session far sooner than a toddler ends a
-  // sentence: it has a "definitely finished" silence timer (which is the only
-  // one the plugin exposes, as pauseFor) and a much shorter "possibly
-  // finished" one that we cannot configure at all. Treating either as the end
-  // of the child's turn cuts them off mid-thought.
+  // Android's recogniser has two silence timers: a "definitely finished" one,
+  // which is the only one the plugin exposes (as `pauseFor`), and a much
+  // shorter "possibly finished" one we cannot configure at all. A previous
+  // version tried to dodge both by treating a turn as *ours*, not the
+  // recogniser's: every time a session ended, its words were banked and the
+  // mic was immediately re-armed, only really ending the turn once the child
+  // had been quiet for a while.
   //
-  // So a turn is ours, not the recogniser's. Each session's words are banked,
-  // the mic is immediately re-armed, and the turn only ends — and the text
-  // only goes to Pollie — once the child has actually been quiet for
-  // [_quietWindow].
-  static const _quietWindow = Duration(seconds: 5);
+  // That restart made things worse, not better. `onResult`'s final-result
+  // branch and `onStatus('done')` both fire for the same session ending, so
+  // two restarts raced each other into a "recognizer busy" error; and every
+  // restart — even the ones that didn't race — cost a few hundred
+  // milliseconds of dead air in which nothing was captured at all. A child
+  // talking continuously lost most of a sentence to those gaps, not to the
+  // recogniser's endpointing.
+  //
+  // So a turn is exactly one recogniser session again. The pause tolerance is
+  // bought directly from the recogniser via `pauseFor: _quietWindow` instead
+  // of being rebuilt out of restarts. Do not reintroduce a restart loop here:
+  // restarting to dodge a short silence timer loses more speech to the
+  // restart gap than the timer ever cut off.
+  static const _quietWindow = Duration(seconds: 3);
 
   /// Hard stop, so a turn can never leave the mic live forever.
   static const _maxTurn = Duration(seconds: 45);
 
-  /// Give up on a turn where nothing at all was heard, rather than restarting
-  /// into an empty room until [_maxTurn].
-  static const _maxEmptySessions = 2;
-
-  /// Words banked from finished sessions in the current turn.
+  /// Words banked from the turn's recogniser session. A single session can
+  /// still emit more than one final result, so this keeps accumulating —
+  /// it just never triggers another `listen()` call.
   String _heard = '';
-  Timer? _quietTimer;
   Timer? _turnTimer;
   bool _turnActive = false;
-  int _emptySessions = 0;
 
   /// What the child has said so far this turn: banked words plus whatever the
   /// recogniser is currently guessing.
@@ -140,7 +147,6 @@ class _CompanionScreenState extends State<CompanionScreen>
     // Never leave the mic, a pending turn, or the TTS engine running after
     // leaving Pollie.
     _turnActive = false;
-    _quietTimer?.cancel();
     _turnTimer?.cancel();
     try {
       _speech.stop();
@@ -158,7 +164,6 @@ class _CompanionScreenState extends State<CompanionScreen>
       // No mic/TTS while the app is in the background. Drop the turn rather
       // than sending half a sentence the child never finished.
       _turnActive = false;
-      _quietTimer?.cancel();
       _turnTimer?.cancel();
       _heard = '';
       try {
@@ -183,17 +188,10 @@ class _CompanionScreenState extends State<CompanionScreen>
         onError: _onSpeechError,
         onStatus: (status) {
           if (status != 'done' || !mounted) return;
-          // A recogniser session ended. Mid-turn that is routine — it fires
-          // every time the child pauses — so re-arm instead of going idle.
+          // The turn's one session just ended — that is the whole turn
+          // ending, too. Send whatever got banked, which may be nothing.
           if (_turnActive) {
-            if (_heard.isEmpty) {
-              _emptySessions++;
-              if (_emptySessions >= _maxEmptySessions) {
-                _endTurn(send: false);
-                return;
-              }
-            }
-            _relisten();
+            _endTurn(send: true);
             return;
           }
           _listenRetries = 0;
@@ -304,7 +302,6 @@ class _CompanionScreenState extends State<CompanionScreen>
       return;
     }
     _heard = '';
-    _emptySessions = 0;
     _listenRetries = 0;
     _turnActive = true;
     _turnTimer?.cancel();
@@ -318,7 +315,8 @@ class _CompanionScreenState extends State<CompanionScreen>
     await _listenOnce();
   }
 
-  /// One recogniser session. Several of these make up a turn.
+  /// The turn's one and only recogniser session — see the comment above
+  /// [_quietWindow] for why there is no restart loop here.
   Future<void> _listenOnce() async {
     if (!_turnActive || !mounted) return;
     try {
@@ -331,13 +329,11 @@ class _CompanionScreenState extends State<CompanionScreen>
           final words = result.recognizedWords.trim();
           if (words.isNotEmpty) {
             _heard = _heard.isEmpty ? words : '$_heard $words';
-            _emptySessions = 0;
-            _listenRetries = 0;
           }
           setState(() => _partial = '');
-          // Don't send yet — the child may only be drawing breath.
-          _restartQuietTimer();
-          _relisten();
+          // The one session just gave its final result — that's the turn
+          // done; send whatever was banked.
+          _endTurn(send: true);
         },
         onSoundLevelChange: (level) {
           // Throttle: only rebuild when the level actually moved, so the
@@ -350,15 +346,15 @@ class _CompanionScreenState extends State<CompanionScreen>
         },
         listenOptions: SpeechListenOptions(
           localeId: _localeId,
-          // Comfortably longer than the quiet window, so a session is ended
-          // by the child going quiet rather than by running out of time.
-          listenFor: const Duration(seconds: 20),
+          // Long enough for a full toddler sentence; pauseFor (not a
+          // restart) is what actually absorbs mid-sentence pauses.
+          listenFor: const Duration(seconds: 30),
           pauseFor: _quietWindow,
         ),
       );
     } catch (e) {
-      // Speech engine hiccup (often "recognizer busy" right after another
-      // session): a couple of quiet retries, then end the turn.
+      // Speech engine hiccup starting the session: a couple of quiet
+      // retries, then end the turn.
       debugPrint('Listening failed: $e');
       if (_turnActive && _listenRetries < 2) {
         _listenRetries++;
@@ -368,27 +364,6 @@ class _CompanionScreenState extends State<CompanionScreen>
         _endTurn(send: true);
       }
     }
-  }
-
-  /// Re-arms the mic after a session ends, so the turn survives the
-  /// recogniser's short endpointing. The small delay lets the previous
-  /// recogniser finish tearing down — restarting instantly earns a
-  /// "recognizer busy" error.
-  void _relisten() {
-    if (!_turnActive) return;
-    Future<void>.delayed(const Duration(milliseconds: 300), () async {
-      if (!mounted || !_turnActive || _speech.isListening) return;
-      await _listenOnce();
-    });
-  }
-
-  /// (Re)starts the countdown to the end of the turn. Only runs once
-  /// something has actually been banked: with nothing heard yet, a turn ends
-  /// through [_maxEmptySessions] instead.
-  void _restartQuietTimer() {
-    _quietTimer?.cancel();
-    if (_heard.isEmpty) return;
-    _quietTimer = Timer(_quietWindow, () => _endTurn(send: true));
   }
 
   /// Ends the turn, optionally sending everything banked during it.
@@ -405,9 +380,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       return;
     }
     _turnActive = false;
-    _quietTimer?.cancel();
     _turnTimer?.cancel();
-    _quietTimer = null;
     _turnTimer = null;
     try {
       _speech.stop();
@@ -415,7 +388,6 @@ class _CompanionScreenState extends State<CompanionScreen>
 
     final words = _heard.trim();
     _heard = '';
-    _emptySessions = 0;
     if (!mounted) return;
     setState(() {
       _status = _PollieStatus.awake;
@@ -440,10 +412,14 @@ class _CompanionScreenState extends State<CompanionScreen>
         message.contains('no speech') ||
         error.permanent;
 
-    // Mid-turn, a "no match" just means the child paused longer than the
-    // recogniser's patience. Keep the turn alive: onStatus 'done' re-arms the
-    // mic, and the quiet timer decides when the turn is really over.
-    if (_turnActive && quiet) return;
+    // Mid-turn, a "no match"/timeout just means the single session found
+    // nothing worth transcribing (or the child never spoke) — end the turn
+    // quietly and send whatever was banked, rather than treating it as a
+    // real error.
+    if (_turnActive && quiet) {
+      _endTurn(send: true);
+      return;
+    }
 
     if (!quiet) {
       _bubbles.add(
