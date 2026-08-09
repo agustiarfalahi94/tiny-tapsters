@@ -70,35 +70,41 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: BubblePopScreen()));
     await tester.pump(const Duration(milliseconds: 100));
 
-    await popBubblesUntilRoundComplete(tester);
+    await popBubblesUntilOneLeft(tester);
 
+    // The round-completing tap. Its sparkle is still mid-flight afterwards,
+    // which is the point: it is the baseline the extra tap is measured
+    // against.
+    await tester.tap(bubbleTexts().first);
+    await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Pop 0 more!'), findsOneWidget);
-    // popBubblesUntilRoundComplete pumps 450ms after every tap — longer
-    // than the 400ms pop-sparkle animation — so no sparkle should still be
-    // mid-flight here. This is the baseline for the sparkle assertion
-    // below: any '✨' found after the next tap can only be a *new* pop.
-    expect(find.text('✨'), findsNothing);
+    final sparklesAfterWinningPop = sparkleCount();
+    expect(
+      sparklesAfterWinningPop,
+      greaterThan(0),
+      reason: 'the winning pop must itself have been accepted',
+    );
 
-    // Tap one more bubble before the 600ms win delay elapses. `_pop` guards
-    // on `_roundComplete`, so this must be rejected outright.
+    // Tap again inside the 400ms win delay. `_pop` guards on
+    // `_roundComplete`, so this must be rejected outright.
     await tester.tap(bubbleTexts().first);
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.textContaining('-'), findsNothing);
     expect(find.text('Pop 0 more!'), findsOneWidget);
-    // The label alone doesn't prove the tap was rejected — it's clamped
+    // The label alone does not prove the tap was rejected — it is clamped
     // with math.max(0, ...) and would keep reading "Pop 0 more!" even if
-    // `_popped` climbed past the target. A pop-sparkle ('✨' in
-    // _PopSparkle, lib/screens/bubble_pop_screen.dart) only ever appears
-    // when `_pop` actually accepts a tap and flips `bubble.popping = true`;
-    // since the extra tap should have been rejected by the
-    // `_roundComplete` guard, no sparkle should exist 100ms later (well
-    // within its 400ms animation window).
-    expect(find.text('✨'), findsNothing);
+    // `_popped` climbed past the target. A sparkle appears only when `_pop`
+    // accepts a tap, so an accepted extra tap would raise the count.
+    expect(
+      sparkleCount(),
+      lessThanOrEqualTo(sparklesAfterWinningPop),
+      reason: 'the extra tap must not have produced another pop',
+    );
 
-    // Flush the pending 600ms win-delay timer so the test doesn't end
-    // with a dangling Future.delayed still outstanding.
-    await tester.pump(const Duration(milliseconds: 600));
+    // Flush the pending win timer so the test does not end with a dangling
+    // timer outstanding.
+    await tester.pump(const Duration(milliseconds: 400));
   });
 
   testWidgets('bubble pop reset during the win delay cancels the celebration', (
@@ -114,15 +120,17 @@ void main() {
         .widget<Text>(find.textContaining('more!'))
         .data!;
 
-    await popBubblesUntilRoundComplete(tester);
+    await popBubblesUntilOneLeft(tester);
+    await tester.tap(bubbleTexts().first); // completes the round
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Pop 0 more!'), findsOneWidget);
 
-    // Hit the manual reset well before the 600ms win delay elapses.
+    // Hit the manual reset well inside the 400ms win delay.
     await tester.tap(find.text('🔁'));
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 50));
 
     // Advance past when the (now-cancelled) win timer would have fired.
-    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pump(const Duration(milliseconds: 500));
 
     // The celebration must not appear over the freshly-reset round, and
     // the round must be back to its starting count and still playable.
@@ -466,7 +474,7 @@ void main() {
     );
     expect(countRoundDotColor(tester, 0), isNot(const Color(0xFFFF9800)));
 
-    // The correct tap highlights, then advances after the ~600ms delay.
+    // The correct tap highlights, then advances after the ~350ms delay.
     await tester.tap(find.byKey(ValueKey('answer-$n')));
     await tester.pump(const Duration(milliseconds: 700));
     expect(
@@ -500,7 +508,7 @@ void main() {
     await tester.tap(find.byKey(ValueKey('answer-$n')));
     await tester.pump(
       const Duration(milliseconds: 300),
-    ); // inside the 600ms window
+    ); // inside the 350ms advance window
     await tester.tap(find.byKey(ValueKey('answer-$n'))); // guarded by _busy
     await tester.pump(const Duration(milliseconds: 400)); // past the window
 
@@ -594,18 +602,33 @@ Finder bubbleTexts() => find.byWidgetPredicate(
 /// prior version of this test hard-coded it — which is exactly the drift
 /// this avoids). Bounded by a generous safety cap so a regression that
 /// breaks the win condition fails the test loudly instead of hanging.
-Future<void> popBubblesUntilRoundComplete(WidgetTester tester) async {
+/// Pops up to, but NOT including, the bubble that completes the round —
+/// stopping at "Pop 1 more!".
+///
+/// The win delay is now 400ms, exactly the pop-sparkle animation, so there is
+/// no longer a window where a sparkle has finished but the win has not fired.
+/// The callers need the round-completing tap under their own control, so this
+/// hands it back to them: after this returns, one more tap completes the round
+/// and starts the 400ms win timer.
+Future<void> popBubblesUntilOneLeft(WidgetTester tester) async {
   const safetyCap = 50;
   for (var i = 0; i < safetyCap; i++) {
-    if (find.text('Pop 0 more!').evaluate().isNotEmpty) return;
+    if (find.text('Pop 1 more!').evaluate().isNotEmpty) return;
+    if (find.text('Pop 0 more!').evaluate().isNotEmpty) {
+      fail('overshot the round target — the loop should stop at "Pop 1 more!"');
+    }
     await tester.tap(bubbleTexts().first);
     await tester.pump(); // start the pop-sparkle animation
-    // Let the sparkle finish and the bubble respawn, staying well under
-    // the 600ms win delay so that delay can't mask a bug in this loop.
-    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pump(const Duration(milliseconds: 450)); // sparkle finishes
   }
-  fail('bubble pop round never reached "Pop 0 more!" within $safetyCap taps');
+  fail('bubble pop round never reached "Pop 1 more!" within $safetyCap taps');
 }
+
+/// How many pop-sparkles are on screen. A sparkle exists only while `_pop`
+/// has accepted a tap, so this counts *accepted* pops rather than trusting the
+/// header label, which is clamped with `math.max(0, …)` and would keep reading
+/// "Pop 0 more!" even if the counter ran past the target.
+int sparkleCount() => find.text('✨').evaluate().length;
 
 // --- Count the Animals! test helpers --------------------------------------
 

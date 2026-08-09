@@ -46,9 +46,11 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   bool _won = false;
 
   /// True once the round's pop target is reached. Guards input during the
-  /// 600ms beat before `_won` flips and the celebration overlay appears —
+  /// short beat before `_won` flips and the celebration overlay appears —
   /// without it, bubbles tapped in that window kept incrementing `_popped`
-  /// past `_popsPerRound`, showing a negative "more!" count.
+  /// past `_popsPerRound`, showing a negative "more!" count. The beat is
+  /// 400ms: exactly the pop animation, so the last bubble is seen to burst
+  /// and not a millisecond of dead air more.
   bool _roundComplete = false;
 
   /// The pending "show the celebration" timer scheduled by the pop that
@@ -106,14 +108,14 @@ class _BubblePopScreenState extends State<BubblePopScreen>
       bubble.popping = true;
       _popped++;
       // Set synchronously, not in the delayed callback below — otherwise
-      // bubbles tapped during the 600ms win beat still count, pushing
+      // bubbles tapped during the win beat still count, pushing
       // _popped past _popsPerRound.
       if (_popped >= _popsPerRound) _roundComplete = true;
     });
     HapticFeedback.lightImpact();
     SoundEffects.instance.pop();
     if (_popped >= _popsPerRound) {
-      _winTimer = Timer(const Duration(milliseconds: 600), () {
+      _winTimer = Timer(const Duration(milliseconds: 400), () {
         if (!mounted) return;
         setState(() => _won = true);
       });

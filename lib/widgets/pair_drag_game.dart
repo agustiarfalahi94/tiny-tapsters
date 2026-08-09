@@ -153,7 +153,7 @@ class _PairDragGameState extends State<PairDragGame> {
         });
         HapticFeedback.mediumImpact();
         if (_placed.every((p) => p)) {
-          Future.delayed(const Duration(milliseconds: 600), () {
+          Future.delayed(const Duration(milliseconds: 100), () {
             if (!mounted) return;
             _done = true;
             widget.onCompleted();

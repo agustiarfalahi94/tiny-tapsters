@@ -5,6 +5,47 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.7.0] — 2026-08-09
+
+### Changed
+- **Every game reaches its celebration far sooner.** The pause between the
+  last tap and the winner screen was 600–1450ms; it is now sized to the
+  animation it is covering, and nothing more:
+
+  | Game | Before | After |
+  |---|---|---|
+  | Jigsaw Puzzle | 600ms | **100ms** |
+  | Animal Food | 600ms | **100ms** |
+  | Bubble Pop | 600ms | **400ms** |
+  | Find It! | 650ms | **350ms** |
+  | Count the Animals! | 600ms | **350ms** |
+  | Memory Match | 1450ms | **1150ms** |
+
+  Jigsaw and Animal Food snap their last piece instantly, so their 600ms was
+  pure dead air and went to 100ms. The rest are now exactly as long as the
+  feedback the child is watching — the 400ms bubble burst, the 350ms tap
+  tint, the 350ms card highlight — so the celebration lands the moment that
+  animation ends rather than after it.
+
+  Memory Match cannot reach 100ms without breaking the game: the 750ms
+  compare window is what lets a toddler see *which* two emoji matched (and is
+  the same window that shows a wrong pair before it flips back), so only the
+  beat after the match resolves was cut, 700ms → 400ms.
+
+  Count the Animals! shares one timer between "advance to the next round" and
+  "show the win", so its rounds now turn over faster too.
+
+### Notes
+- `flutter analyze`: 0 issues; 22/22 tests. The Bubble Pop tests were
+  restructured: the win delay now exactly equals the pop animation, so the
+  old helper's 450ms-per-tap pump would have fired the win mid-loop. The
+  round-completing tap is now the caller's, and the "extra tap was rejected"
+  assertion counts pop-sparkles instead of relying on a clamped label.
+  Re-verified that the test still fails when the `_roundComplete` guard is
+  removed.
+
+---
+
 ## [1.6.3] — 2026-08-09
 
 ### Fixed
