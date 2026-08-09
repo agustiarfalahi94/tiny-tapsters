@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/flip_card.dart';
 import '../widgets/game_background.dart';
+import '../widgets/game_over_overlay.dart';
+import '../widgets/game_timer.dart';
 import '../widgets/round_button.dart';
 
 /// A toddler-friendly memory matching game.
@@ -16,16 +18,21 @@ class MemoryGameScreen extends StatefulWidget {
     super.key,
     required this.pairs,
     required this.columns,
+    required this.level,
   });
 
   final int pairs;
   final int columns;
 
+  /// Sets the clock: 30s / 1m / 2m for the whole board.
+  final GameLevel level;
+
   @override
   State<MemoryGameScreen> createState() => _MemoryGameScreenState();
 }
 
-class _MemoryGameScreenState extends State<MemoryGameScreen> {
+class _MemoryGameScreenState extends State<MemoryGameScreen>
+    with WidgetsBindingObserver, TimedGame {
   static const _emojiPool = [
     '🐶',
     '🐱',
@@ -61,6 +68,12 @@ class _MemoryGameScreenState extends State<MemoryGameScreen> {
   bool _won = false;
 
   @override
+  GameLevel get gameLevel => widget.level;
+
+  @override
+  bool get hasWon => _won;
+
+  @override
   void initState() {
     super.initState();
     _cards = _buildDeck();
@@ -74,6 +87,7 @@ class _MemoryGameScreenState extends State<MemoryGameScreen> {
   }
 
   void _reset() {
+    resetClock();
     setState(() {
       _cards = _buildDeck();
       _open.clear();
@@ -85,7 +99,8 @@ class _MemoryGameScreenState extends State<MemoryGameScreen> {
   }
 
   void _tapCard(int index) {
-    if (_busy || _won) return;
+    if (_busy || _won || outOfTime) return;
+    startClock();
     final card = _cards[index];
     if (card.matched || _open.contains(index)) return;
 
@@ -109,8 +124,9 @@ class _MemoryGameScreenState extends State<MemoryGameScreen> {
         });
         HapticFeedback.mediumImpact();
         if (_pairsFound == widget.pairs) {
+          winClock();
           Future.delayed(const Duration(milliseconds: 400), () {
-            if (!mounted) return;
+            if (!mounted || outOfTime) return;
             setState(() => _won = true);
           });
         }
@@ -166,6 +182,10 @@ class _MemoryGameScreenState extends State<MemoryGameScreen> {
                     ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: GameTimerBar(controller: clock),
+                ),
                 Expanded(
                   child: GridView.builder(
                     padding: const EdgeInsets.all(14),
@@ -189,6 +209,11 @@ class _MemoryGameScreenState extends State<MemoryGameScreen> {
               onPrimary: _reset,
               secondaryLabel: 'More games 🏠',
               onSecondary: () => Navigator.of(context).pop(),
+            ),
+          if (outOfTime)
+            GameOverOverlay(
+              onRetry: _reset,
+              onHome: () => Navigator.of(context).pop(),
             ),
         ],
       ),

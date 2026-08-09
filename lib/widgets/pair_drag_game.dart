@@ -19,6 +19,7 @@ class PairDragGame extends StatefulWidget {
     required this.slotBuilder,
     required this.pieceBuilder,
     required this.onCompleted,
+    this.onFirstMove,
     this.boardBackgroundBuilder,
     this.slotCaption,
     this.gap = 12,
@@ -46,6 +47,10 @@ class PairDragGame extends StatefulWidget {
 
   /// Called shortly after every piece is placed.
   final VoidCallback onCompleted;
+
+  /// Fired once, on the first piece the child picks up. The games use it to
+  /// start their clock, so staring at a fresh board costs no time.
+  final VoidCallback? onFirstMove;
 
   /// Optional widget drawn behind the whole slot board (e.g. the faint
   /// reference picture of a jigsaw).
@@ -103,7 +108,13 @@ class _PairDragGameState extends State<PairDragGame> {
     _placed.addAll([for (var i = 0; i < widget.pairCount; i++) false]);
   }
 
+  bool _moved = false;
+
   void _onPanStart(int index, Offset globalPosition) {
+    if (!_moved) {
+      _moved = true;
+      widget.onFirstMove?.call();
+    }
     if (_done) return;
     // Grab the piece where it currently is — even if it is still sliding
     // back to the drawer — so re-grabbing never makes it jump.

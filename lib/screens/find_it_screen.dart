@@ -5,22 +5,28 @@ import 'package:flutter/services.dart';
 
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
+import '../widgets/game_over_overlay.dart';
+import '../widgets/game_timer.dart';
 import '../widgets/round_button.dart';
 
 /// Find It!: the game shows "Find the 🐶!" and a grid of animals; the toddler
 /// taps the matching one. Wrong taps just wobble the card. Find 5 animals to
 /// win; fewer wrong taps means more stars.
 class FindItScreen extends StatefulWidget {
-  const FindItScreen({super.key, this.cardsPerRound = 6});
+  const FindItScreen({super.key, required this.level, this.cardsPerRound = 6});
 
   /// Number of cards in the grid (6 = easy, 9 = medium, 12 = big).
   final int cardsPerRound;
+
+  /// Sets the clock: 30s / 1m / 2m for the whole game.
+  final GameLevel level;
 
   @override
   State<FindItScreen> createState() => _FindItScreenState();
 }
 
-class _FindItScreenState extends State<FindItScreen> {
+class _FindItScreenState extends State<FindItScreen>
+    with WidgetsBindingObserver, TimedGame {
   static const _pool = [
     '🐶',
     '🐱',
@@ -45,7 +51,10 @@ class _FindItScreenState extends State<FindItScreen> {
     '🦋',
     '🐢',
   ];
-  static const _roundsToWin = 5;
+
+  /// Easy drops to 3 rounds: five rounds inside a 30-second clock is six
+  /// seconds a question, which a four-year-old will not make.
+  int get _roundsToWin => widget.level == GameLevel.easy ? 3 : 5;
 
   late final int _cardsPerRound = widget.cardsPerRound;
   late String _target;
@@ -57,6 +66,12 @@ class _FindItScreenState extends State<FindItScreen> {
   int? _happyIndex;
   String? _lastTarget;
   bool _won = false;
+
+  @override
+  GameLevel get gameLevel => widget.level;
+
+  @override
+  bool get hasWon => _won;
 
   @override
   void initState() {
@@ -77,6 +92,7 @@ class _FindItScreenState extends State<FindItScreen> {
   }
 
   void _reset() {
+    resetClock();
     setState(() {
       _found = 0;
       _wrong = 0;
@@ -86,7 +102,10 @@ class _FindItScreenState extends State<FindItScreen> {
   }
 
   void _onTap(int index) {
-    if (_won) return;
+    if (_won || outOfTime) return;
+    // The clock starts on the first answer, not on the screen appearing: a
+    // child looking at a fresh board should not be losing time yet.
+    startClock();
     if (_cards[index] == _target) {
       setState(() {
         _found++;
@@ -95,7 +114,9 @@ class _FindItScreenState extends State<FindItScreen> {
       HapticFeedback.mediumImpact();
       Future.delayed(const Duration(milliseconds: 350), () {
         if (!mounted) return;
+        if (_outOfTimeOrWon) return;
         if (_found >= _roundsToWin) {
+          winClock();
           setState(() => _won = true);
         } else {
           _newRound();
@@ -107,6 +128,10 @@ class _FindItScreenState extends State<FindItScreen> {
       HapticFeedback.lightImpact();
     }
   }
+
+  /// The delayed round advance must not fire onto a game that ran out of
+  /// time (or was already won) while the 350ms beat was in flight.
+  bool get _outOfTimeOrWon => outOfTime || _won;
 
   int get _stars {
     if (_wrong == 0) return 3;
@@ -155,6 +180,10 @@ class _FindItScreenState extends State<FindItScreen> {
                       RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: GameTimerBar(controller: clock),
                 ),
                 // Prompt: "Find the 🐶!"
                 Container(
@@ -213,6 +242,11 @@ class _FindItScreenState extends State<FindItScreen> {
               onPrimary: _reset,
               secondaryLabel: 'Home 🏠',
               onSecondary: () => Navigator.of(context).pop(),
+            ),
+          if (outOfTime)
+            GameOverOverlay(
+              onRetry: _reset,
+              onHome: () => Navigator.of(context).pop(),
             ),
         ],
       ),

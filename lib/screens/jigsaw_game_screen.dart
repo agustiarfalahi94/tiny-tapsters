@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
+import '../widgets/game_over_overlay.dart';
+import '../widgets/game_timer.dart';
 import '../widgets/pair_drag_game.dart';
 import '../widgets/round_button.dart';
 
@@ -11,16 +13,25 @@ import '../widgets/round_button.dart';
 /// slices are scrambled in the drawer, and a faint copy of the whole picture
 /// sits behind the board as a reference. Drag each slice to its spot.
 class JigsawGameScreen extends StatefulWidget {
-  const JigsawGameScreen({super.key, required this.rows, required this.cols});
+  const JigsawGameScreen({
+    super.key,
+    required this.rows,
+    required this.cols,
+    required this.level,
+  });
 
   final int rows;
   final int cols;
+
+  /// Sets the clock: 30s / 1m / 2m for the whole puzzle.
+  final GameLevel level;
 
   @override
   State<JigsawGameScreen> createState() => _JigsawGameScreenState();
 }
 
-class _JigsawGameScreenState extends State<JigsawGameScreen> {
+class _JigsawGameScreenState extends State<JigsawGameScreen>
+    with WidgetsBindingObserver, TimedGame {
   static const _pictures = [
     '🦁',
     '🐼',
@@ -38,6 +49,12 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
   bool _won = false;
 
   @override
+  GameLevel get gameLevel => widget.level;
+
+  @override
+  bool get hasWon => _won;
+
+  @override
   void initState() {
     super.initState();
     _picture = _pictures[math.Random().nextInt(_pictures.length)];
@@ -45,6 +62,7 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
   }
 
   void _reset({bool newPicture = false}) {
+    resetClock();
     setState(() {
       if (newPicture) {
         _picture = _pictures[math.Random().nextInt(_pictures.length)];
@@ -90,6 +108,10 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
                     ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: GameTimerBar(controller: clock),
+                ),
                 Expanded(
                   child: PairDragGame(
                     key: _gameKey,
@@ -104,7 +126,11 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
                     boardBackgroundBuilder: _buildBoardBackground,
                     slotBuilder: _buildSlot,
                     pieceBuilder: _buildSlice,
-                    onCompleted: () => setState(() => _won = true),
+                    onFirstMove: startClock,
+                    onCompleted: () {
+                      winClock();
+                      setState(() => _won = true);
+                    },
                   ),
                 ),
               ],
@@ -118,6 +144,11 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
               onPrimary: () => _reset(newPicture: true),
               secondaryLabel: 'Levels 🏠',
               onSecondary: () => Navigator.of(context).pop(),
+            ),
+          if (outOfTime)
+            GameOverOverlay(
+              onRetry: _reset,
+              onHome: () => Navigator.of(context).pop(),
             ),
         ],
       ),

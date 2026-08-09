@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
+import '../widgets/game_over_overlay.dart';
+import '../widgets/game_timer.dart';
 import '../widgets/pair_drag_game.dart';
 import '../widgets/round_button.dart';
 
@@ -32,15 +34,23 @@ const kAnimalEmojis = [
 ];
 
 class AnimalFoodGameScreen extends StatefulWidget {
-  const AnimalFoodGameScreen({super.key, required this.pairs});
+  const AnimalFoodGameScreen({
+    super.key,
+    required this.pairs,
+    required this.level,
+  });
 
   final int pairs;
+
+  /// Sets the clock: 30s / 1m / 2m for the whole board.
+  final GameLevel level;
 
   @override
   State<AnimalFoodGameScreen> createState() => _AnimalFoodGameScreenState();
 }
 
-class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
+class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
+    with WidgetsBindingObserver, TimedGame {
   /// Animal, the food it eats, and the food's name (shown once the child
   /// gets the match right, so a grown-up can say the word out loud).
   ///
@@ -84,6 +94,12 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
   bool _won = false;
 
   @override
+  GameLevel get gameLevel => widget.level;
+
+  @override
+  bool get hasWon => _won;
+
+  @override
   void initState() {
     super.initState();
     _pairs = _shuffledPairs();
@@ -102,6 +118,7 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
   }
 
   void _reset() {
+    resetClock();
     setState(() {
       _pairs = _shuffledPairs();
       _won = false;
@@ -145,6 +162,10 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
                       RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: GameTimerBar(controller: clock),
                 ),
                 Expanded(
                   child: PairDragGame(
@@ -194,7 +215,11 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
                         ),
                       );
                     },
-                    onCompleted: () => setState(() => _won = true),
+                    onFirstMove: startClock,
+                    onCompleted: () {
+                      winClock();
+                      setState(() => _won = true);
+                    },
                   ),
                 ),
               ],
@@ -208,6 +233,11 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
               onPrimary: _reset,
               secondaryLabel: 'Levels 🏠',
               onSecondary: () => Navigator.of(context).pop(),
+            ),
+          if (outOfTime)
+            GameOverOverlay(
+              onRetry: _reset,
+              onHome: () => Navigator.of(context).pop(),
             ),
         ],
       ),

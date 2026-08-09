@@ -12,6 +12,7 @@ import 'package:tiny_tapsters/screens/jigsaw_game_screen.dart';
 import 'package:tiny_tapsters/screens/memory_game_screen.dart';
 import 'package:tiny_tapsters/services/kid_safety.dart';
 import 'package:tiny_tapsters/services/pollie_service.dart';
+import 'package:tiny_tapsters/widgets/game_timer.dart';
 import 'package:tiny_tapsters/widgets/pair_drag_game.dart';
 
 void main() {
@@ -37,30 +38,44 @@ void main() {
 
   testWidgets('all game screens build without errors', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+      const MaterialApp(
+        home: JigsawGameScreen(rows: 2, cols: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
     await tester.pumpWidget(
-      const MaterialApp(home: AnimalFoodGameScreen(pairs: 3)),
+      const MaterialApp(
+        home: AnimalFoodGameScreen(pairs: 3, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(home: FindItScreen(level: GameLevel.easy)),
+    );
     await tester.pump(const Duration(milliseconds: 100));
 
     await tester.pumpWidget(
-      const MaterialApp(home: CountGameScreen(maxCount: 3)),
+      const MaterialApp(
+        home: CountGameScreen(maxCount: 3, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
     // Bubble Pop runs an endless animation; pump frames instead of settling.
-    await tester.pumpWidget(const MaterialApp(home: BubblePopScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BubblePopScreen(popsToWin: 8, level: GameLevel.medium),
+      ),
+    );
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
 
     await tester.pumpWidget(
-      const MaterialApp(home: MemoryGameScreen(pairs: 2, columns: 2)),
+      const MaterialApp(
+        home: MemoryGameScreen(pairs: 2, columns: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
   });
@@ -75,7 +90,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           key: ValueKey('attempt-$attempt'),
-          home: const AnimalFoodGameScreen(pairs: 9),
+          home: const AnimalFoodGameScreen(pairs: 9, level: GameLevel.big),
         ),
       );
       await tester.pump(const Duration(milliseconds: 100));
@@ -94,7 +109,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: AnimalFoodGameScreen(pairs: 3)),
+      const MaterialApp(
+        home: AnimalFoodGameScreen(pairs: 3, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -137,7 +154,11 @@ void main() {
   testWidgets('bubble pop header never shows a negative remaining count', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: BubblePopScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BubblePopScreen(popsToWin: 8, level: GameLevel.medium),
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 100));
 
     await popBubblesUntilOneLeft(tester);
@@ -180,7 +201,11 @@ void main() {
   testWidgets('bubble pop reset during the win delay cancels the celebration', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: BubblePopScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BubblePopScreen(popsToWin: 8, level: GameLevel.medium),
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 100));
 
     // Read the fresh-round label from the live tree rather than
@@ -250,7 +275,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+      const MaterialApp(
+        home: JigsawGameScreen(rows: 2, cols: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -275,7 +302,9 @@ void main() {
 
   testWidgets('jigsaw uses no text scaling and square tiles', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+      const MaterialApp(
+        home: JigsawGameScreen(rows: 2, cols: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -306,7 +335,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+      const MaterialApp(
+        home: JigsawGameScreen(rows: 2, cols: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -526,7 +557,13 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(home: CountGameScreen(maxCount: 3, random: math.Random(42))),
+      MaterialApp(
+        home: CountGameScreen(
+          maxCount: 3,
+          level: GameLevel.medium,
+          random: math.Random(42),
+        ),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -570,7 +607,13 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(home: CountGameScreen(maxCount: 3, random: math.Random(7))),
+      MaterialApp(
+        home: CountGameScreen(
+          maxCount: 3,
+          level: GameLevel.medium,
+          random: math.Random(7),
+        ),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -598,7 +641,13 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(home: CountGameScreen(maxCount: 10, random: math.Random(7))),
+      MaterialApp(
+        home: CountGameScreen(
+          maxCount: 10,
+          level: GameLevel.big,
+          random: math.Random(7),
+        ),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -619,7 +668,9 @@ void main() {
   });
 
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(home: FindItScreen(level: GameLevel.easy)),
+    );
 
     // The target is the big emoji in the prompt (fontSize 44).
     final target = tester
