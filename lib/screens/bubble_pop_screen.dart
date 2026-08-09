@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -44,6 +45,19 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   int _popped = 0;
   bool _won = false;
 
+  /// True once the round's pop target is reached. Guards input during the
+  /// 600ms beat before `_won` flips and the celebration overlay appears —
+  /// without it, bubbles tapped in that window kept incrementing `_popped`
+  /// past `_popsPerRound`, showing a negative "more!" count.
+  bool _roundComplete = false;
+
+  /// The pending "show the celebration" timer scheduled by the pop that
+  /// completes a round. Must be cancelled on every path that resets the
+  /// round (manual reset, next round) and on dispose — otherwise it fires
+  /// late and sets `_won = true` over a round the player has already
+  /// restarted, popping up the celebration overlay mid-attempt.
+  Timer? _winTimer;
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +70,7 @@ class _BubblePopScreenState extends State<BubblePopScreen>
 
   @override
   void dispose() {
+    _winTimer?.cancel();
     _float.dispose();
     super.dispose();
   }
@@ -85,16 +100,20 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   }
 
   void _pop(_BubbleData bubble) {
-    if (bubble.popping || _won) return;
+    if (bubble.popping || _won || _roundComplete) return;
     setState(() {
       bubble.popTick++;
       bubble.popping = true;
       _popped++;
+      // Set synchronously, not in the delayed callback below — otherwise
+      // bubbles tapped during the 600ms win beat still count, pushing
+      // _popped past _popsPerRound.
+      if (_popped >= _popsPerRound) _roundComplete = true;
     });
     HapticFeedback.lightImpact();
     SoundEffects.instance.pop();
     if (_popped >= _popsPerRound) {
-      Future.delayed(const Duration(milliseconds: 600), () {
+      _winTimer = Timer(const Duration(milliseconds: 600), () {
         if (!mounted) return;
         setState(() => _won = true);
       });
@@ -102,10 +121,12 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   }
 
   void _nextRound() {
+    _winTimer?.cancel();
     setState(() {
       _round++;
       _popped = 0;
       _won = false;
+      _roundComplete = false;
       for (var i = 0; i < _bubbles.length; i++) {
         _bubbles[i] = _spawn();
       }
@@ -134,7 +155,10 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                       ),
                       const Spacer(),
                       Text(
-                        'Pop ${_popsPerRound - _popped} more!',
+                        // Clamped defensively: _roundComplete already stops
+                        // _popped from overshooting, but this keeps the
+                        // label honest even if that guard ever regresses.
+                        'Pop ${math.max(0, _popsPerRound - _popped)} more!',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -147,12 +171,16 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                       const Spacer(),
                       RoundButton(
                         emoji: '🔁',
-                        onTap: () => setState(() {
-                          _popped = 0;
-                          for (var i = 0; i < _bubbles.length; i++) {
-                            _bubbles[i] = _spawn();
-                          }
-                        }),
+                        onTap: () {
+                          _winTimer?.cancel();
+                          setState(() {
+                            _popped = 0;
+                            _roundComplete = false;
+                            for (var i = 0; i < _bubbles.length; i++) {
+                              _bubbles[i] = _spawn();
+                            }
+                          });
+                        },
                       ),
                     ],
                   ),
@@ -162,7 +190,7 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: LinearProgressIndicator(
-                      value: _popped / _popsPerRound,
+                      value: math.min(1.0, _popped / _popsPerRound),
                       minHeight: 10,
                       backgroundColor: Colors.white.withValues(alpha: 0.4),
                       color: const Color(0xFFFF9800),
