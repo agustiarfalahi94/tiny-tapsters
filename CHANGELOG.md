@@ -5,6 +5,39 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.10.0] — 2026-08-10
+
+### Added
+- **Every game is now timed.** 30 seconds on Easy, 1 minute on Medium,
+  2 minutes on Big — one clock for the whole game. The countdown is a bar that
+  shrinks and turns green → amber → red, with no digits: the child it is for
+  cannot read a clock, so the colour has to carry it. Under ten seconds it
+  pulses and a ⏰ appears.
+- **You can lose.** Running out of time ends the game with a "Time's up!"
+  screen, the lose sound, and Try again / Home.
+- **Bubble Pop has levels** at last: 6, 8 or 12 bubbles.
+
+### Changed
+- **The clock starts on the first move, not when the screen opens.** A child
+  looking at a fresh board should not be losing time before touching anything.
+- **Count the Animals and Find It ask 3 rounds on Easy** instead of 5. Five
+  rounds inside a 30-second clock is six seconds a question, which a
+  four-year-old will not make. Medium and Big stay at 5.
+- **Bubble Pop is one timed round instead of endless escalating ones.** A game
+  with no finish line has nothing for a countdown to run out against, so the
+  speed-up now happens inside the round: the closer to done, the faster the
+  bubbles drift.
+
+### Notes
+- The clock pauses when the app goes to the background, and stops the instant a
+  game is won — a timeout must never land on top of a celebration. Where a win
+  is animated (Bubble Pop's 400 ms pop, the 350 ms round advance), the clock
+  stops when the win is *decided*, not when its overlay appears.
+- `TimedGame` carries all of this so seven screens do not each grow a copy.
+- `flutter analyze`: 0 issues; 45/45 tests.
+
+---
+
 ## [1.9.0] — 2026-08-10
 
 ### Added

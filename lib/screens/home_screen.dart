@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/music_route_observer.dart';
 import '../services/music_service.dart';
 import '../widgets/game_background.dart';
+import '../widgets/game_timer.dart';
 import '../widgets/round_button.dart';
 import 'animal_food_screen.dart';
 import 'bubble_pop_screen.dart';
@@ -108,7 +109,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
-                          const JigsawGameScreen(rows: 2, cols: 2),
+                          const JigsawGameScreen(
+                            rows: 2,
+                            cols: 2,
+                            level: GameLevel.easy,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -118,7 +123,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
-                          const JigsawGameScreen(rows: 3, cols: 2),
+                          const JigsawGameScreen(
+                            rows: 3,
+                            cols: 2,
+                            level: GameLevel.medium,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -128,7 +137,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
-                          const JigsawGameScreen(rows: 3, cols: 3),
+                          const JigsawGameScreen(
+                            rows: 3,
+                            cols: 3,
+                            level: GameLevel.big,
+                          ),
                         ),
                       ),
                     ],
@@ -153,7 +166,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
-                          const AnimalFoodGameScreen(pairs: 3),
+                          const AnimalFoodGameScreen(
+                            pairs: 3,
+                            level: GameLevel.easy,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -163,7 +179,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
-                          const AnimalFoodGameScreen(pairs: 6),
+                          const AnimalFoodGameScreen(
+                            pairs: 6,
+                            level: GameLevel.medium,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -173,7 +192,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
-                          const AnimalFoodGameScreen(pairs: 9),
+                          const AnimalFoodGameScreen(
+                            pairs: 9,
+                            level: GameLevel.big,
+                          ),
                         ),
                       ),
                     ],
@@ -198,7 +220,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
-                          const MemoryGameScreen(pairs: 2, columns: 2),
+                          const MemoryGameScreen(
+                            pairs: 2,
+                            columns: 2,
+                            level: GameLevel.easy,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -208,7 +234,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
-                          const MemoryGameScreen(pairs: 3, columns: 3),
+                          const MemoryGameScreen(
+                            pairs: 3,
+                            columns: 3,
+                            level: GameLevel.medium,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -218,7 +248,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
-                          const MemoryGameScreen(pairs: 6, columns: 4),
+                          const MemoryGameScreen(
+                            pairs: 6,
+                            columns: 4,
+                            level: GameLevel.big,
+                          ),
                         ),
                       ),
                     ],
@@ -230,7 +264,54 @@ class _HomeScreenState extends State<HomeScreen> {
                 emoji: '🎈',
                 title: 'Bubble Pop',
                 subtitle: 'Pop the floating bubbles!',
-                onTap: () => _openGame(context, const BubblePopScreen()),
+                onTap: () => _openLevels(
+                  context,
+                  LevelsScreen(
+                    title: 'Bubble Pop 🎈',
+                    subtitle: 'Pop them all before the time runs out!',
+                    levels: [
+                      LevelOption(
+                        emoji: '🐣',
+                        name: 'Easy',
+                        detail: '6 bubbles',
+                        color: const Color(0xFF4CAF50),
+                        onTap: () => _openGame(
+                          context,
+                          const BubblePopScreen(
+                            popsToWin: 6,
+                            level: GameLevel.easy,
+                          ),
+                        ),
+                      ),
+                      LevelOption(
+                        emoji: '🐥',
+                        name: 'Medium',
+                        detail: '8 bubbles',
+                        color: const Color(0xFFFF9800),
+                        onTap: () => _openGame(
+                          context,
+                          const BubblePopScreen(
+                            popsToWin: 8,
+                            level: GameLevel.medium,
+                          ),
+                        ),
+                      ),
+                      LevelOption(
+                        emoji: '🐤',
+                        name: 'Big',
+                        detail: '12 bubbles',
+                        color: const Color(0xFFE91E63),
+                        onTap: () => _openGame(
+                          context,
+                          const BubblePopScreen(
+                            popsToWin: 12,
+                            level: GameLevel.big,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               _GameCard(
@@ -250,7 +331,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
-                          const FindItScreen(cardsPerRound: 6),
+                          const FindItScreen(
+                            cardsPerRound: 6,
+                            level: GameLevel.easy,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -260,7 +344,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
-                          const FindItScreen(cardsPerRound: 9),
+                          const FindItScreen(
+                            cardsPerRound: 9,
+                            level: GameLevel.medium,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -270,7 +357,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
-                          const FindItScreen(cardsPerRound: 12),
+                          const FindItScreen(
+                            cardsPerRound: 12,
+                            level: GameLevel.big,
+                          ),
                         ),
                       ),
                     ],
@@ -295,7 +385,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
-                          const CountGameScreen(maxCount: 3),
+                          const CountGameScreen(
+                            maxCount: 3,
+                            level: GameLevel.easy,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -305,7 +398,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
-                          const CountGameScreen(maxCount: 5),
+                          const CountGameScreen(
+                            maxCount: 5,
+                            level: GameLevel.medium,
+                          ),
                         ),
                       ),
                       LevelOption(
@@ -315,7 +411,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
-                          const CountGameScreen(maxCount: 10),
+                          const CountGameScreen(
+                            maxCount: 10,
+                            level: GameLevel.big,
+                          ),
                         ),
                       ),
                     ],

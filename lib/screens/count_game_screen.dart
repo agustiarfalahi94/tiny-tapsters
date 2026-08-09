@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
+import '../widgets/game_over_overlay.dart';
+import '../widgets/game_timer.dart';
 import '../widgets/round_button.dart';
 import 'animal_food_screen.dart';
 
@@ -14,11 +16,18 @@ import 'animal_food_screen.dart';
 /// answer card (big digit + dot pattern) that matches how many animals there
 /// are. 5 rounds per game; fewer wrong taps means more stars.
 class CountGameScreen extends StatefulWidget {
-  const CountGameScreen({super.key, required this.maxCount, this.random})
-    : assert(maxCount >= 3, 'maxCount must be at least 3 (easy = 3)');
+  const CountGameScreen({
+    super.key,
+    required this.maxCount,
+    required this.level,
+    this.random,
+  }) : assert(maxCount >= 3, 'maxCount must be at least 3 (easy = 3)');
 
   /// Largest count this game ever asks for (3 = easy, 5 = medium, 10 = big).
   final int maxCount;
+
+  /// Sets the clock: 30s / 1m / 2m for the whole game.
+  final GameLevel level;
 
   /// Injectable RNG for tests; production uses a fresh [math.Random].
   final math.Random? random;
@@ -27,8 +36,12 @@ class CountGameScreen extends StatefulWidget {
   State<CountGameScreen> createState() => _CountGameScreenState();
 }
 
-class _CountGameScreenState extends State<CountGameScreen> {
-  static const _roundsToWin = 5;
+class _CountGameScreenState extends State<CountGameScreen>
+    with WidgetsBindingObserver, TimedGame {
+  /// Easy drops to 3 rounds: five rounds inside a 30-second clock is six
+  /// seconds a question, which a four-year-old will not make.
+  int get _roundsToWin => widget.level == GameLevel.easy ? 3 : 5;
+
   static const _answerColor = Color(0xFFFF9800);
 
   late final math.Random _rng = widget.random ?? math.Random();
@@ -49,6 +62,12 @@ class _CountGameScreenState extends State<CountGameScreen> {
   bool _won = false;
   int? _happyIndex;
   Timer? _advance;
+
+  @override
+  GameLevel get gameLevel => widget.level;
+
+  @override
+  bool get hasWon => _won;
 
   @override
   void initState() {
@@ -89,6 +108,7 @@ class _CountGameScreenState extends State<CountGameScreen> {
   void _reset() {
     _advance?.cancel();
     _advance = null;
+    resetClock();
     setState(() {
       _round = 0;
       _wrong = 0;
@@ -99,7 +119,9 @@ class _CountGameScreenState extends State<CountGameScreen> {
   }
 
   void _onTap(int index) {
-    if (_won || _busy) return;
+    if (_won || _busy || outOfTime) return;
+    // The clock starts on the first answer, not on the screen appearing.
+    startClock();
     if (_values[index] == _answer) {
       _busy = true;
       setState(() {
@@ -111,9 +133,10 @@ class _CountGameScreenState extends State<CountGameScreen> {
       // Brief green highlight, then the next round (or the win overlay).
       _advance?.cancel();
       _advance = Timer(const Duration(milliseconds: 350), () {
-        if (!mounted) return;
+        if (!mounted || outOfTime) return;
         _busy = false;
         if (_round >= _roundsToWin) {
+          winClock();
           setState(() => _won = true);
         } else {
           _newRound();
@@ -175,6 +198,10 @@ class _CountGameScreenState extends State<CountGameScreen> {
                       RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: GameTimerBar(controller: clock),
                 ),
                 // The question: N animal emojis (wrapped) + a "?" cue.
                 Container(
@@ -245,6 +272,11 @@ class _CountGameScreenState extends State<CountGameScreen> {
               onPrimary: _reset,
               secondaryLabel: 'Home 🏠',
               onSecondary: () => Navigator.of(context).pop(),
+            ),
+          if (outOfTime)
+            GameOverOverlay(
+              onRetry: _reset,
+              onHome: () => Navigator.of(context).pop(),
             ),
         ],
       ),
