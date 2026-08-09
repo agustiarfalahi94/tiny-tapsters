@@ -5,6 +5,38 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.8.0] — 2026-08-09
+
+### Fixed
+- **The cow's food was the wrong plant.** 🌱 is Unicode's *seedling* — a
+  sprout, which read as "some plant" rather than grass. Cows now eat 🌾 hay.
+- **The elephant's watermelon is gone.** 🍉 is a zoo treat, not a diet;
+  elephants live on grass, leaves and bark, so it now eats 🌿 branches. (The
+  peanut everyone pictures is a myth and was never a candidate.)
+
+### Added
+- **Foods are named once the child gets the match right** — the word appears
+  under the solved slot, so a grown-up can say it aloud. Deliberately *after*
+  the answer, never before: a caption up front would let a reading adult hand
+  over the solution. The jigsaw, which shares this board widget, is unaffected.
+
+### Changed
+- **The two leaf foods never share a board.** 🍃 (giraffe) and 🌿 (elephant)
+  are both green leaves, and with both on screen a toddler cannot tell which
+  belongs to which — the puzzle stops being solvable by looking. Every game
+  now drops one of the two.
+
+### Notes
+- Pairings audited for accuracy. Horse → 🍎 stays: an apple is a treat rather
+  than a staple, but feeding one to a horse is a real, long-standing practice.
+  Rabbit → 🥕 and mouse → 🧀 are both closer to cartoon lore than to diet
+  (rabbits live on hay and greens, mice prefer grain) and stay anyway, because
+  they are how a toddler already understands those animals.
+- `flutter analyze`: 0 issues; 24/24 tests. Both new tests were confirmed to
+  fail with their feature removed.
+
+---
+
 ## [1.7.0] — 2026-08-09
 
 ### Changed

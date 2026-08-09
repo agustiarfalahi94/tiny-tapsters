@@ -20,6 +20,7 @@ class PairDragGame extends StatefulWidget {
     required this.pieceBuilder,
     required this.onCompleted,
     this.boardBackgroundBuilder,
+    this.slotCaption,
     this.gap = 12,
     this.pieceScale = 0.85,
     this.pieceSizeCap = 76,
@@ -50,6 +51,13 @@ class PairDragGame extends StatefulWidget {
   /// reference picture of a jigsaw).
   final Widget Function(BuildContext context, Size boardSize)?
   boardBackgroundBuilder;
+
+  /// Optional short word for slot [slotIndex], shown across the bottom of the
+  /// slot **only after its piece is correctly placed** — a reward for getting
+  /// it right and something a grown-up can read aloud, rather than a hint
+  /// that would let a reader shortcut the puzzle. Return null for no caption.
+  /// The jigsaw leaves this unset; its pieces have no names.
+  final String? Function(int slotIndex)? slotCaption;
 
   final double gap;
   final double pieceScale;
@@ -283,6 +291,19 @@ class _PairDragGameState extends State<PairDragGame> {
             // Unplaced pieces (draggable).
             for (var i = 0; i < widget.pairCount; i++)
               if (!_placed[i]) _buildDraggablePiece(i),
+            // Captions for solved slots. They sit in the gap below the slot,
+            // which is why a caller that wants them must leave a gap big
+            // enough to hold one.
+            if (widget.slotCaption != null)
+              for (var i = 0; i < widget.pairCount; i++)
+                if (_placed[i] && widget.slotCaption!(i) != null)
+                  Positioned(
+                    left: _slotPositions[i].dx,
+                    top: _slotPositions[i].dy + slotSize,
+                    width: slotSize,
+                    height: widget.gap,
+                    child: _SlotCaption(text: widget.slotCaption!(i)!),
+                  ),
             // Placed pieces. No scale pop: animating a transform on a piece
             // that contains text re-rasterizes glyphs every frame (lag + can
             // break all emoji rendering), so placement is instant and clean.
@@ -330,6 +351,35 @@ class _PairDragGameState extends State<PairDragGame> {
             width: _pieceSize,
             height: _pieceSize,
             child: widget.pieceBuilder(context, index, _pieceSize, _slotSize),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The short word shown under a solved slot. Sized to the space it is given
+/// rather than to a fixed font size, so it stays inside the board's gap on
+/// every screen — a caption that grew past the gap would collide with the
+/// next row of slots.
+class _SlotCaption extends StatelessWidget {
+  const _SlotCaption({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          text,
+          maxLines: 1,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            shadows: [Shadow(color: Colors.black38, blurRadius: 4)],
           ),
         ),
       ),
