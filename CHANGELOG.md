@@ -5,6 +5,31 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.6.2] — 2026-08-09
+
+### Fixed
+- **Voice selection still did nothing after 1.6.1** — a second bad cast in the
+  same method, hidden by the same bare `catch`. `getVoices` returns the raw
+  platform-channel value (`List<Object?>` of `Map<Object?, Object?>`), and
+  casting that to `List<Map<dynamic, dynamic>>` throws, because `Object?` is
+  not a `Map`. The list is now rebuilt element by element. Confirmed on the
+  Xiaomi 15 from Google TTS's own log: before the fix every utterance was
+  `Synthesis request for locale eng-USA and name en-US-language` — the generic
+  language default, proof `setVoice()` was never reaching the engine.
+- The `catch` now logs why selection failed instead of swallowing it. Two
+  separate bugs hid in that silence.
+
+### Changed
+- Pollie keeps the engine's default voice unless the chosen one has a real
+  quality rating from Android — no point trading a working default for a
+  voice nothing is known about.
+
+### Notes
+- `flutter analyze`: 0 issues; 20/20 tests (new: a guard asserting the old
+  platform-channel cast throws, and that rebuilt maps still rank correctly).
+
+---
+
 ## [1.6.1] — 2026-08-09
 
 ### Fixed

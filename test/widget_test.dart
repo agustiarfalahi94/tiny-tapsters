@@ -307,6 +307,37 @@ void main() {
     );
   });
 
+  test('voice maps survive the shape a platform channel actually returns', () {
+    // getVoices hands back List<Object?> of Map<Object?, Object?>. Asserting
+    // List<Map<dynamic, dynamic>> on that throws, which is exactly how voice
+    // selection silently did nothing. Rebuilt maps must still rank.
+    final fromChannel = <Object?>[
+      <Object?, Object?>{
+        'name': 'en-us-x-iog-local',
+        'locale': 'en-US',
+        'quality': 'normal',
+        'network_required': '0',
+      },
+      <Object?, Object?>{
+        'name': 'en-us-x-tpd-network',
+        'locale': 'en-US',
+        'quality': 'very high',
+        'network_required': '1',
+      },
+    ];
+    expect(
+      () => fromChannel as List<Map<dynamic, dynamic>>,
+      throwsA(isA<TypeError>()),
+      reason: 'the old cast threw; that is the bug being guarded against',
+    );
+
+    final rebuilt = fromChannel
+        .whereType<Map>()
+        .map<Map<dynamic, dynamic>>(Map<dynamic, dynamic>.from)
+        .toList();
+    expect(pickBestVoice(rebuilt, 'en-US')?['name'], 'en-us-x-tpd-network');
+  });
+
   test('a voice list with nothing for the language yields no pick', () {
     final voices = <Map<dynamic, dynamic>>[
       {'name': 'id-id-x-idc-local', 'locale': 'id-ID', 'quality': 'high'},
