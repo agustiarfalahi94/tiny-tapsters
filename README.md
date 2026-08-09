@@ -91,7 +91,9 @@ lib/
   services/
     pollie_service.dart          # Gemini API wrapper
     kid_safety.dart              # local adult-word guard (input + output)
-    sound_effects.dart           # one-shot SFX (bubble pop)
+    sound_effects.dart           # one-shot SFX (pop, win, lose)
+    music_service.dart           # looping background music
+    music_route_observer.dart    # keeps the music in step with the screen
   widgets/
     game_background.dart         # shared gradient background
     round_button.dart            # shared round emoji button
@@ -102,7 +104,12 @@ lib/
 assets/
   branding/
     tiny-tapsters-logo.png       # master artwork (build-time only, not bundled)
-  sfx/pop.wav
+  sfx/pop.wav                    # bubble pop
+  sfx/win_high.m4a               # 3-star fanfare
+  sfx/win_low.m4a                # 1- and 2-star fanfare
+  sfx/lose.m4a                   # out of time
+  music/main_theme.m4a           # menus
+  music/game_song.m4a            # games
 tool/
   generate_icon.dart             # launcher icons, derived from the logo
   generate_sfx.dart              # regenerates pop.wav

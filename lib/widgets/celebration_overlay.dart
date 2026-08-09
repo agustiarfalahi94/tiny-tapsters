@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../services/sound_effects.dart';
 import 'confetti.dart';
 
 /// Full-screen celebration shown when a game is completed: confetti rain,
 /// a big emoji, an optional star rating, and action buttons.
-class CelebrationOverlay extends StatelessWidget {
+///
+/// Stateful only so the win sound fires exactly once when the overlay
+/// appears. Every game reaches its win through this widget, so playing the
+/// fanfare here keeps six screens from each having to remember to.
+class CelebrationOverlay extends StatefulWidget {
   const CelebrationOverlay({
     super.key,
     required this.title,
@@ -27,7 +32,21 @@ class CelebrationOverlay extends StatelessWidget {
   final VoidCallback? onSecondary;
 
   @override
+  State<CelebrationOverlay> createState() => _CelebrationOverlayState();
+}
+
+class _CelebrationOverlayState extends State<CelebrationOverlay> {
+  @override
+  void initState() {
+    super.initState();
+    // Games that show no star rating (jigsaw, animal food, bubble pop) still
+    // finished successfully, so they get the three-star fanfare.
+    SoundEffects.instance.win(widget.stars ?? 3);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final stars = widget.stars;
     return Positioned.fill(
       child: Material(
         color: Colors.black.withValues(alpha: 0.55),
@@ -40,10 +59,10 @@ class CelebrationOverlay extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(emoji, style: const TextStyle(fontSize: 80)),
+                    Text(widget.emoji, style: const TextStyle(fontSize: 80)),
                     const SizedBox(height: 8),
                     Text(
-                      title,
+                      widget.title,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 28,
@@ -58,16 +77,16 @@ class CelebrationOverlay extends StatelessWidget {
                         children: [
                           for (var i = 0; i < 3; i++)
                             Icon(
-                              i < stars! ? Icons.star : Icons.star_border,
+                              i < stars ? Icons.star : Icons.star_border,
                               size: 56,
-                              color: i < stars! ? Colors.amber : Colors.white54,
+                              color: i < stars ? Colors.amber : Colors.white54,
                             ),
                         ],
                       ),
                     ],
                     const SizedBox(height: 24),
                     ElevatedButton(
-                      onPressed: onPrimary,
+                      onPressed: widget.onPrimary,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFF9800),
                         foregroundColor: Colors.white,
@@ -80,17 +99,18 @@ class CelebrationOverlay extends StatelessWidget {
                         ),
                       ),
                       child: Text(
-                        primaryLabel,
+                        widget.primaryLabel,
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
-                    if (secondaryLabel != null && onSecondary != null) ...[
+                    if (widget.secondaryLabel != null &&
+                        widget.onSecondary != null) ...[
                       const SizedBox(height: 12),
                       OutlinedButton(
-                        onPressed: onSecondary,
+                        onPressed: widget.onSecondary,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
                           side: const BorderSide(color: Colors.white, width: 2),
@@ -103,7 +123,7 @@ class CelebrationOverlay extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          secondaryLabel!,
+                          widget.secondaryLabel!,
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,

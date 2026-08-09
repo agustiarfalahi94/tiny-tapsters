@@ -5,6 +5,36 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.9.0] — 2026-08-10
+
+### Added
+- **Background music.** A main theme on the home and level screens, and a
+  game song in the games. Both loop. Pollie's screen stays silent — music
+  there would fight her voice and her microphone would hear it.
+- **A music button** (🔊 / 🔇) in the top-right of the home screen, for the
+  car, the waiting room and the nap. The choice lasts as long as the app is
+  open; nothing is written to disk, because nothing about this app is.
+- **Finish sounds.** Three stars get their own fanfare, one and two stars get
+  another, and there is a sound for running out of time — used by the game
+  timers in a later release. The music ducks underneath so the fanfare is
+  audible over it.
+
+### Notes
+- Music is looped by `MusicService`, deliberately separate from
+  `SoundEffects`: that class stops its player before every play so rapid taps
+  re-pop cleanly, and one shared player would let every pop kill the music.
+- Track switching runs through a `NavigatorObserver` rather than each screen's
+  `initState`. Popping a game does not re-run `HomeScreen.initState`, so
+  per-screen calls would leave the game song playing over the menu.
+- The two Suno tracks were re-encoded from 192 kbps stereo to mono AAC, taking
+  the bundle from 5.3 MB to 2.7 MB. Through a phone speaker, under gameplay,
+  the difference is not there.
+- Background music was tried once before and removed for sounding bad. That
+  version was synthesised by a tool in this repo; these are composed tracks.
+- `flutter analyze`: 0 issues; 36/36 tests.
+
+---
+
 ## [1.8.0] — 2026-08-09
 
 ### Fixed
