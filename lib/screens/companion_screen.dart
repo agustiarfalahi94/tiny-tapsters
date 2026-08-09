@@ -563,20 +563,42 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   List<Map<dynamic, dynamic>>? _cachedVoices;
 
+  /// `getVoices` hands back the raw platform-channel value: a `List<Object?>`
+  /// of `Map<Object?, Object?>`. Casting that straight to
+  /// `List<Map<dynamic, dynamic>>` throws — `Object?` is not a `Map` — which
+  /// is how voice selection silently did nothing for so long. Rebuild the
+  /// list element by element instead of asserting a shape it never has.
+  Future<List<Map<dynamic, dynamic>>> _loadVoices() async {
+    final raw = await _tts.getVoices;
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map<Map<dynamic, dynamic>>(Map<dynamic, dynamic>.from)
+        .toList();
+  }
+
   /// Picks the most natural available voice for the locale.
   Future<void> _applyBestVoice(String lang) async {
     try {
-      _cachedVoices ??= await _tts.getVoices as List<Map<dynamic, dynamic>>?;
+      _cachedVoices ??= await _loadVoices();
       final best = pickBestVoice(_cachedVoices, lang);
       if (best == null) return;
+      // Never trade a working engine default for a voice we know nothing
+      // about: without a quality rating there is no reason to think ours is
+      // an improvement. (Checking the rating itself, not the score — bonuses
+      // alone can lift an unrated voice past any threshold.)
+      final quality = (best['quality'] ?? '').toString().toLowerCase();
+      if (!_qualityRank.containsKey(quality)) return;
       debugPrint(
         'Pollie voice: ${best['name']} (${best['locale']}, '
         'quality=${best['quality']}, network=${best['network_required']}, '
         'score=${voiceScore(best, lang)})',
       );
       await _tts.setVoice(best.cast<String, String>());
-    } catch (_) {
-      // Default engine voice is fine when no choice exists.
+    } catch (e) {
+      // The engine default is a fine fallback — but say so, rather than
+      // swallowing the reason the way the two earlier bugs here were.
+      debugPrint('Pollie voice selection failed: $e');
     }
   }
 
