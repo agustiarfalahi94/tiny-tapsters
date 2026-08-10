@@ -5,6 +5,44 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.18.0] — 2026-08-10
+
+### Added
+- **Pollie works for everyone.** The proxy is deployed, and the app now ships
+  pointing at it, so anyone who installs the app can talk to Pollie without an
+  API key of their own. Measured end to end: a reply in about 0.6 seconds.
+
+### Fixed
+- **The proxy's model was wrong in two ways.** It pinned `gemini-2.5-flash`
+  with `thinkingConfig: { thinkingBudget: 0 }`. That model is no longer served
+  to new API keys at all, and `thinkingBudget` is rejected as an invalid
+  argument by every current model — so every request failed. It now uses the
+  `gemini-flash-lite-latest` alias with no thinking config: measured at ~600 ms
+  against full flash's ~1800 ms, which suits two short sentences to a
+  four-year-old.
+- **The proxy hid why requests failed.** Every upstream error came back as a
+  bare "unreachable", which made a misconfigured key indistinguishable from a
+  retired model. It now reports the status and message Google gave.
+
+### Changed
+- The app sends its own `User-Agent`. Cloudflare rejects clients that look
+  automated with error 1010; Dart's default passes today, but saying who we
+  are is less fragile.
+- `CompanionScreen` accepts an injected `PollieService` so tests can build an
+  unconfigured Pollie — now that the shipped default is a working proxy.
+
+### Notes
+- An alias rather than a version pin, because the pin is exactly what broke:
+  models are retired faster than a toddler app gets rebuilt. Changing it is a
+  Worker deploy, not an app release.
+- `worker/README.md` gained the two setup traps we hit: a brand-new
+  `workers.dev` subdomain has no certificate for a few minutes, and pasting the
+  key at the wrong prompt stores it as the secret's *name*, where it is not
+  hidden.
+- `flutter analyze`: 0 issues; 88/88 tests.
+
+---
+
 ## [1.17.0] — 2026-08-10
 
 ### Added

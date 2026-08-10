@@ -39,7 +39,13 @@ requests a day, no card required.
    npx wrangler secret put GEMINI_API_KEY
    ```
 
-   Paste the key when prompted.
+   Paste the key at the `Enter a secret value:` prompt. The terminal shows
+   nothing as you paste, which is expected.
+
+   Check it landed with `npx wrangler secret list` — the entry must be *named*
+   `GEMINI_API_KEY`. If the key itself appears as the name, it was pasted at
+   the wrong prompt: secret names are not hidden, so delete that entry and
+   redo this step.
 
 4. **Deploy.**
 
@@ -48,7 +54,11 @@ requests a day, no card required.
    ```
 
    It prints a URL like `https://pollie.<your-subdomain>.workers.dev`. That is
-   what the app needs.
+   what the app needs. The first deploy also asks you to pick a `workers.dev`
+   subdomain; that name is public and account-wide.
+
+   The certificate for a brand-new subdomain takes a few minutes to issue, so
+   the address can fail to connect at first. That is normal — wait and retry.
 
 5. **Point the app at it.** Build with:
 
@@ -92,10 +102,19 @@ shows as Pollie being out of words for the day.
 
 ## Notes
 
-- The model is pinned to `gemini-2.5-flash` with `thinkingBudget: 0`. Thinking
-  cannot be disabled on 3.x Flash, so the `gemini-flash-latest` alias would
-  quietly start paying for a reasoning pass before every "hello" the day it
-  moved on. Changing the pin is a one-line edit here.
+- The model is `gemini-flash-lite-latest`. An earlier version pinned
+  `gemini-2.5-flash` with `thinkingConfig: { thinkingBudget: 0 }`; both halves
+  were wrong. 2.5-flash is no longer served to new API keys at all, and
+  `thinkingBudget` is rejected as an invalid argument by every current model.
+  Measured against a real key, lite answers in about 600 ms and full flash in
+  about 1800 ms — and Pollie says two short sentences to a four-year-old.
+- An alias, not a version pin, because the pin is exactly what broke: models
+  are retired faster than a toddler app gets rebuilt.
+- Upstream failures return the status and message Google gave, not a bare
+  "unreachable". The first version swallowed them, which made a misconfigured
+  key indistinguishable from a retired model.
+- Cloudflare's bot protection rejects requests whose client looks automated
+  with error 1010. The app sends its own `User-Agent` so it never trips this.
 - `KidSafety` still guards input and output *in the app*. The Worker is not a
   replacement for it — a proxy the app trusts is not the same as a guard the
   child is behind.

@@ -41,7 +41,10 @@ int lastSentenceEnd(String text, int from) {
 }
 
 class CompanionScreen extends StatefulWidget {
-  const CompanionScreen({super.key});
+  const CompanionScreen({super.key, this.pollie});
+
+  /// Injectable for tests; production builds its own, pointed at the proxy.
+  final PollieService? pollie;
 
   @override
   State<CompanionScreen> createState() => _CompanionScreenState();
@@ -85,7 +88,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     unicode: true,
   );
 
-  final _pollie = PollieService();
+  late final _pollie = widget.pollie ?? PollieService();
   final _history = <ChatMessage>[];
   final _bubbles = <_Bubble>[];
   final _input = TextEditingController();

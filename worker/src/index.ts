@@ -22,14 +22,21 @@ interface ChatMessage {
 }
 
 /**
- * Pinned, not `gemini-flash-latest`.
+ * The "lite" alias, deliberately.
  *
- * `thinkingBudget: 0` turns thinking off on 2.5 Flash and is unavailable on
- * 3.x, so the alias would silently start paying for a reasoning pass before
- * every "hello" the day it moved on. Pinning here rather than in the app means
- * changing it later is a deploy, not a release.
+ * An earlier version pinned `gemini-2.5-flash` with `thinkingConfig:
+ * { thinkingBudget: 0 }` to stop the model reasoning before every "hello".
+ * Both halves of that turned out to be wrong: 2.5-flash is no longer served to
+ * new API keys at all (404), and `thinkingBudget` is rejected as an invalid
+ * argument by every current model. Measured against this key, the lite alias
+ * answers in roughly 600ms and full flash in about 1800ms — and Pollie says
+ * two short sentences to a four-year-old, which is exactly what lite is for.
+ *
+ * An alias rather than a version pin, because the pin is what broke: models
+ * are retired faster than a toddler app gets rebuilt. Changing it is a deploy,
+ * not an app release.
  */
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-flash-lite-latest';
 
 const SYSTEM_PROMPT = `You are Pollie, a warm, friendly companion who talks to a young child.
 Rules:
@@ -61,10 +68,10 @@ const SAFETY_SETTINGS = [
 
 const GENERATION_CONFIG = {
   temperature: 0.9,
-  // Generous for two short sentences. With thinking off, nothing else is
-  // competing for the budget, and a smaller cap finishes the stream sooner.
+  // Generous for two short sentences, and small enough that the stream ends
+  // promptly. No thinkingConfig: current models reject it outright, and lite
+  // does not stop to reason before a greeting anyway.
   maxOutputTokens: 200,
-  thinkingConfig: { thinkingBudget: 0 },
 };
 
 export default {
@@ -106,7 +113,7 @@ async function ping(env: Env): Promise<Response> {
   });
 
   if (response.status === 429) return json({ error: 'quota' }, 429);
-  if (!response.ok) return json({ error: 'unreachable' }, 502);
+  if (!response.ok) return upstreamError(response);
 
   const body = (await response.json()) as GeminiResponse;
   const text = textOf(body);
@@ -138,7 +145,8 @@ async function chat(request: Request, env: Env): Promise<Response> {
   });
 
   if (upstream.status === 429) return json({ error: 'quota' }, 429);
-  if (!upstream.ok || !upstream.body) return json({ error: 'unreachable' }, 502);
+  if (!upstream.ok) return upstreamError(upstream);
+  if (!upstream.body) return json({ error: 'unreachable' }, 502);
 
   return new Response(toNdjson(upstream.body), {
     headers: {
@@ -210,6 +218,27 @@ function callGemini(env: Env, method: string, body: unknown): Promise<Response> 
       },
       body: JSON.stringify(body),
     },
+  );
+}
+
+/**
+ * Passes Google's own complaint through instead of swallowing it.
+ *
+ * The first version returned a bare "unreachable" for every upstream failure,
+ * which made a misconfigured key indistinguishable from a wrong model name or
+ * a network fault — undiagnosable from outside. The app still shows the child
+ * a friendly message; this detail is for whoever is reading the response.
+ */
+async function upstreamError(response: Response): Promise<Response> {
+  let detail = '';
+  try {
+    detail = (await response.text()).slice(0, 500);
+  } catch {
+    detail = '(no body)';
+  }
+  return json(
+    { error: 'unreachable', upstreamStatus: response.status, detail },
+    502,
   );
 }
 
