@@ -11,6 +11,7 @@ import 'animal_sound_screen.dart';
 import 'bubble_pop_screen.dart';
 import 'companion_screen.dart';
 import 'count_game_screen.dart';
+import 'credits_screen.dart';
 import 'find_it_screen.dart';
 import 'jigsaw_game_screen.dart';
 import 'levels_screen.dart';
@@ -64,6 +65,17 @@ class _HomeScreenState extends State<HomeScreen> {
               child: RoundButton(
                 emoji: _musicOn ? '🔊' : '🔇',
                 onTap: _toggleMusic,
+              ),
+            ),
+            // For the grown-up: several animal calls are CC BY, which obliges
+            // us to credit their authors in the app, not just in the repo.
+            Positioned(
+              top: 8,
+              left: 12,
+              child: RoundButton(
+                emoji: 'ℹ️',
+                onTap: () =>
+                    _open(context, const CreditsScreen(), MusicTrack.menu),
               ),
             ),
           ],
