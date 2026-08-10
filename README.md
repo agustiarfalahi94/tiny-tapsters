@@ -96,7 +96,8 @@ lib/
     find_it_screen.dart          # find the matching animal
     count_game_screen.dart       # count the animals
     animal_sound_screen.dart     # guess the animal by its call
-    companion_screen.dart        # Pollie chat (Gemini)
+    companion_screen.dart        # Pollie chat (via the worker/ proxy)
+    credits_screen.dart          # sound attribution (CC BY requires it)
   services/
     pollie_service.dart          # HTTP client for Pollie's proxy (worker/)
     kid_safety.dart              # local adult-word guard (input + output)
