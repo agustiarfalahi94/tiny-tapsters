@@ -6,20 +6,22 @@ import '../screens/animal_food_screen.dart' show kAnimalEmojis;
 /// source of truth for which animals exist, and a test enforces it, so a typo
 /// cannot invent an animal that appears in this game and nowhere else.
 ///
-/// This map is short on purpose. It holds only animals for which a **CC0 or
-/// public-domain** recording was found and its licence verified on the source
-/// page; see `ASSET_CREDITS.md`. Animals with no such recording — 🐮 the cow
-/// most of all — are simply absent here and unchanged in every other game.
+/// Only animals whose recording is CC0, public domain or CC BY — never
+/// ShareAlike, which would reach into the app itself. Licences are verified on
+/// each source page and recorded in `ASSET_CREDITS.md`; the CC BY ones are
+/// credited in-app by `CreditsScreen`.
 ///
-/// Commons has no usable free cow: searching returns Lingua Libre files of
-/// people pronouncing the word, and one recording of a fart. Adding the cow
-/// means accepting CC-BY material and shipping a credits screen.
+/// 🐮 the cow is still missing, and not for want of looking: four searches of
+/// Commons turn up Lingua Libre recordings of people pronouncing the word
+/// "cow", a gospel song, and one fart. There is no moo on Commons. Filling it
+/// needs a recording from somewhere else — or a phone held over a fence.
 const kAnimalSounds = <String, String>{
   '🐱': 'animal_sounds/cat.m4a',
   '🐶': 'animal_sounds/dog.m4a',
   '🐴': 'animal_sounds/horse.m4a',
   '🐔': 'animal_sounds/chicken.m4a',
   '🦁': 'animal_sounds/lion.m4a',
+  '🐵': 'animal_sounds/monkey.m4a',
   '🐘': 'animal_sounds/elephant.m4a',
   '🐸': 'animal_sounds/frog.m4a',
 };

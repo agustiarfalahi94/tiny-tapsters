@@ -5,6 +5,35 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.14.0] — 2026-08-10
+
+### Added
+- **🐵 The monkey**, and a proper **Credits screen** (ℹ️, top-left of the home
+  screen) naming every animal recording and its author.
+- CC BY recordings are now allowed alongside CC0 and public domain — never
+  ShareAlike, which would reach into the app itself. That licence is what the
+  credits screen pays for, and it is what made the next two entries possible.
+
+### Improved
+- **A much clearer cat.** The old one was a Siamese; the new one is an
+  uncompressed recording of a British Shorthair asking for food — an
+  unmistakable *miaow*, which is what was asked for.
+- **A much better lion**, from a 68 kbps recording to a 256 kbps one.
+
+### Notes
+- 🐮 the cow is still missing, and not for want of looking. Four searches of
+  Commons return Lingua Libre recordings of people pronouncing the word "cow",
+  a gospel song, and one fart. There is no moo on Commons under any licence we
+  can ship. A phone held over a fence would beat everything available.
+- 🐴 the horse and 🐘 the elephant did not improve either: CC BY adds nothing
+  better than what they already had.
+- A test asserts every bundled call has a credit entry, and that no credit
+  names a ShareAlike licence. A sound shipping uncredited is a licence breach,
+  not a typo.
+- `flutter analyze`: 0 issues; 84/84 tests.
+
+---
+
 ## [1.13.0] — 2026-08-10
 
 ### Fixed

@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tiny_tapsters/data/animal_sounds.dart';
+import 'package:tiny_tapsters/data/asset_credits.dart';
+import 'package:tiny_tapsters/screens/credits_screen.dart';
 import 'package:tiny_tapsters/screens/animal_food_screen.dart';
 import 'package:tiny_tapsters/screens/animal_sound_screen.dart';
 import 'package:tiny_tapsters/services/music_service.dart';
@@ -40,9 +42,30 @@ void main() {
     });
 
     test('the animals a toddler knows best are covered', () {
-      // The dog was missing at first; the cow still is, because Commons has
-      // no usable free recording of one.
+      // The dog was missing at first; the cow still is, because four searches
+      // of Commons turned up no moo at all.
       expect(kAnimalSounds.keys, containsAll(['🐱', '🐶']));
+    });
+
+    test('every bundled call is credited', () {
+      // CC BY obliges attribution wherever the work is used, and a sound
+      // shipping without an entry here is a licence breach, not a typo.
+      final credited = {for (final c in kAnimalSoundCredits) c.emoji};
+      expect(credited, containsAll(kAnimalSounds.keys));
+    });
+
+    test('no credit names a licence we cannot ship', () {
+      for (final credit in kAnimalSoundCredits) {
+        final licence = credit.licence.toLowerCase();
+        // ShareAlike would reach into the app itself.
+        expect(
+          licence.contains('sa'),
+          isFalse,
+          reason: '${credit.emoji} is ${credit.licence}',
+        );
+        expect(credit.author, isNotEmpty);
+        expect(credit.source, startsWith('http'));
+      }
     });
 
     test('there are enough animals for the hardest level', () {
@@ -71,6 +94,20 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
     await tester.pump(const Duration(milliseconds: 100));
     expect(MusicService.instance.attenuation, 1);
+  });
+
+  testWidgets('the credits screen lists every sound and its author', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: CreditsScreen()));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Sound credits'), findsOneWidget);
+    // The list scrolls, so check the first entry is rendered with its author
+    // rather than expecting all of them on screen at once.
+    final first = kAnimalSoundCredits.first;
+    expect(find.text(first.title), findsOneWidget);
+    expect(find.text('${first.author} · ${first.licence}'), findsOneWidget);
   });
 
   group('Which Animal?', () {

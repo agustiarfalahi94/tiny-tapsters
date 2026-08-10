@@ -80,7 +80,8 @@ ASSETS = {
     "win_high": ("3 stars.mp3", "assets/sfx/win_high.m4a", 96000, None),
 }
 
-ANIMALS = ["cat", "dog", "horse", "chicken", "lion", "elephant", "frog"]
+ANIMALS = ["cat", "dog", "horse", "cow", "chicken", "lion", "monkey",
+           "elephant", "frog"]
 ANIMAL_BITRATE = 96000
 ANIMAL_TRIM = 2.0
 

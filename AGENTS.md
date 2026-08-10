@@ -2,7 +2,7 @@
 
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.13.0+32 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.14.0+33 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX), `google_generative_ai` + `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev.
 **Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The six games are fully offline; Pollie is the sole network feature.
@@ -46,7 +46,7 @@ flutter build apk --release           # when native config or deps changed
 - `lib/services/music_service.dart` + `music_route_observer.dart` — looping background music. Kept separate from `SoundEffects` on purpose: `pop()` stops its player before every play, so one shared player would let every tap kill the music. Track switching lives in the observer, not each screen's `initState`, because popping a game does not re-run `HomeScreen.initState`. Every player must stay on `AudioContextConfigFocus.mixWithOthers` (set once in `main.dart`) — the default `AudioFocus.gain` is exclusive and makes each sound effect stop the music. **Never hand-encode audio** — run `python3 tool/normalize_audio.py <source-dir>`, which rebuilds every asset at one loudness (−16 dBFS RMS, 44.1 kHz). Hand-rolled `afconvert` calls are how the animal calls shipped at 22 kHz and how the mix ended up 20 dB apart.
 - `lib/widgets/game_timer.dart` — `GameLevel` (30s/1m/2m), `GameTimerController`, the `GameTimerBar` a non-reader can follow, and the `TimedGame` mixin every game screen uses. The clock starts on first interaction, pauses on background, and stops the instant a game is won.
 - `lib/widgets/game_over_overlay.dart` — the "Time's up!" screen. A sibling of `CelebrationOverlay`, not a flag on it.
-- `lib/data/animal_sounds.dart` — emoji → call asset for "Which Animal?". Keys must be in `kAnimalEmojis` (tested). CC0/public-domain only, logged in `ASSET_CREDITS.md`; 🐮 and 🐶 have no verified free recording.
+- `lib/data/animal_sounds.dart` — emoji → call asset for "Which Animal?". Keys must be in `kAnimalEmojis` (tested). CC0, public-domain or CC BY — **never ShareAlike**. Every call needs an entry in `lib/data/asset_credits.dart` (shown by `CreditsScreen`) and in `ASSET_CREDITS.md`; a test enforces it. 🐮 the cow has no usable recording on Commons under any shippable licence.
 - `docs/superpowers/specs/` — design specs; read the relevant one before touching a feature it covers.
 - `tool/generate_icon.dart` — pure-Dart launcher-icon generator (no Flutter engine, no packages); derives all mipmap PNGs + adaptive icon resources from `assets/branding/tiny-tapsters-logo.png`. Contains its own PNG decoder and encoder. Re-run with `dart run tool/generate_icon.dart` after changing the logo. The master artwork is build-time only — never add it to `pubspec.yaml`.
 - `.github/workflows/release-apk.yml` — on `v*` tag push: analyze + test, sign with the real keystore, attach the APK to the GitHub release.
