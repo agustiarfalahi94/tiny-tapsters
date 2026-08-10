@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/flip_card.dart';
 import '../widgets/game_background.dart';
@@ -123,6 +124,7 @@ class _MemoryGameScreenState extends State<MemoryGameScreen>
           _pairsFound++;
         });
         HapticFeedback.mediumImpact();
+        SoundEffects.instance.pop();
         if (_pairsFound == widget.pairs) {
           winClock();
           Future.delayed(const Duration(milliseconds: 400), () {
@@ -132,6 +134,7 @@ class _MemoryGameScreenState extends State<MemoryGameScreen>
         }
       } else {
         setState(_open.clear);
+        SoundEffects.instance.wrong();
       }
       _busy = false;
     });

@@ -46,7 +46,7 @@ class MusicService {
   static const _baseVolume = 0.3;
 
   /// How far the music drops while a win or lose sound plays.
-  static const _duckFactor = 0.25;
+  static const _duckFactor = 0.35;
 
   MusicSink? _sink;
   MusicSink get _out => _sink ??= _AudioPlayerSink();
@@ -60,13 +60,36 @@ class MusicService {
   bool _ducked = false;
   bool _backgrounded = false;
 
+  /// A standing reduction for screens that need the music quieter throughout,
+  /// rather than the momentary [duck]. "Which Animal?" turns it down so a call
+  /// is easy to make out — but does not silence it, because a game with no
+  /// music at all reads as broken.
+  double _attenuation = 1.0;
+
   /// The track that *should* be playing — tracked even while muted, so
   /// unmuting resumes wherever the child happens to be.
   MusicTrack? get currentTrack => _current;
 
   bool get enabled => _enabled;
 
-  double get _volume => _ducked ? _baseVolume * _duckFactor : _baseVolume;
+  /// The standing level for the current screen, 1.0 everywhere except the
+  /// screens that ask for quieter music.
+  double get attenuation => _attenuation;
+
+  double get _volume =>
+      _baseVolume * _attenuation * (_ducked ? _duckFactor : 1.0);
+
+  /// Sets the standing music level for the current screen, 0..1.
+  Future<void> setAttenuation(double factor) async {
+    final clamped = factor.clamp(0.0, 1.0);
+    if (_attenuation == clamped) return;
+    _attenuation = clamped;
+    try {
+      await _out.setVolume(_volume);
+    } catch (e) {
+      debugPrint('MusicService attenuation failed: $e');
+    }
+  }
 
   /// Switches to [track], or to silence when null.
   ///

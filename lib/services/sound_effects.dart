@@ -14,16 +14,27 @@ class SoundEffects {
   AudioPlayer? _player;
   AudioPlayer? _finishPlayer;
 
-  /// The playful bubble "pop".
-  Future<void> pop() async {
+  /// The playful bubble "pop" — also the "yes, that's right" everywhere else.
+  ///
+  /// pop.wav is a 0.12s transient and deliberately sits below the normalised
+  /// assets: matching a click's average level to a sustained sound makes the
+  /// click feel louder, not equal.
+  Future<void> pop() => _tap('sfx/pop.wav', 0.85);
+
+  /// The "tetot" — two descending tones on a wrong answer.
+  ///
+  /// Quieter than the pop on purpose. A four-year-old hears this more often
+  /// than they hear the pop, and it should correct rather than scold.
+  Future<void> wrong() => _tap('sfx/wrong.wav', 0.55);
+
+  /// Tap feedback shares one player: a tap is either right or wrong, never
+  /// both, and stopping first is what lets rapid taps re-trigger cleanly.
+  Future<void> _tap(String asset, double volume) async {
     try {
-      _player ??= AudioPlayer();
-      await _player!.stop(); // restart so rapid taps re-pop cleanly
-      // pop.wav is a 0.12s transient and deliberately sits below the
-      // normalised assets: matching a click's average level to a sustained
-      // sound makes the click feel louder, not equal.
-      await _player!.setVolume(0.85);
-      await _player!.play(AssetSource('sfx/pop.wav'));
+      final player = _player ??= AudioPlayer();
+      await player.stop();
+      await player.setVolume(volume);
+      await player.play(AssetSource(asset));
     } catch (e) {
       debugPrint('SoundEffects failed: $e');
     }
@@ -35,24 +46,8 @@ class SoundEffects {
   ///
   /// A third player, because [pop] stops its own before every play — sharing
   /// it would let a stray tap cut a call short, and the call *is* the puzzle.
-  /// The music ducks so a cow is not competing with a backing track.
-  Future<void> animal(String asset) async {
-    try {
-      final player = _animalPlayer ??= AudioPlayer();
-      await MusicService.instance.duck();
-      await player.stop();
-      await player.setVolume(1);
-      unawaited(
-        player.onPlayerComplete.first
-            .then((_) => MusicService.instance.unduck())
-            .catchError((_) {}),
-      );
-      await player.play(AssetSource(asset));
-    } catch (e) {
-      debugPrint('SoundEffects failed: $e');
-      await MusicService.instance.unduck();
-    }
-  }
+  Future<void> animal(String asset) =>
+      _duckedPlay(_animalPlayer ??= AudioPlayer(), asset, 1);
 
   /// Which fanfare a star rating earns. Three stars get the big one.
   static String winAsset(int stars) =>
@@ -64,37 +59,50 @@ class SoundEffects {
   /// Played when the clock runs out.
   Future<void> lose() => _finish('sfx/lose.m4a');
 
-  /// Which finish sound is the current one. `stop()` does not complete
-  /// `onPlayerComplete`, so an interrupted clip's listener would otherwise
-  /// unduck the music out from under the clip that replaced it.
-  int _finishGeneration = 0;
+  /// Which ducked clip is the current one.
+  ///
+  /// `stop()` does not complete `onPlayerComplete`, so an interrupted clip's
+  /// listener would otherwise unduck the music out from under the clip that
+  /// replaced it.
+  int _duckGeneration = 0;
 
   /// Finish sounds get their own player: [pop] stops its player before every
-  /// play, so sharing one would let a stray tap cut the fanfare off. The music
-  /// ducks underneath for as long as the clip lasts.
-  Future<void> _finish(String asset) async {
-    final generation = ++_finishGeneration;
+  /// play, so sharing one would let a stray tap cut the fanfare off.
+  Future<void> _finish(String asset) =>
+      _duckedPlay(_finishPlayer ??= AudioPlayer(), asset, 1);
+
+  /// Plays [asset] with the music turned down under it, and restores the
+  /// music afterwards.
+  ///
+  /// The restore has a timer behind it as well as the completion event. If
+  /// that event is ever missed — a failed decode, an interrupted clip — the
+  /// music would otherwise stay quiet for the rest of the session, which is
+  /// indistinguishable from the music being broken.
+  Future<void> _duckedPlay(
+    AudioPlayer player,
+    String asset,
+    double volume,
+  ) async {
+    final generation = ++_duckGeneration;
+    void restore() {
+      if (generation == _duckGeneration) MusicService.instance.unduck();
+    }
+
     try {
-      final player = _finishPlayer ??= AudioPlayer();
       await MusicService.instance.duck();
       await player.stop();
-      await player.setVolume(1);
+      await player.setVolume(volume);
       unawaited(
-        player.onPlayerComplete.first
-            .then((_) {
-              if (generation == _finishGeneration) {
-                MusicService.instance.unduck();
-              }
-            })
-            .catchError((_) {}),
+        player.onPlayerComplete.first.then((_) => restore()).catchError((_) {}),
       );
+      Timer(_duckSafety, restore);
       await player.play(AssetSource(asset));
     } catch (e) {
       debugPrint('SoundEffects failed: $e');
-      // Never leave the music stuck quiet because a clip failed to play.
-      if (generation == _finishGeneration) {
-        await MusicService.instance.unduck();
-      }
+      restore();
     }
   }
+
+  /// Longer than any clip the app plays (the fanfares are ~3s).
+  static const _duckSafety = Duration(seconds: 6);
 }
