@@ -114,7 +114,7 @@ lib/
 assets/
   branding/
     tiny-tapsters-logo.png       # master artwork (build-time only, not bundled)
-  animal_sounds/*.m4a            # 9 animal calls (see ASSET_CREDITS.md)
+  animal_sounds/*.m4a            # 15 animal calls (see ASSET_CREDITS.md)
   sfx/pop.wav                    # right answer / bubble pop
   sfx/wrong.wav                  # wrong answer
   sfx/win_high.m4a               # 3-star fanfare

@@ -21,15 +21,33 @@ List<String> cards(WidgetTester tester) => tester
 
 void main() {
   group('the sound catalogue', () {
-    test('every animal with a sound is one the app already knows', () {
-      // kAnimalEmojis stays the single source of truth; a typo here would
-      // otherwise invent an animal that exists in this game and nowhere else.
-      for (final emoji in kAnimalSounds.keys) {
-        expect(
-          kAnimalEmojis,
-          contains(emoji),
-          reason: '$emoji is not in kAnimalEmojis',
-        );
+    test('no two animals share an emoji or a file', () {
+      // This game is not limited to kAnimalEmojis — Animal Food needs a food
+      // for every animal it uses and a listening game does not, so 🐷 🐦 🐯
+      // live here alone. What still must hold is that nothing is duplicated.
+      expect(kAnimalSounds.keys.toSet().length, kAnimalSounds.length);
+      expect(kAnimalSounds.values.toSet().length, kAnimalSounds.length);
+    });
+
+    test('animals shared with the rest of the app use the same emoji', () {
+      // A near-miss emoji (🐁 vs 🐭) would make the same animal look like two.
+      const sharedElsewhere = [
+        '🐱',
+        '🐶',
+        '🐮',
+        '🐴',
+        '🐔',
+        '🦁',
+        '🐵',
+        '🐘',
+        '🐸',
+        '🐻',
+        '🐧',
+        '🐭',
+      ];
+      for (final emoji in sharedElsewhere) {
+        expect(kAnimalEmojis, contains(emoji), reason: emoji);
+        expect(kAnimalSounds.keys, contains(emoji), reason: emoji);
       }
     });
 
@@ -44,7 +62,7 @@ void main() {
     test('the animals a toddler knows best are covered', () {
       // The dog was missing at first; the cow still is, because four searches
       // of Commons turned up no moo at all.
-      expect(kAnimalSounds.keys, containsAll(['🐱', '🐶']));
+      expect(kAnimalSounds.keys, containsAll(['🐱', '🐶', '🐮']));
     });
 
     test('every bundled call is credited', () {
@@ -107,7 +125,9 @@ void main() {
     // rather than expecting all of them on screen at once.
     final first = kAnimalSoundCredits.first;
     expect(find.text(first.title), findsOneWidget);
-    expect(find.text('${first.author} · ${first.licence}'), findsOneWidget);
+    // Most sounds share one author line now, so assert it is present rather
+    // than unique.
+    expect(find.text('${first.author} · ${first.licence}'), findsWidgets);
   });
 
   group('no animal appears twice', () {
