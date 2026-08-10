@@ -30,11 +30,16 @@ class PollieService {
     : _endpoint = endpoint ?? _defaultEndpoint,
       _client = client;
 
-  /// Override at build time:
+  /// The deployed proxy. Override at build time with
   ///   flutter build apk --release --dart-define=POLLIE_ENDPOINT=https://...
   ///
-  /// A URL in an APK is not a secret; the key it stands in front of was.
-  static const _defaultEndpoint = String.fromEnvironment('POLLIE_ENDPOINT');
+  /// A URL in an APK is not a secret; the key it stands in front of was. This
+  /// default is what makes Pollie work in a plain `flutter build` and in every
+  /// copy of the app someone installs, without anyone needing a key.
+  static const _defaultEndpoint = String.fromEnvironment(
+    'POLLIE_ENDPOINT',
+    defaultValue: 'https://pollie.inkpebble.workers.dev',
+  );
 
   /// Identifies this install to the proxy's rate limiter and nothing else.
   ///
@@ -167,6 +172,10 @@ class PollieService {
     final request = await client.postUrl(Uri.parse('$_endpoint$path'));
     request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
     request.headers.set('X-Install-Id', _installId);
+    // Cloudflare's bot protection rejects requests whose client signature
+    // looks automated (error 1010). Dart's default agent passes today, but
+    // saying who we are is both politer and less fragile.
+    request.headers.set(HttpHeaders.userAgentHeader, 'TinyTapsters/1.0');
     request.write(jsonEncode(body));
     return request.close();
   }

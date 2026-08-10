@@ -376,16 +376,22 @@ void main() {
     );
   });
 
-  testWidgets('companion shows graceful message without an API key', (
+  testWidgets('companion shows graceful message with no proxy configured', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
+    // The app now ships pointing at the deployed proxy, so an unconfigured
+    // Pollie has to be constructed deliberately. The fallback still matters:
+    // it is what a build with an empty POLLIE_ENDPOINT shows.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanionScreen(pollie: PollieService(endpoint: '')),
+      ),
+    );
     await tester.pump();
 
     expect(find.text('Pollie'), findsOneWidget);
     expect(find.text('sleeping… 😴'), findsOneWidget);
     expect(find.text('🎤'), findsOneWidget); // voice button present
-    // No GEMINI_API_KEY in the test environment → friendly fallback text.
     expect(find.textContaining('magic key'), findsOneWidget);
 
     // Tapping a chip without a key must not crash; it shows the same hint.
@@ -423,7 +429,11 @@ void main() {
   });
 
   testWidgets('companion blocks inappropriate input gently', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanionScreen(pollie: PollieService(endpoint: '')),
+      ),
+    );
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), 'fuck you');
@@ -557,7 +567,11 @@ void main() {
   });
 
   testWidgets('companion mic tap always responds', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanionScreen(pollie: PollieService(endpoint: '')),
+      ),
+    );
     await tester.pump();
 
     // Pollie is asleep (no API key in tests) → tapping the mic wakes him

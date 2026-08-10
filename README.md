@@ -62,7 +62,11 @@ open a version and grab the `tiny-tapsters-vX.Y.Z.apk` asset.
 ## Pollie (Gemini companion)
 
 Pollie talks to a small Cloudflare Worker (`worker/`) that holds the
-Gemini key. The app ships only the Worker's URL:
+Gemini key. It is deployed, and the app points at it by default — so a
+plain `flutter build apk --release` produces an app where Pollie works
+for whoever installs it, with no key of their own.
+
+To point a build at a different proxy:
 
 ```sh
 flutter build apk --release \
