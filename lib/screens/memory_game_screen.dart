@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -62,8 +64,15 @@ class _MemoryGameScreenState extends State<MemoryGameScreen>
   ];
 
   late List<_Card> _cards;
+
+  /// The pair being chosen right now: 0 or 1 cards.
   final List<int> _open = [];
-  bool _busy = false;
+
+  /// Pairs that have been chosen and are showing while they resolve. A child
+  /// can start a new pair immediately instead of waiting — only the cards in
+  /// a resolving pair are locked, not the whole board.
+  final List<_Pending> _pending = [];
+
   int _moves = 0;
   int _pairsFound = 0;
   bool _won = false;
@@ -89,55 +98,91 @@ class _MemoryGameScreenState extends State<MemoryGameScreen>
 
   void _reset() {
     resetClock();
+    _cancelPending();
     setState(() {
       _cards = _buildDeck();
       _open.clear();
-      _busy = false;
       _moves = 0;
       _pairsFound = 0;
       _won = false;
     });
   }
 
+  void _cancelPending() {
+    for (final pending in _pending) {
+      pending.timer.cancel();
+    }
+    _pending.clear();
+  }
+
+  @override
+  void dispose() {
+    _cancelPending();
+    super.dispose();
+  }
+
+  /// A card the child cannot touch: already matched, already part of the pair
+  /// being chosen, or part of a pair still resolving.
+  bool _locked(int index) =>
+      _cards[index].matched ||
+      _open.contains(index) ||
+      _pending.any((p) => p.first == index || p.second == index);
+
+  bool _faceUp(int index) =>
+      _cards[index].matched ||
+      _open.contains(index) ||
+      _pending.any((p) => p.first == index || p.second == index);
+
   void _tapCard(int index) {
-    if (_busy || _won || outOfTime) return;
+    if (_won || outOfTime || _locked(index)) return;
     startClock();
-    final card = _cards[index];
-    if (card.matched || _open.contains(index)) return;
 
     setState(() => _open.add(index));
     HapticFeedback.selectionClick();
-
     if (_open.length < 2) return;
 
-    _busy = true;
+    // The pair is complete: hand it to a timer of its own and free the board
+    // straight away, so the next two cards can be turned while this one is
+    // still showing.
     _moves++;
     final first = _open[0];
     final second = _open[1];
-    Future.delayed(const Duration(milliseconds: 750), () {
-      if (!mounted) return;
-      if (_cards[first].emoji == _cards[second].emoji) {
-        setState(() {
-          _cards[first].matched = true;
-          _cards[second].matched = true;
-          _open.clear();
-          _pairsFound++;
-        });
-        HapticFeedback.mediumImpact();
-        SoundEffects.instance.pop();
-        if (_pairsFound == widget.pairs) {
-          winClock();
-          Future.delayed(const Duration(milliseconds: 400), () {
-            if (!mounted || outOfTime) return;
-            setState(() => _won = true);
-          });
-        }
-      } else {
-        setState(_open.clear);
-        SoundEffects.instance.wrong();
+    _open.clear();
+    late final _Pending pending;
+    pending = _Pending(
+      first: first,
+      second: second,
+      timer: Timer(const Duration(milliseconds: 750), () {
+        if (!mounted) return;
+        _resolve(pending);
+      }),
+    );
+    _pending.add(pending);
+  }
+
+  void _resolve(_Pending pending) {
+    final matched = _cards[pending.first].emoji == _cards[pending.second].emoji;
+    setState(() {
+      _pending.remove(pending);
+      if (matched) {
+        _cards[pending.first].matched = true;
+        _cards[pending.second].matched = true;
+        _pairsFound++;
       }
-      _busy = false;
     });
+    if (matched) {
+      HapticFeedback.mediumImpact();
+      SoundEffects.instance.pop();
+    } else {
+      SoundEffects.instance.wrong();
+    }
+    if (_pairsFound == widget.pairs && !_won) {
+      winClock();
+      Future<void>.delayed(const Duration(milliseconds: 400), () {
+        if (!mounted || outOfTime) return;
+        setState(() => _won = true);
+      });
+    }
   }
 
   /// 3 stars for a quick win, 2 for a decent one, 1 otherwise.
@@ -232,20 +277,27 @@ class _MemoryGameScreenState extends State<MemoryGameScreen>
 
   Widget _buildCard(int index) {
     final card = _cards[index];
-    final faceUp = card.matched || _open.contains(index);
+    // No AnimatedScale around the card: animating a scale over the emoji
+    // re-rasterises the glyph every frame and eventually stops emoji painting
+    // app-wide. A matched card is shown by its green face instead.
     return GestureDetector(
       onTap: () => _tapCard(index),
-      child: AnimatedScale(
-        scale: card.matched ? 0.9 : 1.0,
-        duration: const Duration(milliseconds: 300),
-        child: FlipCard(
-          faceUp: faceUp,
-          front: _CardFace(emoji: card.emoji, matched: card.matched),
-          back: const _CardBack(),
-        ),
+      child: FlipCard(
+        faceUp: _faceUp(index),
+        front: _CardFace(emoji: card.emoji, matched: card.matched),
+        back: const _CardBack(),
       ),
     );
   }
+}
+
+/// A chosen pair waiting to be revealed as a match or not.
+class _Pending {
+  _Pending({required this.first, required this.second, required this.timer});
+
+  final int first;
+  final int second;
+  final Timer timer;
 }
 
 class _Card {

@@ -47,8 +47,10 @@ class PairDragGame extends StatefulWidget {
   )
   pieceBuilder;
 
-  /// Called shortly after every piece is placed.
-  final VoidCallback onCompleted;
+  /// Called shortly after every piece is placed, with the number of pieces
+  /// dropped onto the *wrong* slot along the way — the games turn that into
+  /// a star rating.
+  final void Function(int wrongDrops) onCompleted;
 
   /// Fired once, on the first piece the child picks up. The games use it to
   /// start their clock, so staring at a fresh board costs no time.
@@ -85,6 +87,7 @@ class _PairDragGameState extends State<PairDragGame> {
   final List<Offset?> _pos = [];
   final List<bool> _placed = [];
 
+  int _wrongDrops = 0;
   int? _dragIndex;
   Offset _dragStart = Offset.zero;
   Offset _pieceStart = Offset.zero;
@@ -178,7 +181,7 @@ class _PairDragGameState extends State<PairDragGame> {
           Future.delayed(const Duration(milliseconds: 100), () {
             if (!mounted) return;
             _done = true;
-            widget.onCompleted();
+            widget.onCompleted(_wrongDrops);
           });
         }
         return;
@@ -192,7 +195,10 @@ class _PairDragGameState extends State<PairDragGame> {
     // Only a piece dropped *onto the wrong slot* is a wrong answer. Letting go
     // over empty space is a change of mind, and buzzing at that would punish
     // the child for thinking.
-    if (_slotUnder(pieceCenter) != null) SoundEffects.instance.wrong();
+    if (_slotUnder(pieceCenter) != null) {
+      _wrongDrops++;
+      SoundEffects.instance.wrong();
+    }
   }
 
   /// The slot [globalPoint] is inside, if any.

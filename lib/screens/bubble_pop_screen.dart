@@ -158,6 +158,15 @@ class _BubblePopScreenState extends State<BubblePopScreen>
     }
   }
 
+  /// Bubble Pop has no wrong move to count, so the clock is the skill: finish
+  /// with most of it left for three stars.
+  int get _stars {
+    final left = clock.fraction;
+    if (left > 0.5) return 3;
+    if (left > 0.2) return 2;
+    return 1;
+  }
+
   void _reset() {
     _winTimer?.cancel();
     resetClock();
@@ -308,6 +317,7 @@ class _BubblePopScreenState extends State<BubblePopScreen>
             CelebrationOverlay(
               emoji: '🎈',
               title: 'Pop-tastic!',
+              stars: _stars,
               primaryLabel: 'Play again 🎈',
               onPrimary: _reset,
               secondaryLabel: 'Home 🏠',
@@ -390,10 +400,13 @@ class _PopSparkle extends StatelessWidget {
       duration: const Duration(milliseconds: 400),
       onEnd: onFinished,
       builder: (context, value, _) {
+        // Fade and rise rather than grow. Scaling this ✨ ran a transform
+        // over text on every frame of every pop, which is the fastest way in
+        // this app to exhaust the glyph raster cache and stop emoji painting.
         return Opacity(
           opacity: 1 - value,
-          child: Transform.scale(
-            scale: 1 + value * 0.9,
+          child: Transform.translate(
+            offset: Offset(0, -value * size * 0.35),
             child: SizedBox(
               width: size,
               height: size,

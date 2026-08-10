@@ -92,6 +92,7 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
   late List<(String, String, String)> _pairs;
   late Key _gameKey;
   bool _won = false;
+  int _stars = 3;
 
   @override
   GameLevel get gameLevel => widget.level;
@@ -115,6 +116,14 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
       (pair) => _lookAlikeFoods.contains(pair.$2) && pair.$2 != keptLookAlike,
     );
     return pool.take(widget.pairs).toList();
+  }
+
+  /// 3 stars for a clean board, 2 for a couple of mistakes, 1 otherwise —
+  /// the same scale the other games use.
+  static int starsFor(int wrongDrops) {
+    if (wrongDrops == 0) return 3;
+    if (wrongDrops <= 2) return 2;
+    return 1;
   }
 
   void _reset() {
@@ -223,9 +232,12 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
                       );
                     },
                     onFirstMove: startClock,
-                    onCompleted: () {
+                    onCompleted: (wrongDrops) {
                       winClock();
-                      setState(() => _won = true);
+                      setState(() {
+                        _stars = starsFor(wrongDrops);
+                        _won = true;
+                      });
                     },
                   ),
                 ),
@@ -236,6 +248,7 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
             CelebrationOverlay(
               emoji: '🥕',
               title: 'Yay! All fed!',
+              stars: _stars,
               primaryLabel: 'Play again 🔁',
               onPrimary: _reset,
               secondaryLabel: 'Levels 🏠',

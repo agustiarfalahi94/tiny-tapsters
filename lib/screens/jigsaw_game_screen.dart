@@ -47,6 +47,7 @@ class _JigsawGameScreenState extends State<JigsawGameScreen>
   late String _picture;
   late Key _gameKey;
   bool _won = false;
+  int _stars = 3;
 
   @override
   GameLevel get gameLevel => widget.level;
@@ -59,6 +60,14 @@ class _JigsawGameScreenState extends State<JigsawGameScreen>
     super.initState();
     _picture = _pictures[math.Random().nextInt(_pictures.length)];
     _gameKey = UniqueKey();
+  }
+
+  /// 3 stars for a clean board, 2 for a couple of mistakes, 1 otherwise —
+  /// the same scale the other games use.
+  static int starsFor(int wrongDrops) {
+    if (wrongDrops == 0) return 3;
+    if (wrongDrops <= 2) return 2;
+    return 1;
   }
 
   void _reset({bool newPicture = false}) {
@@ -134,9 +143,12 @@ class _JigsawGameScreenState extends State<JigsawGameScreen>
                     slotBuilder: _buildSlot,
                     pieceBuilder: _buildSlice,
                     onFirstMove: startClock,
-                    onCompleted: () {
+                    onCompleted: (wrongDrops) {
                       winClock();
-                      setState(() => _won = true);
+                      setState(() {
+                        _stars = starsFor(wrongDrops);
+                        _won = true;
+                      });
                     },
                   ),
                 ),
@@ -147,6 +159,7 @@ class _JigsawGameScreenState extends State<JigsawGameScreen>
             CelebrationOverlay(
               emoji: '🧩',
               title: 'Jigsaw done!',
+              stars: _stars,
               primaryLabel: 'New puzzle 🧩',
               onPrimary: () => _reset(newPicture: true),
               secondaryLabel: 'Levels 🏠',

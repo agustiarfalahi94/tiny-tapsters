@@ -8,6 +8,7 @@ import 'package:tiny_tapsters/screens/find_it_screen.dart';
 import 'package:tiny_tapsters/screens/home_screen.dart';
 import 'package:tiny_tapsters/screens/jigsaw_game_screen.dart';
 import 'package:tiny_tapsters/screens/memory_game_screen.dart';
+import 'package:tiny_tapsters/widgets/flip_card.dart';
 import 'package:tiny_tapsters/widgets/game_timer.dart';
 import 'package:tiny_tapsters/widgets/pair_drag_game.dart';
 
@@ -58,6 +59,50 @@ String findItTarget(WidgetTester tester) => tester
     .data!;
 
 void main() {
+  testWidgets('memory match lets a new pair start while one is resolving', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MemoryGameScreen(pairs: 6, columns: 4, level: GameLevel.big),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    int faceUp() => tester
+        .widgetList<FlipCard>(find.byType(FlipCard))
+        .where((c) => c.faceUp)
+        .length;
+
+    final cards = find.byType(FlipCard);
+    // Turn the first pair, then — without waiting for it to resolve — turn
+    // two more. The board used to be locked for the full 750ms reveal.
+    await tester.tap(cards.at(0));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(cards.at(1));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(faceUp(), 2);
+
+    await tester.tap(cards.at(2));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(cards.at(3));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(
+      faceUp(),
+      4,
+      reason: 'the second pair must be turnable while the first resolves',
+    );
+
+    // A card already showing in a resolving pair stays locked.
+    await tester.tap(cards.at(0));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(faceUp(), 4);
+
+    // Let everything resolve so no timer outlives the test.
+    await tester.pump(const Duration(seconds: 2));
+  });
+
   testWidgets('Find It! never asks for the same animal twice in a game', (
     tester,
   ) async {
