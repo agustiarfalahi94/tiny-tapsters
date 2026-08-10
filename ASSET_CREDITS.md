@@ -17,8 +17,8 @@ re-encoded to mono AAC by `tool/normalize_audio.py`.
 
 ## Animal calls
 
-From Wikimedia Commons. CC0, public domain and CC BY — never ShareAlike,
-which would reach into the app itself. The CC BY entries are credited in-app
+From Wikimedia Commons and the Internet Archive. CC0, public domain and CC BY
+— never ShareAlike, which would reach into the app itself. The CC BY entries are credited in-app
 on the Credits screen, reachable from the home screen. Each is trimmed to its loudest ~2 seconds,
 normalised to −16 dBFS RMS and encoded as mono AAC at 96 kbps / 44.1 kHz by
 `tool/normalize_audio.py`. Re-fetch the sources from the links below to rebuild
@@ -28,25 +28,23 @@ them.
 |---|---|---|---|
 | 🐱 `cat.m4a` | [Weibliche Britisch Kurzhaar will Futter C1277 MIAUEN.wav](https://commons.wikimedia.org/wiki/File:Weibliche_Britisch_Kurzhaar_will_Futter_C1277_MIAUEN.wav) | PantheraLeo1359531 | CC BY 4.0 |
 | 🐶 `dog.m4a` | [Ladrido perro.ogg](https://commons.wikimedia.org/wiki/File:Ladrido_perro.ogg) | Wikimedia Commons contributor | CC0 |
+| 🐮 `cow.m4a` | [Cow, Moo, Snort at End](https://archive.org/details/designers-choice-complete) | Nicholas A. Judy (The Designer's Choice) | CC0 |
 | 🐴 `horse.m4a` | [Wiehern.ogg](https://commons.wikimedia.org/wiki/File:Wiehern.ogg) | Wikimedia Commons contributor | Public domain |
 | 🐔 `chicken.m4a` | [Coq qui chante (DenisChardonnet).wav](https://commons.wikimedia.org/wiki/File:Coq_qui_chante_(DenisChardonnet).wav) | Wikimedia Commons contributor | CC0 |
 | 🦁 `lion.m4a` | [Lionroar.wav](https://commons.wikimedia.org/wiki/File:Lionroar.wav) | Jonathan Growcott, Alex Lobora, Andrew Markham, Charlotte E. | CC BY 4.0 |
-| 🐵 `monkey.m4a` | [Vervet Monkey (Chlorocebus pygerythrus) (W CERCOPITHECUS AETHIOPS R2 C2).ogg](https://commons.wikimedia.org/wiki/File:Vervet_Monkey_(Chlorocebus_pygerythrus)_(W_CERCOPITHECUS_AETHIOPS_R2_C2).ogg) | Wikimedia Commons contributor | CC BY 4.0 |
-| 🐘 `elephant.m4a` | [Elephant voice - trumpeting.ogg](https://commons.wikimedia.org/wiki/File:Elephant_voice_-_trumpeting.ogg) | Wikimedia Commons contributor | CC0 |
+| 🐵 `monkey.m4a` | [Pant-hoot call made by a male chimpanzee.ogg](https://commons.wikimedia.org/wiki/File:Pant-hoot_call_made_by_a_male_chimpanzee.ogg) | Pawel Fedurek et al. | CC BY 4.0 |
+| 🐘 `elephant.m4a` | [Elephant Trumpet](https://archive.org/details/Designers-Choice-Collection-Animals) | Nicholas A. Judy (The Designer's Choice) | CC0 |
 | 🐸 `frog.m4a` | [CouchsSpadefootToad SaguaroNP 20110705.ogg](https://commons.wikimedia.org/wiki/File:CouchsSpadefootToad_SaguaroNP_20110705.ogg) | Wikimedia Commons contributor | Public domain |
 
-### Animals with no free recording
+### Animals with no recording
 
-🐮 the cow, 🐵 monkey, 🐧 penguin, 🐭 mouse, 🐻 bear and 🦒 giraffe have no CC0
-or public-domain recording that could be verified, so they do not appear in
-"Which Animal?". They are unchanged in every other game.
+🐧 penguin, 🐭 mouse, 🐻 bear and 🦒 giraffe have no verified free recording, so
+they do not appear in "Which Animal?". They are unchanged in every other game.
 
-The cow is the one that hurts. Commons has nothing usable: the searches return
-*Lingua Libre* files of people pronouncing the word "cow" in various languages,
-and one recording of a fart. Adding it means accepting CC-BY material and
-shipping a credits screen in the app.
+🐴 the horse is the weak one left. Its source is around 60 kbps and it stays
+noticeably quieter than the rest, because lifting it to match would amplify its
+noise floor into crackle. Nothing better exists under a licence we can ship.
 
-The 🐴 horse and 🐘 elephant recordings are the best free ones that exist, but
-both sources are around 60–100 kbps and they stay noticeably quieter than the
-rest, because lifting them to match would amplify their noise floor into
-crackle. CC-BY would fix these too.
+The cow took five searches to find. Wikimedia Commons has no moo at all under
+any licence — every hit is the *word* "cow" in some language, a gospel song, or
+a fart — so it comes from a CC0 sound-effects library on the Internet Archive.

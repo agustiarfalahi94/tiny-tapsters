@@ -5,6 +5,45 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.15.0] — 2026-08-10
+
+### Fixed
+- **Games asked for the same animal twice.** Which Animal? and Find It! only
+  avoided repeating the *previous* round's animal, so a five-round game could
+  ask for the monkey twice — wasting a round and reading, correctly, as a bug.
+  Both now remember every animal asked this game. Bubble Pop also no longer
+  shows two bubbles wearing the same face at once.
+- **The monkey opened with a bird.** It was a Vervet Monkey field recording
+  whose own description said "against a background of birds", which I should
+  have read. It is now a chimpanzee pant-hoot — the call a child actually
+  associates with a monkey.
+
+### Added
+- **🐮 The cow.** It took five searches. Wikimedia Commons has no moo at all
+  under any licence — every hit is the *word* "cow" in some language, a gospel
+  song, or a fart — so it comes from a CC0 sound-effects library on the
+  Internet Archive instead.
+
+### Improved
+- **A far better elephant**, from the same CC0 library: a clean close-miked
+  trumpet that needed no gain at all, where the old one needed +9 dB and
+  crackled for it.
+
+### Notes
+- Nine animals now: 🐱 🐶 🐮 🐴 🐔 🦁 🐵 🐘 🐸.
+- Both repeat tests were confirmed to fail against the unfixed code — the
+  Which Animal? one fails with "asked for one of [🐔, 🐱, 🐵, 🐮, 🐵] twice",
+  which is exactly the reported symptom.
+- Writing those tests turned up something else: at flutter_test's default
+  600px-tall viewport, the five-card grid scrolls and its bottom row cannot be
+  tapped, so the game cannot be played through at all. Real phones are tall
+  enough, but every game test that taps now runs at phone size.
+- 🐴 the horse is the last weak one. Its source is ~60 kbps and it stays
+  quieter than the rest, because lifting it to match puts the crackle back.
+- `flutter analyze`: 0 issues; 86/86 tests.
+
+---
+
 ## [1.14.0] — 2026-08-10
 
 ### Added

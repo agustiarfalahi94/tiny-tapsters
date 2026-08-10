@@ -65,7 +65,9 @@ class _FindItScreenState extends State<FindItScreen>
   int _found = 0;
   int _wrong = 0;
   int? _happyIndex;
-  String? _lastTarget;
+
+  /// Animals already asked for this game — never ask twice.
+  final _asked = <String>{};
   bool _won = false;
 
   @override
@@ -82,18 +84,19 @@ class _FindItScreenState extends State<FindItScreen>
   }
 
   void _newRound() {
-    // Never ask for the same animal twice in a row.
-    final pool = [..._pool]
-      ..removeWhere((e) => e == _lastTarget)
-      ..shuffle();
-    _target = pool.first;
-    _lastTarget = _target;
-    _cards = [...pool.skip(1).take(_cardsPerRound - 1), _target]..shuffle();
+    // Never ask for the same animal twice in one game.
+    var unasked = _pool.where((e) => !_asked.contains(e)).toList();
+    if (unasked.isEmpty) unasked = _pool.where((e) => e != _target).toList();
+    _target = (unasked..shuffle()).first;
+    _asked.add(_target);
+    final pool = _pool.where((e) => e != _target).toList()..shuffle();
+    _cards = [...pool.take(_cardsPerRound - 1), _target]..shuffle();
     setState(() => _happyIndex = null);
   }
 
   void _reset() {
     resetClock();
+    _asked.clear();
     setState(() {
       _found = 0;
       _wrong = 0;

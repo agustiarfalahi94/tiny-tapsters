@@ -11,14 +11,15 @@ import '../screens/animal_food_screen.dart' show kAnimalEmojis;
 /// each source page and recorded in `ASSET_CREDITS.md`; the CC BY ones are
 /// credited in-app by `CreditsScreen`.
 ///
-/// 🐮 the cow is still missing, and not for want of looking: four searches of
-/// Commons turn up Lingua Libre recordings of people pronouncing the word
-/// "cow", a gospel song, and one fart. There is no moo on Commons. Filling it
-/// needs a recording from somewhere else — or a phone held over a fence.
+/// The cow took five searches. Wikimedia Commons has no moo at all under any
+/// licence — every hit is a *word* in some language, a gospel song, or a fart
+/// — so it comes from a CC0 sound-effects library on the Internet Archive
+/// instead.
 const kAnimalSounds = <String, String>{
   '🐱': 'animal_sounds/cat.m4a',
   '🐶': 'animal_sounds/dog.m4a',
   '🐴': 'animal_sounds/horse.m4a',
+  '🐮': 'animal_sounds/cow.m4a',
   '🐔': 'animal_sounds/chicken.m4a',
   '🦁': 'animal_sounds/lion.m4a',
   '🐵': 'animal_sounds/monkey.m4a',
