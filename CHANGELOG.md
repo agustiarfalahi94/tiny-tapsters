@@ -5,6 +5,38 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.18.2] — 2026-08-10
+
+### Fixed
+- **Pollie broke permanently as soon as she used an emoji.** Dart's
+  `HttpClientRequest.write` encodes with the request's charset, which defaults
+  to Latin-1 when none is given. Pollie's prompt lets her use an emoji now and
+  then; the moment one did, that reply entered the conversation history and
+  every request afterwards threw "Contains invalid characters" for the rest of
+  the session. Indonesian accented text would have done the same. The body is
+  now sent as UTF-8 bytes with an explicit charset.
+- **The microphone never closed on its own when nothing was understood.** The
+  four-second timer was armed only by *recognised words*, but on the test
+  device the recogniser reported constant activity while transcribing nothing —
+  empty results and a session ending every second or two. So in a noisy room,
+  or with a child who mumbles, the timer never started and the mic sat open
+  until the 45-second cap. It is now armed by any sign of life: four seconds of
+  quiet once there are words to answer, twelve seconds when nothing has been
+  understood, after which the mic closes quietly and says nothing.
+
+### Notes
+- Found by tracing on the device rather than by reasoning: the trace showed
+  `onResult` firing with empty words, and the failure printing the offending
+  request body with a ☀️ in it.
+- Both fixes are guarded by tests confirmed to fail against the old code. The
+  first attempt at the encoding test passed against the bug, because reverting
+  half the fix left the charset header in place — either half alone is enough.
+- The connection-pool fix in 1.18.1 was a real leak and worth keeping, but it
+  was not the cause of this.
+- `flutter analyze`: 0 issues; 92/92 tests.
+
+---
+
 ## [1.18.1] — 2026-08-10
 
 ### Fixed

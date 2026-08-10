@@ -2,13 +2,13 @@
 
 ## Quick facts
 
-- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.18.1+38**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
+- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.18.2+39**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
 - **Dependencies**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. Bundled assets: `assets/sfx/*` (pop, win_high, win_low, lose) and `assets/music/*` (main_theme, game_song) — `assets/branding/tiny-tapsters-logo.png` is build-time input for the icon generator and is deliberately not in `pubspec.yaml`.
 - **Audio**: `MusicService` (looping music) is separate from `SoundEffects` (one-shots) on purpose — `pop()` stops its player before every play, so one shared player would let every tap kill the music. Track switching lives in `MusicRouteObserver`, not in each screen's `initState`, because popping a game does not re-run `HomeScreen.initState`. Every player must stay on `AudioContextConfigFocus.mixWithOthers` (set once in `main.dart`) — the default `AudioFocus.gain` is exclusive and makes each sound effect stop the music. **Never hand-encode audio** — run `python3 tool/normalize_audio.py <source-dir>`, which rebuilds every asset at one loudness (−16 dBFS RMS, 44.1 kHz). Hand-rolled `afconvert` calls are how the animal calls shipped at 22 kHz and how the mix ended up 20 dB apart.
 - **Permissions**: `INTERNET` + `RECORD_AUDIO` — both exist only for Pollie's voice chat. **All seven games are fully offline**; Pollie is the sole network feature.
 - **Default branch is `develop`**; release = merge to `main` + annotated tag `vX.Y.Z` (push both).
 - **Features go on a dedicated `feature/<name>` branch** off `develop` — never commit feature work straight to `develop`. Plan in chat first, then execute.
-- **Validation before any commit:** `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**91/91**), `flutter build apk --release` (when native config or deps change).
+- **Validation before any commit:** `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**92/92**), `flutter build apk --release` (when native config or deps change).
 - **Never touch/commit**: `android/key.properties`, `android/app/release-keystore.jks`, or any Gemini API key. **The key no longer ships in the app at all** — it lives in the Cloudflare Worker under `worker/` (see its README). The app defaults to the deployed proxy at `https://pollie.inkpebble.workers.dev`; override with `--dart-define=POLLIE_ENDPOINT=...`. A URL is not a secret.
 
 ## Multi-part work
@@ -53,10 +53,11 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
 3. Never swap widget types mid-gesture (e.g. `AnimatedPositioned` ↔ `Positioned` while a pan is active) — it cancels the pan. Keep the tree structure stable; if a piece moves, keep it instant (animated returns read as "trails").
 4. **Never animate a scale over text.** `AnimatedScale`/`Transform.scale` around an emoji re-rasterises the glyph every frame and eventually stops emoji painting app-wide — they come back only when something else forces a repaint. This has caused a visible bug twice (jigsaw, then Find It!). Use rotation, translation, padding or colour for feedback. A *static* `FittedBox` is fine; an animated one is not.
 5. Emoji glyphs render smaller than their text box — use `FittedBox(fit: BoxFit.fill)` (or a large font size) when an emoji must fill a cell/board.
-6. Widget tests that **tap** must set a phone viewport (`tester.view.physicalSize = Size(1080, 2400)`, dpr 3). At flutter_test's default 800x600 the taller game grids scroll and their bottom row is untappable, so a test can silently "pass" having played no rounds at all.
-7. Xiaomi's emoji font may render some codepoints oddly — prefer widely-supported emoji (Unicode ≥ 6) for game content.
-8. Test on the Xiaomi 15 via wireless adb. `adb install -r` works for *updates* to an already-installed package. Installing a **new** `applicationId` still fails with `INSTALL_FAILED_USER_RESTRICTED` even though `adb_install_need_confirm` is 0 — HyperOS applies a stricter check to first-time installs. Workaround that does work:
+6. **Never `write` a string to an `HttpClientRequest`.** It encodes with the request's charset, which is Latin-1 unless one is set — so a single emoji or accented character throws "Contains invalid characters" and, once it is in the chat history, breaks every later request. Send `utf8.encode(...)` bytes with an explicit charset.
+7. Widget tests that **tap** must set a phone viewport (`tester.view.physicalSize = Size(1080, 2400)`, dpr 3). At flutter_test's default 800x600 the taller game grids scroll and their bottom row is untappable, so a test can silently "pass" having played no rounds at all.
+8. Xiaomi's emoji font may render some codepoints oddly — prefer widely-supported emoji (Unicode ≥ 6) for game content.
+9. Test on the Xiaomi 15 via wireless adb. `adb install -r` works for *updates* to an already-installed package. Installing a **new** `applicationId` still fails with `INSTALL_FAILED_USER_RESTRICTED` even though `adb_install_need_confirm` is 0 — HyperOS applies a stricter check to first-time installs. Workaround that does work:
    ```bash
    adb push app.apk /data/local/tmp/x.apk && adb shell pm install -r -t /data/local/tmp/x.apk
    ```
-9. Renaming the `applicationId` resets the app's identity: runtime permissions are revoked and the old package lingers until `adb uninstall`. Re-grant with `adb shell pm grant <pkg> android.permission.RECORD_AUDIO` so Pollie's mic keeps working.
+10. Renaming the `applicationId` resets the app's identity: runtime permissions are revoked and the old package lingers until `adb uninstall`. Re-grant with `adb shell pm grant <pkg> android.permission.RECORD_AUDIO` so Pollie's mic keeps working.

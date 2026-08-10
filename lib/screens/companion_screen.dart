@@ -135,14 +135,23 @@ class _CompanionScreenState extends State<CompanionScreen>
   static const _maxTurn = Duration(seconds: 45);
 
   /// How long the child has to be quiet, *after saying something*, before the
-  /// turn ends by itself.
+  /// turn ends by itself and gets an answer.
   ///
-  /// Without this the turn only ended when the mic was tapped again, which
-  /// means a four-year-old has to know to press a button to be answered. Four
-  /// seconds is long enough to think mid-sentence — the recogniser's own
-  /// half-second guess is what caused the cutting-off — and short enough that
-  /// the conversation still feels hands-free.
+  /// Long enough to think mid-sentence — the recogniser's own half-second
+  /// guess is what caused the cutting-off — and short enough that the
+  /// conversation still feels hands-free.
   static const _quietEndsTurn = Duration(seconds: 4);
+
+  /// How long the mic waits when it has understood *nothing at all* before
+  /// giving up and closing.
+  ///
+  /// The recogniser reports plenty of activity while transcribing nothing —
+  /// on the test device it restarted every second or two with empty results.
+  /// Arming the timer only on recognised words meant that in a noisy room, or
+  /// with a child who mumbles, the timer never started and the mic sat open
+  /// until the 45-second cap. This closes it quietly instead, with nothing
+  /// sent, so the child can simply tap and try again.
+  static const _silenceGivesUp = Duration(seconds: 12);
 
   /// Everything the turn's finished sessions have produced so far. A turn now
   /// spans however many sessions the recogniser decides to end, so this
@@ -254,6 +263,7 @@ class _CompanionScreenState extends State<CompanionScreen>
           // A session ended, not the turn. Re-arm and keep listening; the
           // child decides when they are finished, not the recogniser.
           if (_turnActive) {
+            _armQuietTimer();
             _restartSession();
             return;
           }
@@ -376,6 +386,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       _partial = '';
       _soundLevel = 0;
     });
+    _armQuietTimer();
     await _listenOnce();
   }
 
@@ -387,8 +398,8 @@ class _CompanionScreenState extends State<CompanionScreen>
       await _speech.listen(
         onResult: (result) {
           if (!_turnActive) return;
-          if (result.recognizedWords.trim().isNotEmpty) _noteSpeech();
           setState(() => _partial = result.recognizedWords);
+          _armQuietTimer();
           if (!result.finalResult) return;
 
           final words = result.recognizedWords.trim();
@@ -435,14 +446,26 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
   }
 
-  /// Restarts the "have they finished?" clock. Called every time words are
-  /// recognised, so it measures silence *since the last thing said*.
-  void _noteSpeech() {
+  /// Restarts the "have they finished?" clock.
+  ///
+  /// Called on *every* sign of life from the recogniser, not only on
+  /// recognised words. On the test device the recogniser reported plenty of
+  /// activity while transcribing nothing — empty partials, and a session
+  /// ending every second or two. Arming this only on recognised words meant
+  /// that in a noisy room, or with a child who mumbles, it never started at
+  /// all and the mic sat open until the 45-second cap.
+  ///
+  /// The wait is short once there are words to answer and long while there are
+  /// none, so a pause mid-sentence is respected but an open mic still closes.
+  void _armQuietTimer() {
+    if (!_turnActive) return;
+    final hasWords = _transcript.trim().isNotEmpty;
     _quietTimer?.cancel();
-    _quietTimer = Timer(_quietEndsTurn, () {
-      // Only end on silence if there is something to send. A child who has not
-      // spoken at all keeps the mic until the 45s cap.
-      if (_turnActive && _transcript.trim().isNotEmpty) _endTurn(send: true);
+    _quietTimer = Timer(hasWords ? _quietEndsTurn : _silenceGivesUp, () {
+      if (!_turnActive) return;
+      // With words: answer. Without: close the mic quietly and say nothing,
+      // so the child can simply tap and try again.
+      _endTurn(send: _transcript.trim().isNotEmpty);
     });
   }
 

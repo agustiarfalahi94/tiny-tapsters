@@ -172,6 +172,10 @@ class PollieService {
       throw PollieQuotaException(retryAfter: _retryAfter(response));
     }
     if (response.statusCode != 200) {
+      // The body says which of Google's limits or errors it was; without it
+      // a misconfigured proxy is indistinguishable from a retired model.
+      final body = await response.transform(utf8.decoder).join();
+      debugPrint('Pollie chat HTTP ${response.statusCode}: $body');
       throw HttpException('Pollie returned ${response.statusCode}');
     }
     final lines = response
@@ -205,13 +209,24 @@ class PollieService {
   Future<HttpClientResponse> _post(String path, Object body) async {
     if (_disposed) throw StateError('Pollie service was disposed');
     final request = await _httpClient.postUrl(Uri.parse('$_endpoint$path'));
-    request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
+    request.headers.contentType = ContentType(
+      'application',
+      'json',
+      charset: 'utf-8',
+    );
     request.headers.set('X-Install-Id', _installId);
     // Cloudflare's bot protection rejects requests whose client signature
     // looks automated (error 1010). Dart's default agent passes today, but
     // saying who we are is both politer and less fragile.
     request.headers.set(HttpHeaders.userAgentHeader, 'TinyTapsters/1.0');
-    request.write(jsonEncode(body));
+    // Write UTF-8 bytes, not a string. `request.write` encodes with the
+    // request's charset, which defaults to Latin-1 — so the first time Pollie
+    // used an emoji, that reply went into the history and every request after
+    // it threw "Contains invalid characters" for the rest of the session.
+    // Indonesian accents would have done the same.
+    final payload = utf8.encode(jsonEncode(body));
+    request.headers.contentLength = payload.length;
+    request.add(payload);
     return request.close();
   }
 
