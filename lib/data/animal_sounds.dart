@@ -2,27 +2,29 @@ import '../screens/animal_food_screen.dart' show kAnimalEmojis;
 
 /// The animals whose calls the app can play, and where each recording lives.
 ///
-/// Every key must be one of [kAnimalEmojis] — that list stays the single
-/// source of truth for which animals exist, and a test enforces it, so a typo
-/// cannot invent an animal that appears in this game and nowhere else.
+/// Most of these are also in [kAnimalEmojis], the pool Animal Food and Count
+/// share — but this game is deliberately *not* limited to that list. Animal
+/// Food needs a food for every animal it uses; a listening game does not, so
+/// requiring one here would mean inventing a meal for a tiger before it could
+/// have a roar. 🐷 🐦 🐯 exist only in this game for that reason.
 ///
-/// Only animals whose recording is CC0, public domain or CC BY — never
-/// ShareAlike, which would reach into the app itself. Licences are verified on
-/// each source page and recorded in `ASSET_CREDITS.md`; the CC BY ones are
-/// credited in-app by `CreditsScreen`.
-///
-/// The cow took five searches. Wikimedia Commons has no moo at all under any
-/// licence — every hit is a *word* in some language, a gospel song, or a fart
-/// — so it comes from a CC0 sound-effects library on the Internet Archive
-/// instead.
+/// Every recording is from Pixabay except the dog, which is CC0 from Wikimedia
+/// Commons. See `ASSET_CREDITS.md`. A test checks each has a credit entry, that
+/// no two animals share an emoji, and that each file is bundled.
 const kAnimalSounds = <String, String>{
   '🐱': 'animal_sounds/cat.m4a',
   '🐶': 'animal_sounds/dog.m4a',
-  '🐴': 'animal_sounds/horse.m4a',
   '🐮': 'animal_sounds/cow.m4a',
+  '🐴': 'animal_sounds/horse.m4a',
+  '🐷': 'animal_sounds/pig.m4a',
   '🐔': 'animal_sounds/chicken.m4a',
-  '🦁': 'animal_sounds/lion.m4a',
-  '🐵': 'animal_sounds/monkey.m4a',
-  '🐘': 'animal_sounds/elephant.m4a',
+  '🐦': 'animal_sounds/bird.m4a',
+  '🐭': 'animal_sounds/mouse.m4a',
   '🐸': 'animal_sounds/frog.m4a',
+  '🦁': 'animal_sounds/lion.m4a',
+  '🐯': 'animal_sounds/tiger.m4a',
+  '🐵': 'animal_sounds/monkey.m4a',
+  '🐻': 'animal_sounds/bear.m4a',
+  '🐘': 'animal_sounds/elephant.m4a',
+  '🐧': 'animal_sounds/penguin.m4a',
 };

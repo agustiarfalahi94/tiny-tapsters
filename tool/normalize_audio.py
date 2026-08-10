@@ -59,8 +59,11 @@ MAX_GAIN_DB = 12.0
 # Field recordings get a stricter pair of limits than studio material. The
 # music and effects were produced with headroom and take limiting cleanly; a
 # 60 kbps Commons recording does not, and pushing one is what crackled.
-FIELD_MAX_GAIN_DB = 9.0
-FIELD_MAX_LIMITING_DB = 2.0
+# Loosened once the calls came from a stock library rather than Commons field
+# recordings: these have headroom and take a little limiting cleanly. Tighten
+# again if a future source is low-bitrate and starts to crackle.
+FIELD_MAX_GAIN_DB = 12.0
+FIELD_MAX_LIMITING_DB = 4.0
 
 # How much the limiter may lean on a file to reach the target. The first
 # version let it work as hard as it liked, and waveshaping a transient that
@@ -81,7 +84,8 @@ ASSETS = {
 }
 
 ANIMALS = ["cat", "dog", "horse", "cow", "chicken", "lion", "monkey",
-           "elephant", "frog"]
+           "elephant", "frog", "bear", "penguin", "mouse", "bird", "pig",
+           "tiger"]
 ANIMAL_BITRATE = 96000
 ANIMAL_TRIM = 2.0
 

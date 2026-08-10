@@ -5,6 +5,37 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.17.0] — 2026-08-10
+
+### Added
+- **Six more animals in "Which Animal?"**: 🐻 bear, 🐧 penguin, 🐭 mouse,
+  🐦 bird, 🐷 pig and 🐯 tiger. Fifteen animals in total, up from nine.
+
+### Improved
+- **New recordings for cat, cow, horse, chicken, lion, monkey, elephant and
+  frog**, all supplied from Pixabay. The monkey no longer opens with birdsong,
+  and the horse and frog are no longer the low-bitrate Commons files.
+
+### Changed
+- **"Which Animal?" is no longer limited to the shared animal list.** Animal
+  Food needs a food for every animal it uses; a listening game does not, so
+  requiring one meant a tiger could not have a roar until someone invented its
+  dinner. 🐷 🐦 🐯 exist only in this game. The test that guarded against typos
+  now checks for duplicates and for consistent emoji instead.
+- The audio pipeline's gain and limiting ceilings for animal calls were
+  loosened, now that the sources are stock-library rather than field
+  recordings. All fifteen sit within about 2 dB of each other.
+
+### Notes
+- 🐘 the elephant's new source is 11 kHz, noticeably lower fidelity than the
+  rest. It was kept because it is the *right* sound, which is what was asked
+  for, but it is the one to replace if a better recording turns up.
+- 🦒 the giraffe and 🐰 the rabbit still have no call; neither makes a sound a
+  child would recognise.
+- `flutter analyze`: 0 issues; 88/88 tests.
+
+---
+
 ## [1.16.0] — 2026-08-10
 
 ### Fixed
