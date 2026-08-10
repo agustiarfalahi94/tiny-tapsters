@@ -235,6 +235,40 @@ void main() {
       );
     });
 
+    test(
+      'an emoji in the history does not break every later request',
+      () async {
+        // Dart's HttpClient.write encodes as Latin-1. Pollie uses an emoji now
+        // and then; the moment one entered the history, every request after it
+        // threw "Contains invalid characters" and the conversation was over for
+        // the rest of the session. Indonesian accents would have done the same.
+        final proxy = await FakeProxy.start();
+        addTearDown(proxy.stop);
+        proxy.chunks = ['{"text":"ok"}\n'];
+
+        final pollie = PollieService(endpoint: proxy.url);
+        addTearDown(pollie.dispose);
+        final pieces = await pollie.reply(const [
+          ChatMessage(role: 'user', text: 'hello'),
+          ChatMessage(role: 'model', text: 'A bright sunny day! ☀️'),
+          ChatMessage(
+            role: 'user',
+            text: 'Halo, apa kabar? Saya suka warna hijau',
+          ),
+        ]).toList();
+
+        expect(pieces.join(), 'ok');
+        // And the server received the characters intact, not mangled.
+        final sent = jsonDecode(proxy.bodies.single) as Map<String, dynamic>;
+        final texts = [
+          for (final m in sent['messages'] as List)
+            (m as Map)['text'] as String,
+        ];
+        expect(texts[1], contains('☀️'));
+        expect(texts[2], contains('kabar'));
+      },
+    );
+
     test('a successful ping is remembered for a few minutes', () async {
       final proxy = await FakeProxy.start();
       addTearDown(proxy.stop);
