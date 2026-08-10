@@ -55,7 +55,7 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   int get _popsPerRound => widget.popsToWin;
 
   late final AnimationController _float;
-  late final List<_BubbleData> _bubbles;
+  late List<_BubbleData> _bubbles;
   final math.Random _rnd = math.Random();
 
   int _popped = 0;
@@ -89,7 +89,10 @@ class _BubblePopScreenState extends State<BubblePopScreen>
         AnimationController(vsync: this, duration: const Duration(seconds: 60))
           ..addStatusListener(_onFloatStatus)
           ..forward();
-    _bubbles = [for (var i = 0; i < _bubbleCount; i++) _spawn()];
+    _bubbles = [];
+    for (var i = 0; i < _bubbleCount; i++) {
+      _bubbles.add(_spawn());
+    }
   }
 
   @override
@@ -112,9 +115,16 @@ class _BubblePopScreenState extends State<BubblePopScreen>
     }
   }
 
-  _BubbleData _spawn() {
+  /// A fresh bubble, wearing a face none of the others is currently wearing.
+  _BubbleData _spawn({_BubbleData? replacing}) {
+    final taken = {
+      for (final b in _bubbles)
+        if (!identical(b, replacing)) b.emoji,
+    };
+    final free = _bubbleEmojis.where((e) => !taken.contains(e)).toList();
+    final choices = free.isEmpty ? _bubbleEmojis : free;
     return _BubbleData(
-      emoji: _bubbleEmojis[_rnd.nextInt(_bubbleEmojis.length)],
+      emoji: choices[_rnd.nextInt(choices.length)],
       x: _rnd.nextDouble(),
       y: _rnd.nextDouble(),
       vx: (0.10 + _rnd.nextDouble() * 0.12) * (_rnd.nextBool() ? 1 : -1),
@@ -267,7 +277,9 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                                           bubble: bubble,
                                           onFinished: () => setState(() {
                                             bubble.popping = false;
-                                            final fresh = _spawn();
+                                            final fresh = _spawn(
+                                              replacing: bubble,
+                                            );
                                             bubble
                                               ..emoji = fresh.emoji
                                               ..x = fresh.x

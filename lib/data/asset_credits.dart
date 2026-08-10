@@ -40,6 +40,13 @@ const kAnimalSoundCredits = <AssetCredit>[
     source: 'https://commons.wikimedia.org/wiki/File:Ladrido_perro.ogg',
   ),
   AssetCredit(
+    emoji: '🐮',
+    title: 'Cow, Moo, Snort at End',
+    author: 'Nicholas A. Judy (The Designer\'s Choice)',
+    licence: 'CC0',
+    source: 'https://archive.org/details/designers-choice-complete',
+  ),
+  AssetCredit(
     emoji: '🐴',
     title: 'Wiehern.ogg',
     author: 'Wikimedia Commons contributor',
@@ -63,20 +70,18 @@ const kAnimalSoundCredits = <AssetCredit>[
   ),
   AssetCredit(
     emoji: '🐵',
-    title:
-        'Vervet Monkey (Chlorocebus pygerythrus) (W CERCOPITHECUS AETHIOPS R2 C2).ogg',
-    author: 'Wikimedia Commons contributor',
+    title: 'Pant-hoot call made by a male chimpanzee.ogg',
+    author: 'Pawel Fedurek et al.',
     licence: 'CC BY 4.0',
     source:
-        'https://commons.wikimedia.org/wiki/File:Vervet_Monkey_(Chlorocebus_pygerythrus)_(W_CERCOPITHECUS_AETHIOPS_R2_C2).ogg',
+        'https://commons.wikimedia.org/wiki/File:Pant-hoot_call_made_by_a_male_chimpanzee.ogg',
   ),
   AssetCredit(
     emoji: '🐘',
-    title: 'Elephant voice - trumpeting.ogg',
-    author: 'Wikimedia Commons contributor',
+    title: 'Elephant Trumpet',
+    author: 'Nicholas A. Judy (The Designer\'s Choice)',
     licence: 'CC0',
-    source:
-        'https://commons.wikimedia.org/wiki/File:Elephant_voice_-_trumpeting.ogg',
+    source: 'https://archive.org/details/Designers-Choice-Collection-Animals',
   ),
   AssetCredit(
     emoji: '🐸',

@@ -110,6 +110,62 @@ void main() {
     expect(find.text('${first.author} · ${first.licence}'), findsOneWidget);
   });
 
+  group('no animal appears twice', () {
+    /// Plays a full game, finding the right card by trying them — a wrong tap
+    /// only shakes — and records which animal each round asked for.
+    testWidgets('Which Animal? never asks for the same animal twice', (
+      tester,
+    ) async {
+      // A phone, not flutter_test's 600px-tall default: at that height the
+      // five-card grid scrolls and the bottom row cannot be tapped, so the
+      // game can never be played through.
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      for (var seed = 0; seed < 12; seed++) {
+        await tester.pumpWidget(
+          MaterialApp(
+            key: ValueKey(seed),
+            home: AnimalSoundScreen(
+              choices: 5,
+              level: GameLevel.big,
+              random: math.Random(seed),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final asked = <String>[];
+        for (var round = 0; round < 5; round++) {
+          final board = cards(tester);
+          // A board must never show one animal twice either.
+          expect(board.toSet().length, board.length, reason: 'seed $seed');
+          // Find the right card by trying them: a wrong tap only shakes.
+          for (final emoji in board) {
+            await tester.tap(find.text(emoji));
+            await tester.pump(const Duration(milliseconds: 600));
+            if (cards(tester).join() != board.join() ||
+                find.text('Great listening!').evaluate().isNotEmpty) {
+              asked.add(emoji);
+              break;
+            }
+          }
+        }
+        expect(
+          asked.length,
+          5,
+          reason: 'seed $seed only detected ${asked.length} rounds: $asked',
+        );
+        expect(
+          asked.toSet().length,
+          asked.length,
+          reason: 'seed $seed asked for one of $asked twice',
+        );
+      }
+    });
+  });
+
   group('Which Animal?', () {
     testWidgets('shows exactly as many choices as the level asks for', (
       tester,

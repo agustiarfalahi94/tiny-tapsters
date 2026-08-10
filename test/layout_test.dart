@@ -50,7 +50,51 @@ void usePhoneViewport(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
+/// Find It! shows its target in the prompt at fontSize 44, so a test can read
+/// it directly instead of guessing which card is right.
+String findItTarget(WidgetTester tester) => tester
+    .widgetList<Text>(find.byType(Text))
+    .firstWhere((t) => t.style?.fontSize == 44)
+    .data!;
+
 void main() {
+  testWidgets('Find It! never asks for the same animal twice in a game', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    for (var attempt = 0; attempt < 8; attempt++) {
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey(attempt),
+          home: const FindItScreen(cardsPerRound: 6, level: GameLevel.big),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final asked = <String>[];
+      for (var round = 0; round < 5; round++) {
+        final target = findItTarget(tester);
+        asked.add(target);
+        // The grid holds one of each animal, so the prompt names exactly the
+        // card to tap.
+        await tester.tap(
+          find
+              .descendant(
+                of: find.byType(GridView),
+                matching: find.text(target),
+              )
+              .first,
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+      }
+      expect(
+        asked.toSet().length,
+        asked.length,
+        reason: 'attempt $attempt asked for one of $asked twice',
+      );
+    }
+  });
+
   for (final (label, pairs, level) in [
     ('Easy', 3, GameLevel.easy),
     ('Medium', 6, GameLevel.medium),

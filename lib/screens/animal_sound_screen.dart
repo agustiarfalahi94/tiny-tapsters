@@ -53,7 +53,10 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
   int _found = 0;
   int _wrong = 0;
   int? _happyIndex;
-  String? _lastTarget;
+
+  /// Animals already asked for this game. A five-round game that asks for the
+  /// monkey twice wastes a round and reads as a bug, which is what it was.
+  final _asked = <String>{};
   bool _won = false;
   bool _busy = false;
 
@@ -80,15 +83,21 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
   }
 
   void _newRound({bool play = true}) {
-    final pool = [...kAnimalSounds.keys]
-      ..removeWhere((e) => e == _lastTarget)
-      ..shuffle(_rng);
-    final target = pool.first;
-    _lastTarget = target;
+    final all = kAnimalSounds.keys.toList();
+    // Fall back to "anything but the last one" if a game ever asks for more
+    // rounds than there are animals; today it cannot, but a shrunken
+    // catalogue should degrade rather than throw.
+    var unasked = all.where((e) => !_asked.contains(e)).toList();
+    if (unasked.isEmpty) {
+      unasked = all.where((e) => e != _target).toList();
+    }
+    final target = (unasked..shuffle(_rng)).first;
+    _asked.add(target);
+    // Distractors come from every *other* animal, so no board shows one twice.
+    final pool = all.where((e) => e != target).toList()..shuffle(_rng);
     setState(() {
       _target = target;
-      _cards = [...pool.skip(1).take(widget.choices - 1), target]
-        ..shuffle(_rng);
+      _cards = [...pool.take(widget.choices - 1), target]..shuffle(_rng);
       _happyIndex = null;
       _busy = false;
     });
@@ -105,6 +114,7 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
 
   void _reset() {
     resetClock();
+    _asked.clear();
     setState(() {
       _found = 0;
       _wrong = 0;
