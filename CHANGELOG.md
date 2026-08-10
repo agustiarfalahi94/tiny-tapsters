@@ -5,6 +5,29 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.18.3] — 2026-08-10
+
+### Fixed
+- **The microphone still never closed by itself.** The give-up timer was
+  re-armed on every sign of life from the recogniser — and on a real phone the
+  recogniser reports activity constantly while transcribing nothing, so the
+  timer was postponed forever. It is now an absolute deadline from the moment
+  the mic opens: if not one word is understood in twelve seconds, the mic
+  closes and sends nothing. The four-second "you have finished talking" timer
+  is still re-armed, but only by *recognised words*.
+- **Typed messages were silently dropped while the mic was listening.** Sending
+  refuses while the app is busy, and listening counts as busy — so with the
+  hands-free loop reopening the mic after every reply, four of six typed
+  messages vanished in testing. Typing now closes the mic first.
+
+### Notes
+- Both found by driving the app on the device over adb, not by reading code.
+  The first version of the mic fix looked correct and failed for a reason only
+  a real recogniser shows: it never stops making noise.
+- `flutter analyze`: 0 issues; 92/92 tests.
+
+---
+
 ## [1.18.2] — 2026-08-10
 
 ### Fixed
