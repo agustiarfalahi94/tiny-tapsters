@@ -6,11 +6,17 @@ compatibility_date = "2026-08-01"
 # Set it with:  npx wrangler secret put GEMINI_API_KEY
 # Check it with: npx wrangler secret list
 
-# One user must not be able to drain the free-tier quota everyone shares.
-# 30 requests a minute is far more than a child talking, and far less than a
-# script.
+# NOTE: changing `limit` alone does not take effect — the binding keeps the
+# configuration it was created with. Bump `namespace_id` as well to get a
+# limiter with the new numbers.
+#
+# One user must not be able to drain the free-tier quota everyone shares — but
+# 30/minute turned out to be too tight in practice. A real session also spends
+# requests on the wake-up ping and on retries, and hitting the limit made a
+# working Pollie look broken. 120/minute is still far below what a script would
+# use and far above a child talking.
 [[unsafe.bindings]]
 name = "POLLIE_RATE_LIMIT"
 type = "ratelimit"
-namespace_id = "1001"
-simple = { limit = 30, period = 60 }
+namespace_id = "1002"
+simple = { limit = 120, period = 60 }
