@@ -160,6 +160,12 @@ class _CompanionScreenState extends State<CompanionScreen>
   String _heard = '';
   Timer? _turnTimer;
   Timer? _quietTimer;
+
+  /// One-shot: fires if the whole turn goes by without a single recognised
+  /// word. Deliberately *not* re-armed — the recogniser reports activity
+  /// constantly while transcribing nothing, so anything re-armed by activity
+  /// is postponed forever and the mic never closes.
+  Timer? _nothingHeardTimer;
   bool _turnActive = false;
 
   /// Single-flight guard around re-arming the mic. Both `onResult`'s final
@@ -201,6 +207,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     _turnActive = false;
     _turnTimer?.cancel();
     _quietTimer?.cancel();
+    _nothingHeardTimer?.cancel();
     try {
       _speech.stop();
       _tts.stop();
@@ -220,6 +227,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       _turnActive = false;
       _turnTimer?.cancel();
       _quietTimer?.cancel();
+      _nothingHeardTimer?.cancel();
       _heard = '';
       try {
         _speech.stop();
@@ -263,7 +271,6 @@ class _CompanionScreenState extends State<CompanionScreen>
           // A session ended, not the turn. Re-arm and keep listening; the
           // child decides when they are finished, not the recogniser.
           if (_turnActive) {
-            _armQuietTimer();
             _restartSession();
             return;
           }
@@ -386,7 +393,12 @@ class _CompanionScreenState extends State<CompanionScreen>
       _partial = '';
       _soundLevel = 0;
     });
-    _armQuietTimer();
+    // Absolute, from the moment the mic opened. If nothing is ever
+    // understood, close it rather than sit open for the full 45s cap.
+    _nothingHeardTimer?.cancel();
+    _nothingHeardTimer = Timer(_silenceGivesUp, () {
+      if (_turnActive && _transcript.trim().isEmpty) _endTurn(send: false);
+    });
     await _listenOnce();
   }
 
@@ -458,14 +470,10 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// The wait is short once there are words to answer and long while there are
   /// none, so a pause mid-sentence is respected but an open mic still closes.
   void _armQuietTimer() {
-    if (!_turnActive) return;
-    final hasWords = _transcript.trim().isNotEmpty;
+    if (!_turnActive || _transcript.trim().isEmpty) return;
     _quietTimer?.cancel();
-    _quietTimer = Timer(hasWords ? _quietEndsTurn : _silenceGivesUp, () {
-      if (!_turnActive) return;
-      // With words: answer. Without: close the mic quietly and say nothing,
-      // so the child can simply tap and try again.
-      _endTurn(send: _transcript.trim().isNotEmpty);
+    _quietTimer = Timer(_quietEndsTurn, () {
+      if (_turnActive && _transcript.trim().isNotEmpty) _endTurn(send: true);
     });
   }
 
@@ -509,6 +517,8 @@ class _CompanionScreenState extends State<CompanionScreen>
     _turnTimer = null;
     _quietTimer?.cancel();
     _quietTimer = null;
+    _nothingHeardTimer?.cancel();
+    _nothingHeardTimer = null;
     try {
       _speech.stop();
     } catch (_) {}
@@ -571,6 +581,17 @@ class _CompanionScreenState extends State<CompanionScreen>
       _busy = false;
       _partial = '';
     });
+  }
+
+  /// Sends something the grown-up typed or tapped.
+  ///
+  /// Closes an open microphone first. `_send` refuses while `_busy`, and
+  /// listening sets `_busy` — so with the hands-free loop re-opening the mic
+  /// after every reply, typed messages were silently dropped.
+  void _sendTyped(String raw) {
+    if (raw.trim().isEmpty) return;
+    if (_turnActive) _endTurn(send: false);
+    _send(raw);
   }
 
   Future<void> _send(String raw) async {
@@ -1029,7 +1050,7 @@ class _CompanionScreenState extends State<CompanionScreen>
                     itemBuilder: (context, index) {
                       final chip = _chips[index];
                       return ActionChip(
-                        onPressed: _busy ? null : () => _send(chip),
+                        onPressed: () => _sendTyped(chip),
                         label: Text(chip, style: const TextStyle(fontSize: 15)),
                         backgroundColor: Colors.white,
                         disabledColor: Colors.white60,
@@ -1088,7 +1109,7 @@ class _CompanionScreenState extends State<CompanionScreen>
                         child: TextField(
                           controller: _input,
                           enabled: !_busy,
-                          onSubmitted: _send,
+                          onSubmitted: _sendTyped,
                           textInputAction: TextInputAction.send,
                           style: const TextStyle(fontSize: 17),
                           decoration: InputDecoration(
@@ -1110,7 +1131,7 @@ class _CompanionScreenState extends State<CompanionScreen>
                       RoundButton(
                         emoji: '➡️',
                         fontSize: 26,
-                        onTap: () => _send(_input.text),
+                        onTap: () => _sendTyped(_input.text),
                       ),
                     ],
                   ),
