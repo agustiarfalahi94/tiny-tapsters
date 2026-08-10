@@ -50,6 +50,11 @@ flutter build apk --release           # when native config or deps changed
 - `docs/superpowers/specs/` — design specs; read the relevant one before touching a feature it covers.
 - `tool/generate_icon.dart` — pure-Dart launcher-icon generator (no Flutter engine, no packages); derives all mipmap PNGs + adaptive icon resources from `assets/branding/tiny-tapsters-logo.png`. Contains its own PNG decoder and encoder. Re-run with `dart run tool/generate_icon.dart` after changing the logo. The master artwork is build-time only — never add it to `pubspec.yaml`.
 - `.github/workflows/release-apk.yml` — on `v*` tag push: analyze + test, sign with the real keystore, attach the APK to the GitHub release.
-- `test/widget_test.dart` — **24 tests**: home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety + quota tests, and the count-game flow (seeded RNG: wrong tap doesn't advance, star thresholds, double-tap guard, Big-mode boundary).
-- `test/timer_test.dart` — **9 tests**: level durations, start/pause/resume/reset, expiry firing once, loss-not-win on timeout, and Easy's reduced round count.
-- `test/audio_test.dart` — **12 tests**: music track switching and mute, ducking, route→track mapping, and the home mute button. Uses a `FakeMusicSink`; anything touching the real `MusicService.instance` must never be awaited in a test, because the audio plugin is not registered and never answers.
+- `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety + quota tests, and the count-game flow (seeded RNG).
+- `test/timer_test.dart` — level durations, start/pause/resume/reset, expiry firing once, loss-not-win on timeout, Easy's reduced round count.
+- `test/audio_test.dart` — music track switching, mute, ducking, per-screen attenuation, lifecycle pause/resume, route→track mapping, the home mute button, and that `wrong.wav` is generated and bundled. Uses a `FakeMusicSink`; anything touching the real `MusicService.instance` must never be awaited in a test, because the audio plugin is not registered and never answers.
+- `test/animal_sound_test.dart` — the sound catalogue (every call bundled, credited, and not ShareAlike), the credits screen, per-screen music attenuation, and that no animal is asked twice in a game.
+- `test/pollie_test.dart` — sentence splitting, and the proxy client against a real local HTTP server (streaming, split lines, malformed lines, install id, 429 → quota).
+- `test/layout_test.dart` — board bounds and caption room at phone size, no screen overflowing at 360dp, memory-match concurrency, and Find It! not repeating an animal.
+
+Counts deliberately omitted here — the total lives in the validation line above, and per-file numbers went stale every release.

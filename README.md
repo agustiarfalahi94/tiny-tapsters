@@ -114,8 +114,9 @@ lib/
 assets/
   branding/
     tiny-tapsters-logo.png       # master artwork (build-time only, not bundled)
-  animal_sounds/*.m4a            # CC0 animal calls (see ASSET_CREDITS.md)
-  sfx/pop.wav                    # bubble pop
+  animal_sounds/*.m4a            # 9 animal calls (see ASSET_CREDITS.md)
+  sfx/pop.wav                    # right answer / bubble pop
+  sfx/wrong.wav                  # wrong answer
   sfx/win_high.m4a               # 3-star fanfare
   sfx/win_low.m4a                # 1- and 2-star fanfare
   sfx/lose.m4a                   # out of time
@@ -123,7 +124,8 @@ assets/
   music/game_song.m4a            # games
 tool/
   generate_icon.dart             # launcher icons, derived from the logo
-  generate_sfx.dart              # regenerates pop.wav
+  generate_sfx.dart              # regenerates pop.wav + wrong.wav
+  normalize_audio.py             # rebuilds every audio asset at one loudness
 ```
 
 ## Branding
