@@ -5,6 +5,40 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.18.1] — 2026-08-10
+
+### Fixed
+- **Pollie worked for a while and then failed for good**, saying "Oops, I got
+  lost for a moment!" to everything. Every message built a brand-new HTTP
+  client with its own connection pool, and never closed any of them. A long
+  chat exhausted the phone's sockets, and from that point every request failed
+  for the rest of the session. There is now one client per session, closed when
+  the screen is left.
+- **The microphone waited for a button press.** A turn only ended when the mic
+  was tapped again, which means a four-year-old had to know to press a button
+  to be answered. The turn now ends by itself after four seconds of quiet —
+  long enough to think mid-sentence, which is what the original half-second
+  cut-off got wrong.
+- **A one-minute pause was reported as the day being over.** Google's free tier
+  limits requests per minute *and* per day and returns the same code for both;
+  the proxy called every one of them "out of words for today", telling a child
+  to come back tomorrow when the answer was thirty seconds away. The two are
+  now told apart, and a brief pause says so and leaves Pollie awake.
+
+### Changed
+- The proxy retries once when Gemini returns a 5xx. A model that is briefly
+  overloaded used to end the conversation.
+
+### Notes
+- The connection-pool fix is guarded by a test that counts clients: 50 turns
+  used to build 50 clients, and now build one. A plain "50 requests succeed"
+  test passed against the broken code, because a test machine has sockets to
+  spare — it proved nothing.
+- Measured through the deployed proxy: replies in 0.7 s.
+- `flutter analyze`: 0 issues; 91/91 tests.
+
+---
+
 ## [1.18.0] — 2026-08-10
 
 ### Added

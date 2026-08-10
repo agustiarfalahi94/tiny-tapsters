@@ -30,6 +30,13 @@ class PollieService {
     : _endpoint = endpoint ?? _defaultEndpoint,
       _client = client;
 
+  /// Closes the connection pool. Called when the companion screen is left.
+  void dispose() {
+    _disposed = true;
+    _client?.close(force: true);
+    _client = null;
+  }
+
   /// The deployed proxy. Override at build time with
   ///   flutter build apk --release --dart-define=POLLIE_ENDPOINT=https://...
   ///
@@ -49,7 +56,23 @@ class PollieService {
   static final String _installId = _randomId();
 
   final String _endpoint;
-  final HttpClient? _client;
+
+  /// One client for the whole session, created on first use.
+  ///
+  /// This used to be `_client ?? HttpClient()` inside the request method,
+  /// which built a fresh client — and a fresh connection pool — for *every*
+  /// message, and never closed any of them. A long chat exhausted the phone's
+  /// sockets, after which every request failed for the rest of the session.
+  /// That is what "it worked, then suddenly stopped" was.
+  HttpClient? _client;
+
+  /// How many clients this service has built. Exactly one per session is the
+  /// whole point; a test asserts it, because the bug it replaces was invisible
+  /// until a real phone ran out of sockets.
+  @visibleForTesting
+  int clientsCreated = 0;
+
+  bool _disposed = false;
   DateTime? _lastPingOk;
 
   bool get isConfigured => _endpoint.isNotEmpty;
@@ -146,7 +169,7 @@ class PollieService {
       ],
     });
     if (response.statusCode == 429) {
-      throw const PollieQuotaException();
+      throw PollieQuotaException(retryAfter: _retryAfter(response));
     }
     if (response.statusCode != 200) {
       throw HttpException('Pollie returned ${response.statusCode}');
@@ -166,10 +189,22 @@ class PollieService {
     }
   }
 
+  /// The one client for this session, built on first use.
+  HttpClient get _httpClient {
+    final existing = _client;
+    if (existing != null) return existing;
+    clientsCreated++;
+    return _client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10)
+      ..idleTimeout = const Duration(seconds: 20)
+      // A toddler chat is one request at a time; more connections would only
+      // be sockets sitting idle.
+      ..maxConnectionsPerHost = 2;
+  }
+
   Future<HttpClientResponse> _post(String path, Object body) async {
-    final client = _client ?? HttpClient();
-    client.connectionTimeout = const Duration(seconds: 10);
-    final request = await client.postUrl(Uri.parse('$_endpoint$path'));
+    if (_disposed) throw StateError('Pollie service was disposed');
+    final request = await _httpClient.postUrl(Uri.parse('$_endpoint$path'));
     request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
     request.headers.set('X-Install-Id', _installId);
     // Cloudflare's bot protection rejects requests whose client signature
@@ -178,6 +213,12 @@ class PollieService {
     request.headers.set(HttpHeaders.userAgentHeader, 'TinyTapsters/1.0');
     request.write(jsonEncode(body));
     return request.close();
+  }
+
+  static Duration? _retryAfter(HttpClientResponse response) {
+    final header = response.headers.value(HttpHeaders.retryAfterHeader);
+    final seconds = int.tryParse(header ?? '');
+    return seconds == null ? null : Duration(seconds: seconds);
   }
 
   static String _randomId() {
@@ -189,9 +230,18 @@ class PollieService {
   }
 }
 
-/// Pollie has used up the day's words.
+/// Pollie cannot answer right now because of a limit.
+///
+/// [retryAfter] separates "slow down for a moment" from "that is all for
+/// today" — the app says something different for each, because telling a child
+/// to come back tomorrow when the answer is ten seconds away is a lie.
 class PollieQuotaException implements Exception {
-  const PollieQuotaException();
+  const PollieQuotaException({this.retryAfter});
+
+  final Duration? retryAfter;
+
+  bool get isBrief =>
+      retryAfter != null && retryAfter! < const Duration(minutes: 5);
 
   @override
   String toString() => 'quota';

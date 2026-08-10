@@ -134,12 +134,23 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// Hard stop, so a turn can never leave the mic live forever.
   static const _maxTurn = Duration(seconds: 45);
 
+  /// How long the child has to be quiet, *after saying something*, before the
+  /// turn ends by itself.
+  ///
+  /// Without this the turn only ended when the mic was tapped again, which
+  /// means a four-year-old has to know to press a button to be answered. Four
+  /// seconds is long enough to think mid-sentence — the recogniser's own
+  /// half-second guess is what caused the cutting-off — and short enough that
+  /// the conversation still feels hands-free.
+  static const _quietEndsTurn = Duration(seconds: 4);
+
   /// Everything the turn's finished sessions have produced so far. A turn now
   /// spans however many sessions the recogniser decides to end, so this
   /// accumulates across all of them; `_partial` holds whatever the live
   /// session is still guessing.
   String _heard = '';
   Timer? _turnTimer;
+  Timer? _quietTimer;
   bool _turnActive = false;
 
   /// Single-flight guard around re-arming the mic. Both `onResult`'s final
@@ -180,10 +191,12 @@ class _CompanionScreenState extends State<CompanionScreen>
     // leaving Pollie.
     _turnActive = false;
     _turnTimer?.cancel();
+    _quietTimer?.cancel();
     try {
       _speech.stop();
       _tts.stop();
     } catch (_) {}
+    _pollie.dispose();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -197,6 +210,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       // than sending half a sentence the child never finished.
       _turnActive = false;
       _turnTimer?.cancel();
+      _quietTimer?.cancel();
       _heard = '';
       try {
         _speech.stop();
@@ -373,6 +387,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       await _speech.listen(
         onResult: (result) {
           if (!_turnActive) return;
+          if (result.recognizedWords.trim().isNotEmpty) _noteSpeech();
           setState(() => _partial = result.recognizedWords);
           if (!result.finalResult) return;
 
@@ -420,6 +435,17 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
   }
 
+  /// Restarts the "have they finished?" clock. Called every time words are
+  /// recognised, so it measures silence *since the last thing said*.
+  void _noteSpeech() {
+    _quietTimer?.cancel();
+    _quietTimer = Timer(_quietEndsTurn, () {
+      // Only end on silence if there is something to send. A child who has not
+      // spoken at all keeps the mic until the 45s cap.
+      if (_turnActive && _transcript.trim().isNotEmpty) _endTurn(send: true);
+    });
+  }
+
   /// Re-arms the mic for the same turn after a session ends.
   ///
   /// Guarded so the two callbacks that fire for one session ending cannot
@@ -458,6 +484,8 @@ class _CompanionScreenState extends State<CompanionScreen>
     _restarting = false;
     _turnTimer?.cancel();
     _turnTimer = null;
+    _quietTimer?.cancel();
+    _quietTimer = null;
     try {
       _speech.stop();
     } catch (_) {}
@@ -613,13 +641,20 @@ class _CompanionScreenState extends State<CompanionScreen>
       debugPrint('Pollie reply failed: $e');
       _moreComing = false;
       if (!mounted) return;
-      final quota = e.toString().toLowerCase().contains('quota');
+      // A brief rate limit is a pause, not the end of the day. Telling a
+      // child to come back tomorrow when the answer is seconds away is a lie,
+      // and it also made a temporary hiccup look permanent.
+      final brief = e is PollieQuotaException && e.isBrief;
+      final quota = e is PollieQuotaException && !e.isBrief;
       setState(() {
         _bubbles.removeLast();
         _bubbles.add(
           _Bubble(
             role: 'model',
-            text: quota
+            text: brief
+                ? 'Phew! Let me catch my breath for a moment, '
+                      'then ask me again! 😊'
+                : quota
                 ? 'Pollie is all out of words for today! '
                       "He'll be back ${_pollie.quotaResetLabel()} 😴"
                 : _pollie.isConfigured
@@ -628,7 +663,8 @@ class _CompanionScreenState extends State<CompanionScreen>
                 : "I can't talk yet — ask a grown-up for my magic key! 🔑",
           ),
         );
-        _status = _PollieStatus.sleeping;
+        // A pause leaves Pollie awake; only a real failure puts him to sleep.
+        _status = brief ? _PollieStatus.awake : _PollieStatus.sleeping;
         _busy = false;
       });
     }

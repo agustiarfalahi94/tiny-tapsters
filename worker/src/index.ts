@@ -91,7 +91,8 @@ export default {
 
     const allowed = await env.POLLIE_RATE_LIMIT.limit({ key: installId });
     if (!allowed.success) {
-      return json({ error: 'quota' }, 429, { 'Retry-After': '60' });
+      // Retry-After tells the app this is a pause, not the end of the day.
+      return json({ error: 'rate' }, 429, { 'Retry-After': '30' });
     }
 
     if (url.pathname === '/ping') return ping(env);
@@ -112,7 +113,7 @@ async function ping(env: Env): Promise<Response> {
     safetySettings: SAFETY_SETTINGS,
   });
 
-  if (response.status === 429) return json({ error: 'quota' }, 429);
+  if (response.status === 429) return rateLimited(response);
   if (!response.ok) return upstreamError(response);
 
   const body = (await response.json()) as GeminiResponse;
@@ -144,7 +145,7 @@ async function chat(request: Request, env: Env): Promise<Response> {
     safetySettings: SAFETY_SETTINGS,
   });
 
-  if (upstream.status === 429) return json({ error: 'quota' }, 429);
+  if (upstream.status === 429) return rateLimited(upstream);
   if (!upstream.ok) return upstreamError(upstream);
   if (!upstream.body) return json({ error: 'unreachable' }, 502);
 
@@ -207,17 +208,55 @@ function trimHistory(messages: ChatMessage[]): ChatMessage[] {
   return messages.length <= 20 ? messages : messages.slice(-20);
 }
 
-function callGemini(env: Env, method: string, body: unknown): Promise<Response> {
-  return fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:${method}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': env.GEMINI_API_KEY,
-      },
-      body: JSON.stringify(body),
+/**
+ * Calls Gemini, retrying once when the failure looks temporary.
+ *
+ * A model that is briefly overloaded (503) or a transient 500 used to surface
+ * to the child as "Oops, I got lost" and end the conversation. One quick retry
+ * turns most of those into a normal answer.
+ */
+async function callGemini(
+  env: Env,
+  method: string,
+  body: unknown,
+): Promise<Response> {
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:${method}`;
+  const init = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': env.GEMINI_API_KEY,
     },
+    body: JSON.stringify(body),
+  };
+
+  const first = await fetch(url, init);
+  if (first.status < 500) return first;
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  return fetch(url, init);
+}
+
+/**
+ * Tells a per-minute limit apart from the day's allowance.
+ *
+ * Google's free tier caps requests per minute *and* per day, and returns 429
+ * for both. Reporting every one of them as "out of words for today" told a
+ * child to come back tomorrow when the answer was thirty seconds away. The
+ * error body names which limit was hit.
+ */
+async function rateLimited(response: Response): Promise<Response> {
+  let detail = '';
+  try {
+    detail = await response.text();
+  } catch {
+    detail = '';
+  }
+  const daily = /per\s*day|PerDay|RequestsPerDay/i.test(detail);
+  return json(
+    { error: daily ? 'quota' : 'rate' },
+    429,
+    { 'Retry-After': daily ? '3600' : '30' },
   );
 }
 
