@@ -329,11 +329,13 @@ class _CountCardState extends State<_CountCard>
           // (up then back to 0) so the card returns to white when done.
           final angle = math.sin(v * math.pi * 6) * 0.12 * (1 - v);
           final redTint = v < 0.5 ? v * 2 : (1 - v) * 2;
+          // Rotation only — see the note in find_it_screen.dart: animating a
+          // scale over text re-rasterises glyphs every frame and eventually
+          // breaks emoji rendering app-wide.
           return Transform.rotate(
             angle: angle,
-            child: AnimatedScale(
-              scale: widget.happy ? 1.08 : 1.0,
-              duration: const Duration(milliseconds: 250),
+            child: Padding(
+              padding: EdgeInsets.all(widget.happy ? 0 : 3),
               child: Container(
                 height: 150,
                 decoration: BoxDecoration(
@@ -344,7 +346,7 @@ class _CountCardState extends State<_CountCard>
                   ),
                   borderRadius: BorderRadius.circular(20),
                   border: widget.happy
-                      ? Border.all(color: const Color(0xFF66BB6A), width: 3)
+                      ? Border.all(color: const Color(0xFF66BB6A), width: 4)
                       : null,
                   boxShadow: const [
                     BoxShadow(

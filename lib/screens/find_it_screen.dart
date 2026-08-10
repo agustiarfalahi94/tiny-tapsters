@@ -116,6 +116,7 @@ class _FindItScreenState extends State<FindItScreen>
         _happyIndex = index;
       });
       HapticFeedback.mediumImpact();
+      SoundEffects.instance.pop();
       Future.delayed(const Duration(milliseconds: 350), () {
         if (!mounted) return;
         if (_outOfTimeOrWon) return;
@@ -303,11 +304,15 @@ class _FindCardState extends State<_FindCard>
           // (up then back to 0) so the card returns to white when done.
           final angle = math.sin(v * math.pi * 6) * 0.12 * (1 - v);
           final redTint = v < 0.5 ? v * 2 : (1 - v) * 2;
+          // Rotation only. An AnimatedScale here re-rasterised the emoji
+          // glyph every frame, and on the test device that eventually stopped
+          // animals painting at all — they reappeared only while another
+          // repaint (holding the back gesture) forced the raster cache to
+          // rebuild. The correct answer is shown by the green border instead.
           return Transform.rotate(
             angle: angle,
-            child: AnimatedScale(
-              scale: widget.happy ? 1.2 : 1.0,
-              duration: const Duration(milliseconds: 250),
+            child: Padding(
+              padding: EdgeInsets.all(widget.happy ? 0 : 4),
               child: Container(
                 decoration: BoxDecoration(
                   color: Color.lerp(
@@ -317,7 +322,7 @@ class _FindCardState extends State<_FindCard>
                   ),
                   borderRadius: BorderRadius.circular(20),
                   border: widget.happy
-                      ? Border.all(color: const Color(0xFF66BB6A), width: 3)
+                      ? Border.all(color: const Color(0xFF66BB6A), width: 4)
                       : null,
                   boxShadow: const [
                     BoxShadow(

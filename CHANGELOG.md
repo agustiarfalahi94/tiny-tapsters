@@ -5,6 +5,40 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.16.0] — 2026-08-10
+
+### Fixed
+- **Animals vanished from Find It!** — and reappeared only while the back
+  gesture was held. The card scaled up when tapped correctly, and animating a
+  scale over text re-rasterises the emoji glyph every frame until the raster
+  cache gives up and stops drawing them; holding back forced a repaint, which
+  is why they flickered back. This project already had the rule written down
+  after the jigsaw hit it. Four places were breaking it: Find It!, Count the
+  Animals!, Memory Match and Bubble Pop's pop-sparkle, which scaled on every
+  frame of every pop. All four now use rotation, padding or translation, none
+  of which re-rasterise.
+- **Find It! had no sound for a correct answer.** Every other game popped; it
+  was the one that never did.
+
+### Added
+- **Stars for Jigsaw, Animal Food and Bubble Pop.** Not intentional — they
+  simply had nothing to score. The drag games now count pieces dropped on the
+  wrong slot; Bubble Pop, which has no wrong move, scores on the clock left.
+- Every game mode now has both sounds: a pop for right, a "tetot" for wrong.
+
+### Changed
+- **Memory Match no longer locks the whole board while a pair resolves.** Turn
+  two cards, and while they are still showing you can start the next pair. Only
+  the cards in a resolving pair are locked, not everything.
+
+### Notes
+- The rasterisation trap is now the *first* golden rule in CLAUDE.md, since it
+  has now caused a visible bug twice.
+- `flutter analyze`: 0 issues; 87/87 tests. Both the memory-concurrency and the
+  repeat tests were confirmed to fail against the code they fix.
+
+---
+
 ## [1.15.0] — 2026-08-10
 
 ### Fixed

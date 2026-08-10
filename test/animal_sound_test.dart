@@ -124,44 +124,51 @@ void main() {
       addTearDown(tester.view.reset);
 
       for (var seed = 0; seed < 12; seed++) {
-        await tester.pumpWidget(
-          MaterialApp(
-            key: ValueKey(seed),
-            home: AnimalSoundScreen(
-              choices: 5,
-              level: GameLevel.big,
-              random: math.Random(seed),
+        for (final (choices, level, rounds) in [
+          (2, GameLevel.easy, 3),
+          (3, GameLevel.medium, 5),
+          (5, GameLevel.big, 5),
+        ]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              key: ValueKey('$seed-$level'),
+              home: AnimalSoundScreen(
+                choices: choices,
+                level: level,
+                random: math.Random(seed),
+              ),
             ),
-          ),
-        );
-        await tester.pump(const Duration(milliseconds: 100));
+          );
+          await tester.pump(const Duration(milliseconds: 100));
 
-        final asked = <String>[];
-        for (var round = 0; round < 5; round++) {
-          final board = cards(tester);
-          // A board must never show one animal twice either.
-          expect(board.toSet().length, board.length, reason: 'seed $seed');
-          // Find the right card by trying them: a wrong tap only shakes.
-          for (final emoji in board) {
-            await tester.tap(find.text(emoji));
-            await tester.pump(const Duration(milliseconds: 600));
-            if (cards(tester).join() != board.join() ||
-                find.text('Great listening!').evaluate().isNotEmpty) {
-              asked.add(emoji);
-              break;
+          final asked = <String>[];
+          for (var round = 0; round < rounds; round++) {
+            final board = cards(tester);
+            // A board must never show one animal twice either.
+            expect(board.toSet().length, board.length, reason: 'seed $seed');
+            // Find the right card by trying them: a wrong tap only shakes.
+            for (final emoji in board) {
+              await tester.tap(find.text(emoji));
+              await tester.pump(const Duration(milliseconds: 600));
+              if (cards(tester).join() != board.join() ||
+                  find.text('Great listening!').evaluate().isNotEmpty) {
+                asked.add(emoji);
+                break;
+              }
             }
           }
+          expect(
+            asked.length,
+            rounds,
+            reason:
+                '$level seed $seed detected ${asked.length}/$rounds: $asked',
+          );
+          expect(
+            asked.toSet().length,
+            asked.length,
+            reason: '$level seed $seed asked for one of $asked twice',
+          );
         }
-        expect(
-          asked.length,
-          5,
-          reason: 'seed $seed only detected ${asked.length} rounds: $asked',
-        );
-        expect(
-          asked.toSet().length,
-          asked.length,
-          reason: 'seed $seed asked for one of $asked twice',
-        );
       }
     });
   });
