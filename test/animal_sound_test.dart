@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tiny_tapsters/data/animal_sounds.dart';
 import 'package:tiny_tapsters/screens/animal_food_screen.dart';
 import 'package:tiny_tapsters/screens/animal_sound_screen.dart';
+import 'package:tiny_tapsters/services/music_service.dart';
 import 'package:tiny_tapsters/widgets/game_timer.dart';
 
 /// The animal emojis currently on screen, read from the answer grid.
@@ -38,11 +39,38 @@ void main() {
       }
     });
 
+    test('the animals a toddler knows best are covered', () {
+      // The dog was missing at first; the cow still is, because Commons has
+      // no usable free recording of one.
+      expect(kAnimalSounds.keys, containsAll(['🐱', '🐶']));
+    });
+
     test('there are enough animals for the hardest level', () {
       // Big shows 5 cards, and a round excludes the previous target, so the
       // catalogue needs 6 to fill a board without repeating an animal.
       expect(kAnimalSounds.length, greaterThanOrEqualTo(6));
     });
+  });
+
+  testWidgets('Which Animal? turns the music down, and puts it back', (
+    tester,
+  ) async {
+    expect(MusicService.instance.attenuation, 1);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: AnimalSoundScreen(choices: 2, level: GameLevel.easy),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    // Quiet enough to make out a cow over, loud enough that the game does not
+    // read as broken.
+    expect(MusicService.instance.attenuation, lessThan(1));
+    expect(MusicService.instance.attenuation, greaterThan(0));
+
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(MusicService.instance.attenuation, 1);
   });
 
   group('Which Animal?', () {

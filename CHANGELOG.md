@@ -5,6 +5,54 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.13.0] — 2026-08-10
+
+### Fixed
+- **The music kept dying mid-game and never came back.** Every player in
+  `audioplayers` asks Android for `AudioFocus.gain` by default — an
+  *exclusive* request. So each bubble pop, each fanfare and each animal call
+  told the system to stop other audio, and the system duly stopped our own
+  music. It died fastest in Bubble Pop, where the taps come quickest, and it
+  stayed dead after a win. Nothing in this app should be taking focus from
+  anything else in it, so nothing does now.
+- **Music could get stuck quiet.** The duck under a win or lose sound was
+  released by the clip's completion event alone; if that event was ever
+  missed, the music stayed at a third of its volume for the rest of the
+  session — indistinguishable from broken. A timer backs it up now.
+- **The animal calls crackled.** Two causes, both mine: the pipeline let the
+  limiter work as hard as it liked, and waveshaping a transient that hard *is*
+  the crackle; and it lifted quiet sources by up to 14 dB, which amplifies a
+  60 kbps recording's noise floor rather than the animal. Field recordings now
+  get stricter gain and limiting ceilings than studio material does.
+
+### Added
+- **🐶 The dog.** A CC0 bark finally turned up, so the animal a toddler knows
+  best is in "Which Animal?" at last.
+- **A "tetot" on a wrong answer**, in every game that has one: Find It!, Count
+  the Animals!, Memory Match, Which Animal?, and both drag games. Two soft
+  descending tones — it should correct, not scold, so it is quieter than the
+  pop and deliberately not a buzzer.
+- **The pop now confirms a correct placement** in the Jigsaw and Animal Food,
+  which had no sound at all when a piece went home.
+
+### Changed
+- **Music plays in every game.** "Which Animal?" turns it down to a third
+  rather than off, because a game that falls silent reads as broken.
+- **A much better rooster**: the previous crow was a 116 kbps Ogg, the new one
+  an uncompressed CC0 recording.
+
+### Notes
+- In the drag games the "tetot" fires only for a piece dropped **onto the
+  wrong slot**. Letting go over empty space is a change of mind, and buzzing
+  at that would punish a child for thinking.
+- 🐴 the horse and 🐘 the elephant stay noticeably quieter than the rest. Their
+  sources are the best free ones in existence and both are around 60–100 kbps;
+  lifting them to match would put the crackle straight back. 🐮 the cow still
+  has no usable free recording at all.
+- `flutter analyze`: 0 issues; 81/81 tests.
+
+---
+
 ## [1.12.1] — 2026-08-10
 
 ### Fixed

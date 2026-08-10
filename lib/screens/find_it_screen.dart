@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
 import '../widgets/game_over_overlay.dart';
@@ -126,6 +127,7 @@ class _FindItScreenState extends State<FindItScreen>
       _cardKeys[index].currentState?.shake();
       _wrong++;
       HapticFeedback.lightImpact();
+      SoundEffects.instance.wrong();
     }
   }
 

@@ -52,8 +52,21 @@ TARGET_RMS_DBFS = -16.0
 PEAK_CEILING_DBFS = -1.0
 
 # A quiet field recording is quiet because of its noise floor as much as its
-# subject. Past this much lift you amplify hiss, not the animal.
-MAX_GAIN_DB = 14.0
+# subject. Past this much lift you amplify hiss, not the animal — +12 dB on a
+# 60 kbps source is what made the horse and the elephant crackle.
+MAX_GAIN_DB = 12.0
+
+# Field recordings get a stricter pair of limits than studio material. The
+# music and effects were produced with headroom and take limiting cleanly; a
+# 60 kbps Commons recording does not, and pushing one is what crackled.
+FIELD_MAX_GAIN_DB = 9.0
+FIELD_MAX_LIMITING_DB = 2.0
+
+# How much the limiter may lean on a file to reach the target. The first
+# version let it work as hard as it liked, and waveshaping a transient that
+# hard *is* the crackle. Three decibels is inaudible; past that, the asset is
+# simply allowed to sit quieter than target.
+MAX_LIMITING_DB = 5.0
 
 RATE = 44100
 FADE_SECONDS = 0.04
@@ -67,7 +80,7 @@ ASSETS = {
     "win_high": ("3 stars.mp3", "assets/sfx/win_high.m4a", 96000, None),
 }
 
-ANIMALS = ["cat", "horse", "chicken", "lion", "elephant", "frog"]
+ANIMALS = ["cat", "dog", "horse", "chicken", "lion", "elephant", "frog"]
 ANIMAL_BITRATE = 96000
 ANIMAL_TRIM = 2.0
 
@@ -140,17 +153,21 @@ def loudest_window(samples, rate, seconds):
     return samples[best_start:best_start + width]
 
 
-def soft_limit(value, ceiling):
-    """Fold the top of the range over instead of chopping it off.
+# Below this fraction of the ceiling the limiter is not in the signal path at
+# all. High on purpose: every sample it touches is a sample it distorts.
+LIMITER_KNEE = 0.9
 
-    Hard-limiting to the peak is what stopped the denser assets reaching the
-    target: the music had to be held ~5 dB quieter than the effects, which is
-    the imbalance this whole script exists to remove. A tanh knee lets the
-    loud moments compress slightly so the *average* level can match.
+
+def soft_limit(value, ceiling):
+    """Fold the very top of the range over instead of chopping it off.
+
+    Only the last decibel or so passes through here, and gain is capped
+    (MAX_LIMITING_DB) so the limiter never has much to do. Leaning on it
+    harder is audible as crackle, which is exactly what it sounded like.
     """
-    if abs(value) <= ceiling * 0.7:
+    knee = ceiling * LIMITER_KNEE
+    if abs(value) <= knee:
         return value
-    knee = ceiling * 0.7
     excess = (abs(value) - knee) / (ceiling - knee)
     shaped = knee + (ceiling - knee) * math.tanh(excess)
     return math.copysign(shaped, value)
@@ -171,7 +188,7 @@ def apply_gain_and_fade(samples, gain, rate, fade):
     return out
 
 
-def process(src, dest, bitrate, trim, work):
+def process(src, dest, bitrate, trim, work, field=False):
     raw = os.path.join(work, "raw.wav")
     decode(src, raw)
     samples, rate = read_wav(raw)
@@ -183,12 +200,18 @@ def process(src, dest, bitrate, trim, work):
     if level == 0 or peak == 0:
         raise ValueError("silent source")
 
-    # Aim for the target RMS. The peak is the limiter's problem, not the
-    # gain's — capping gain by peak headroom is what left the music 5 dB
-    # under the effects. Lifting a noisy source is still capped, because past
-    # that point you are amplifying hiss rather than the subject.
+    # Aim for the target RMS, but stay within reach of the peak: the limiter
+    # may make up MAX_LIMITING_DB and no more. A file that still cannot reach
+    # the target is left quieter rather than distorted — a couple of decibels
+    # of imbalance is a far smaller problem than crackle.
+    max_gain = FIELD_MAX_GAIN_DB if field else MAX_GAIN_DB
+    max_limiting = FIELD_MAX_LIMITING_DB if field else MAX_LIMITING_DB
     wanted = (10 ** (TARGET_RMS_DBFS / 20) * 32768.0) / level
-    gain = min(wanted, 10 ** (MAX_GAIN_DB / 20))
+    headroom = (10 ** (PEAK_CEILING_DBFS / 20) * 32768.0) / peak
+    ceiling_gain = min(
+        headroom * 10 ** (max_limiting / 20), 10 ** (max_gain / 20)
+    )
+    gain = min(wanted, ceiling_gain)
 
     # A trimmed clip is a hard cut out of a longer recording, so it needs a
     # fade to avoid a click. A whole track already starts and ends cleanly.
@@ -204,7 +227,7 @@ def process(src, dest, bitrate, trim, work):
         error = (10 ** (TARGET_RMS_DBFS / 20) * 32768.0) / achieved
         if abs(20 * math.log10(error)) < 0.2:
             break
-        gain = min(gain * error, 10 ** (MAX_GAIN_DB / 20))
+        gain = min(gain * error, ceiling_gain)
         out = apply_gain_and_fade(samples, gain, rate, edge)
 
     normalised = os.path.join(work, "norm.wav")
@@ -228,7 +251,7 @@ def main():
         sys.exit(__doc__)
     source_dir = sys.argv[1]
 
-    jobs = [(name, os.path.join(source_dir, src), dest, rate, trim)
+    jobs = [(name, os.path.join(source_dir, src), dest, rate, trim, False)
             for name, (src, dest, rate, trim) in ASSETS.items()]
     for animal in ANIMALS:
         matches = [f for f in os.listdir(os.path.join(source_dir, "animals"))
@@ -237,16 +260,17 @@ def main():
             print(f"  ! no source for {animal}", file=sys.stderr)
             continue
         jobs.append((animal, os.path.join(source_dir, "animals", matches[0]),
-                     f"assets/animal_sounds/{animal}.m4a", ANIMAL_BITRATE, ANIMAL_TRIM))
+                     f"assets/animal_sounds/{animal}.m4a", ANIMAL_BITRATE,
+                     ANIMAL_TRIM, True))
 
     print(f"{'asset':12} {'RMS before':>11} {'RMS after':>10} {'peak':>7} "
           f"{'gain':>7} {'len':>6} {'size':>8}")
-    for name, src, dest, rate, trim in jobs:
+    for name, src, dest, rate, trim, field in jobs:
         if not os.path.exists(src):
             print(f"  ! missing source: {src}", file=sys.stderr)
             continue
         with tempfile.TemporaryDirectory() as work:
-            r = process(src, dest, rate, trim, work)
+            r = process(src, dest, rate, trim, work, field=field)
         print(f"{name:12} {r['before_rms']:>10.1f}d {r['after_rms']:>9.1f}d "
               f"{r['after_peak']:>6.1f}d {r['gain_db']:>+6.1f}d "
               f"{r['seconds']:>5.2f}s {r['bytes']:>7}B")

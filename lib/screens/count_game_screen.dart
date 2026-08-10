@@ -146,6 +146,7 @@ class _CountGameScreenState extends State<CountGameScreen>
       _cardKeys[index].currentState?.shake();
       _wrong++;
       HapticFeedback.lightImpact();
+      SoundEffects.instance.wrong();
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/animal_sounds.dart';
+import '../services/music_service.dart';
 import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
@@ -66,7 +67,16 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
   void initState() {
     super.initState();
     _cardKeys = List.generate(widget.choices, (_) => GlobalKey());
+    // Turned down, not off: a child has to make out a cow over the music, but
+    // a game that falls silent reads as broken.
+    MusicService.instance.setAttenuation(0.35);
     _newRound(play: false);
+  }
+
+  @override
+  void dispose() {
+    MusicService.instance.setAttenuation(1);
+    super.dispose();
   }
 
   void _newRound({bool play = true}) {
@@ -127,6 +137,7 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
       _cardKeys[index].currentState?.shake();
       _wrong++;
       HapticFeedback.lightImpact();
+      SoundEffects.instance.wrong();
     }
   }
 

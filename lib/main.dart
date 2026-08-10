@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,6 +24,15 @@ void main() {
   // toddler experience.
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  // Every audioplayers player asks Android for AudioFocus.gain by default —
+  // an *exclusive* request. So each bubble pop, fanfare and animal call told
+  // the system to stop other audio, and the system duly stopped our own
+  // music: it died under Bubble Pop's rapid taps and never came back after a
+  // win. All of this app's sound is our own, mixed by us, so no player should
+  // be grabbing focus from another.
+  AudioPlayer.global.setAudioContext(
+    AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build(),
+  );
   // Locking the phone must stop the music, not leave it playing in a
   // pocket. The games already paused their clocks; nothing told the music.
   WidgetsBinding.instance.addObserver(MusicLifecycleObserver());

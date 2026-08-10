@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/sound_effects.dart';
+
 /// A generic "drag each piece to its own slot" board used by the jigsaw and
 /// animal-food games.
 ///
@@ -171,6 +173,7 @@ class _PairDragGameState extends State<PairDragGame> {
           );
         });
         HapticFeedback.mediumImpact();
+        SoundEffects.instance.pop();
         if (_placed.every((p) => p)) {
           Future.delayed(const Duration(milliseconds: 100), () {
             if (!mounted) return;
@@ -186,6 +189,21 @@ class _PairDragGameState extends State<PairDragGame> {
     // — an animated slide-back is what reads as a "trail" on screen).
     setState(() => _pos[index] = null);
     HapticFeedback.lightImpact();
+    // Only a piece dropped *onto the wrong slot* is a wrong answer. Letting go
+    // over empty space is a change of mind, and buzzing at that would punish
+    // the child for thinking.
+    if (_slotUnder(pieceCenter) != null) SoundEffects.instance.wrong();
+  }
+
+  /// The slot [globalPoint] is inside, if any.
+  int? _slotUnder(Offset globalPoint) {
+    for (var i = 0; i < widget.pairCount; i++) {
+      final box = _slotKeys[i].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null) continue;
+      final origin = box.localToGlobal(Offset.zero);
+      if ((origin & box.size).contains(globalPoint)) return i;
+    }
+    return null;
   }
 
   /// A drag that got interrupted (system gesture, second finger, …): put the
