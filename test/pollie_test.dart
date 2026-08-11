@@ -90,6 +90,29 @@ void main() {
     });
   });
 
+  group('choosing the recogniser language', () {
+    test('the app language wins, in whatever form the device spells it', () {
+      // The reported bug: the setting said Indonesian, Pollie answered in
+      // Indonesian, and the microphone was still listening in English —
+      // because the system locale was read *after* the choice and overwrote
+      // it. Nothing the child said in Indonesian could be understood.
+      expect(matchLocale('id-ID', ['en-US', 'id_ID']), 'id_ID');
+      expect(matchLocale('id-ID', ['en_US', 'id-ID']), 'id-ID');
+      expect(matchLocale('en-US', ['en_US', 'id_ID']), 'en_US');
+    });
+
+    test('a bare language code still counts', () {
+      expect(matchLocale('id-ID', ['en-US', 'id']), 'id');
+      expect(matchLocale('id-ID', ['id-Latn-ID']), 'id-Latn-ID');
+    });
+
+    test('null when the device really has nothing for that language', () {
+      // Better to say so in the log than to silently listen in the wrong one.
+      expect(matchLocale('id-ID', ['en-US', 'fr-FR']), isNull);
+      expect(matchLocale('id-ID', const []), isNull);
+    });
+  });
+
   group('joining what the recogniser heard', () {
     test('a dying session keeps its words', () {
       // The reported bug: "do you know about minecraft?" arrived as
