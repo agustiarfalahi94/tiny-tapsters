@@ -130,6 +130,35 @@ void main() {
     expect(find.text('${first.author} · ${first.licence}'), findsWidgets);
   });
 
+  testWidgets('a lion and a tiger never share a board', (tester) async {
+    // Both are big-cat roars: measured against each other the recordings are
+    // near-identical. With both on screen the round cannot be answered by
+    // listening, which is the entire game.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    for (var seed = 0; seed < 40; seed++) {
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey(seed),
+          home: AnimalSoundScreen(
+            choices: 5,
+            level: GameLevel.big,
+            random: math.Random(seed),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      final board = cards(tester);
+      expect(
+        board.contains('🦁') && board.contains('🐯'),
+        isFalse,
+        reason: 'seed $seed put both big cats on one board: $board',
+      );
+    }
+  });
+
   group('no animal appears twice', () {
     /// Plays a full game, finding the right card by trying them — a wrong tap
     /// only shakes — and records which animal each round asked for.
