@@ -59,6 +59,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  # Imported directly by test/speech_plugin_test.dart, which drives the
+  # vendored patch through the platform seam. Resolved by the path override
+  # above, so this pins nothing new.
+  speech_to_text_platform_interface: any
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

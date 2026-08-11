@@ -1,13 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import '../services/app_language.dart';
 import '../services/kid_safety.dart';
+import '../services/narrator.dart';
 import '../services/pollie_service.dart';
+import '../services/tts_service.dart';
 import '../widgets/game_background.dart';
 import '../widgets/pollie_bird.dart';
 import '../widgets/round_button.dart';
@@ -89,10 +90,13 @@ int lastSentenceEnd(String text, int from) {
 }
 
 class CompanionScreen extends StatefulWidget {
-  const CompanionScreen({super.key, this.pollie});
+  const CompanionScreen({super.key, this.pollie, this.ttsService});
 
   /// Injectable for tests; production builds its own, pointed at the proxy.
   final PollieService? pollie;
+
+  /// Injectable for tests; production shares the app's one TTS engine.
+  final TtsService? ttsService;
 
   @override
   State<CompanionScreen> createState() => _CompanionScreenState();
@@ -125,7 +129,8 @@ class _CompanionScreenState extends State<CompanionScreen>
   final _bubbles = <_Bubble>[];
   final _input = TextEditingController();
   final _scroll = ScrollController();
-  final _tts = FlutterTts();
+  late final TtsService _ttsService = widget.ttsService ?? TtsService.instance;
+  TtsSession? _tts;
   final _speech = SpeechToText();
   _PollieStatus _status = _PollieStatus.sleeping;
   bool _waking = false;
@@ -240,10 +245,12 @@ class _CompanionScreenState extends State<CompanionScreen>
     _turnTimer?.cancel();
     _quietTimer?.cancel();
     _nothingHeardTimer?.cancel();
+    _speakWatchdog?.cancel();
     try {
       _speech.stop();
-      _tts.stop();
+      _tts?.stop();
     } catch (_) {}
+    _tts?.release();
     _pollie.dispose();
     _input.dispose();
     _scroll.dispose();
@@ -263,7 +270,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       _heard = '';
       try {
         _speech.stop();
-        _tts.stop();
+        _tts?.stop();
       } catch (_) {}
       if (mounted && _status == _PollieStatus.listening) {
         setState(() {
@@ -280,13 +287,11 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// sentence by sentence must not do.
   Future<void> _initTts() async {
     try {
-      await _tts.setQueueMode(1);
-      _tts.setCompletionHandler(_onUtteranceComplete);
-      _tts.setCancelHandler(_onUtteranceComplete);
-      _tts.setErrorHandler((message) {
-        debugPrint('Pollie TTS error: $message');
-        _onUtteranceComplete();
-      });
+      // A game-name announcement still in flight would talk over the greeting,
+      // and its completion would land on the wrong owner.
+      await Narrator.instance.stop();
+      _tts = await _ttsService.acquire(this, queueMode: 1);
+      _tts!.onComplete = _onUtteranceComplete;
     } catch (e) {
       debugPrint('Pollie TTS setup failed: $e');
     }
@@ -827,7 +832,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// is how voice selection silently did nothing for so long. Rebuild the
   /// list element by element instead of asserting a shape it never has.
   Future<List<Map<dynamic, dynamic>>> _loadVoices() async {
-    final raw = await _tts.getVoices;
+    final raw = await _tts?.getVoices();
     if (raw is! List) return const [];
     return raw
         .whereType<Map>()
@@ -852,7 +857,7 @@ class _CompanionScreenState extends State<CompanionScreen>
         'quality=${best['quality']}, network=${best['network_required']}, '
         'score=${voiceScore(best, lang)})',
       );
-      await _tts.setVoice(best.cast<String, String>());
+      await _tts?.setVoice(best.cast<String, String>());
     } catch (e) {
       // The engine default is a fine fallback — but say so, rather than
       // swallowing the reason the way the two earlier bugs here were.
@@ -877,6 +882,17 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// Whether to re-arm the mic once everything queued has been spoken.
   bool _relisten = false;
 
+  /// Last resort for a TTS engine that never reports a completion.
+  ///
+  /// Everything downstream of "Pollie finished talking" hangs off [_pending]
+  /// reaching zero — including re-opening the microphone. One dropped
+  /// `onDone` used to mean the mic never came back for the rest of the
+  /// session, with nothing on screen to say why. Owning the engine (see
+  /// [TtsService]) removes the known cause; this makes the *symptom*
+  /// impossible whatever the cause.
+  Timer? _speakWatchdog;
+  static const _speakWatchdogAfter = Duration(seconds: 10);
+
   /// Starts a spoken response. [more] is true when sentences are still
   /// arriving, false for a one-shot line.
   Future<void> _beginSpeaking({
@@ -893,8 +909,9 @@ class _CompanionScreenState extends State<CompanionScreen>
     final clean = _cleanForSpeech(text);
     if (clean.isEmpty) return;
     _pending++;
+    _armSpeakWatchdog();
     try {
-      await _tts.speak(clean);
+      await _tts?.speak(clean);
     } catch (_) {
       // TTS unavailable: the text bubble is still there.
       _pending--;
@@ -910,21 +927,38 @@ class _CompanionScreenState extends State<CompanionScreen>
     // or with a name; now the app already knows.
     final lang = AppLanguageService.instance.current.value.localeId;
     try {
-      await _tts.setLanguage(lang);
+      await _tts?.setLanguage(lang);
       await _applyBestVoice(lang);
       // Just above natural: enough to read as friendly, not so high that the
       // synthesiser starts to sound like a chipmunk. Pushing pitch hard is
       // what made Pollie sound robotic, not the speed.
-      await _tts.setPitch(1.1);
-      await _tts.setSpeechRate(0.45);
+      await _tts?.setPitch(1.1);
+      await _tts?.setSpeechRate(0.45);
     } catch (e) {
       debugPrint('Pollie voice setup failed: $e');
     }
     return lang;
   }
 
+  void _armSpeakWatchdog() {
+    _speakWatchdog?.cancel();
+    _speakWatchdog = Timer(_speakWatchdogAfter, () {
+      if (!mounted || _pending == 0) return;
+      debugPrint('Pollie TTS never reported done; releasing the mic anyway');
+      _pending = 0;
+      _moreComing = false;
+      _finishSpeakingIfDone();
+    });
+  }
+
   void _onUtteranceComplete() {
     _pending = _pending > 0 ? _pending - 1 : 0;
+    if (_pending == 0) {
+      _speakWatchdog?.cancel();
+      _speakWatchdog = null;
+    } else {
+      _armSpeakWatchdog();
+    }
     _finishSpeakingIfDone();
   }
 
