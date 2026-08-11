@@ -5,6 +5,25 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.23.0] — 2026-08-11
+
+### Changed
+- **The animals in Count the Animals are no longer arranged the same way every
+  time.** A single wrapping row folds identically for a given number, so six
+  always came out as five and one — and a four-year-old learns that *shape*
+  instead of counting. Each number now has several arrangements, picked at
+  random: six can be 5+1, 4+2, 3+3, 3+2+1 or 2+2+2; ten can be 5+5, 5+4+1,
+  4+4+2, 5+3+2 or 4+3+3.
+
+### Notes
+- Rows are capped at five, never more than three, the top row always holds at
+  least two, and at most one row holds a single animal — 5+4+1 ends naturally,
+  4+1+1 reads as scattered. Those constraints are what keep it looking
+  arranged rather than random.
+- `flutter analyze`: 0 issues; 115/115 tests.
+
+---
+
 ## [1.22.0] — 2026-08-11
 
 ### Changed
