@@ -30,23 +30,25 @@ class PollieService {
     : _endpoint = endpoint ?? _defaultEndpoint,
       _client = client;
 
+  /// The proxy the app talks to.
+  ///
+  /// A `--dart-define` that is *present but empty* would otherwise win over
+  /// the fallback and silently disable Pollie — which is exactly what CI does
+  /// when the `POLLIE_ENDPOINT` repository variable is not set, because the
+  /// workflow always passes the flag. An empty value means "not configured",
+  /// not "no proxy".
+  static String get _defaultEndpoint =>
+      _fromEnvironment.isEmpty ? _deployedProxy : _fromEnvironment;
+
+  static const _fromEnvironment = String.fromEnvironment('POLLIE_ENDPOINT');
+  static const _deployedProxy = 'https://pollie.inkpebble.workers.dev';
+
   /// Closes the connection pool. Called when the companion screen is left.
   void dispose() {
     _disposed = true;
     _client?.close(force: true);
     _client = null;
   }
-
-  /// The deployed proxy. Override at build time with
-  ///   flutter build apk --release --dart-define=POLLIE_ENDPOINT=https://...
-  ///
-  /// A URL in an APK is not a secret; the key it stands in front of was. This
-  /// default is what makes Pollie work in a plain `flutter build` and in every
-  /// copy of the app someone installs, without anyone needing a key.
-  static const _defaultEndpoint = String.fromEnvironment(
-    'POLLIE_ENDPOINT',
-    defaultValue: 'https://pollie.inkpebble.workers.dev',
-  );
 
   /// Identifies this install to the proxy's rate limiter and nothing else.
   ///

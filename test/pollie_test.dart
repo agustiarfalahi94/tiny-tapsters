@@ -129,6 +129,13 @@ void main() {
   });
 
   group('PollieService', () {
+    test('a build with no endpoint set still reaches the proxy', () {
+      // CI always passes --dart-define=POLLIE_ENDPOINT=..., so an unset repo
+      // variable passes an *empty* one. Empty must mean "not configured", or
+      // every APK the workflow builds ships with Pollie silently switched off.
+      expect(PollieService().isConfigured, isTrue);
+    });
+
     test('an unconfigured endpoint is reported, not thrown', () async {
       final pollie = PollieService(endpoint: '');
       expect(pollie.isConfigured, isFalse);

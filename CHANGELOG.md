@@ -29,6 +29,14 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
   itself when the app is backgrounded — no wake lock to leak, no permission, no
   package.
 
+### Fixed (build)
+- **A release built by CI would have shipped with Pollie switched off.** The
+  workflow always passes `--dart-define=POLLIE_ENDPOINT=...`, so an unset
+  repository variable passes an *empty* one — which overrode the built-in
+  default rather than falling back to it. An empty value now means "not
+  configured". Found while preparing to push; no released APK was affected,
+  because none has been built by CI yet.
+
 ### Notes
 - The silence-timer patch from 1.19.0 is confirmed working on the device:
   recogniser restarts fell from roughly one every 1–2 seconds to **two in
