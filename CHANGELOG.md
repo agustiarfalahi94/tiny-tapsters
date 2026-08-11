@@ -5,6 +5,28 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.24.2] — 2026-08-11
+
+### Fixed
+- **Documentation caught up with the code.** A pass over every doc against
+  what actually ships found: the README never listed **Which Animal?** at all
+  and still described Count the Animals' dot patterns, removed in 1.22.0; it
+  said Pollie "needs an API key", which stopped being true when the key moved
+  to the Worker; `AGENTS.md` still listed the `google_generative_ai`
+  dependency, dropped in 1.10.0, and claimed Android's endpointing timer is
+  not configurable, which the vendored patch in `packages/` disproves; both
+  agent files said every game uses the `TimedGame` mixin, now six of seven;
+  and `CLAUDE.md` still read v1.23.0.
+- The timers and audio design specs now carry superseded notes where Bubble
+  Pop's clock and the "these games pass no star rating" list no longer match
+  the code — agents are told to read those specs before touching a feature.
+
+### Added
+- The README now states the countdown rule (30 s / 1 min / 2 min, Bubble Pop
+  excepted) and the language switch, neither of which it mentioned.
+
+---
+
 ## [1.24.1] — 2026-08-11
 
 ### Fixed
