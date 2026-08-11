@@ -5,6 +5,26 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.24.0] — 2026-08-11
+
+### Changed
+- **Bubble Pop is now a game of choosing, not just tapping.** The header shows
+  one animal — say 🐢 — and only that animal counts. Everything else stays on
+  screen when tapped, because making the mistake disappear hides it. Easy asks
+  for 3 catches among 5 floating bubbles, Medium 6 among 10, Big 10 among 15.
+- **The clock is gone from Bubble Pop.** Rushing a child into grabbing the
+  wrong bubble punishes exactly the care the game is now asking for.
+- Stars come from mistakes, the way the other games do: three for catching
+  only the right animal, two for up to two wrong, otherwise one.
+
+### Notes
+- Roughly a third of the bubbles carry the wanted animal at any moment, so it
+  is always findable without being the only thing on screen.
+- The "Pop N more!" phrase is gone from both languages; the header shows the
+  animal and the count instead, which a non-reader can act on.
+
+---
+
 ## [1.23.0] — 2026-08-11
 
 ### Changed

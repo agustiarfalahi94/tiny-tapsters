@@ -9,36 +9,44 @@ import '../services/app_language.dart';
 import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
-import '../widgets/game_over_overlay.dart';
-import '../widgets/game_timer.dart';
+import '../widgets/game_timer.dart' show GameLevel;
 import '../widgets/round_button.dart';
 
-/// Bubble Pop: friendly bubbles drift around the screen; tap one to pop it
-/// into a sparkle. Pop them all before the clock runs out — and the closer to
-/// done, the faster they drift.
+/// Bubble Pop: bubbles drift around the screen, and one animal is the one to
+/// catch. Pop that animal the required number of times; popping anything else
+/// costs a star.
 ///
-/// This used to be endless escalating rounds. A game with no finish line has
-/// nothing for a countdown to run out against, so it is now one timed round
-/// and the escalation happens inside it instead of between rounds.
+/// It has been three games. It was endless escalating rounds, then one timed
+/// round of popping anything. Both were just tapping — nothing was being
+/// *decided*. Now there is a right answer on screen, which is what makes it a
+/// game rather than an activity, and the clock is gone: rushing a child into
+/// grabbing the wrong bubble punishes exactly the care the game is asking for.
 class BubblePopScreen extends StatefulWidget {
   const BubblePopScreen({
     super.key,
     required this.level,
     required this.popsToWin,
+    required this.bubbleCount,
+    this.random,
   });
 
-  /// How many bubbles this level asks for (6 / 8 / 12).
+  /// How many times the target animal must be caught (3 / 6 / 10).
   final int popsToWin;
 
-  /// Sets the clock: 30s / 1m / 2m.
+  /// How many bubbles drift at once (5 / 10 / 15).
+  final int bubbleCount;
+
+  /// Chooses the numbers only — this screen has no clock.
   final GameLevel level;
+
+  final math.Random? random;
 
   @override
   State<BubblePopScreen> createState() => _BubblePopScreenState();
 }
 
 class _BubblePopScreenState extends State<BubblePopScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver, TimedGame {
+    with SingleTickerProviderStateMixin {
   static const _bubbleEmojis = [
     '🐶',
     '🐱',
@@ -51,23 +59,26 @@ class _BubblePopScreenState extends State<BubblePopScreen>
     '🍓',
     '🐙',
   ];
-  static const _bubbleCount = 4;
   static const _bubbleSize = 90.0;
+
+  /// Roughly how many of the drifting bubbles should be the wanted animal.
+  /// Too few and the child hunts; too many and there is nothing to decide.
+  static const _targetShare = 0.35;
 
   int get _popsPerRound => widget.popsToWin;
 
+  /// The animal to catch this game.
+  late String _target;
+
+  /// Bubbles popped that were not the target.
+  int _wrong = 0;
+
   late final AnimationController _float;
   late List<_BubbleData> _bubbles;
-  final math.Random _rnd = math.Random();
+  late final math.Random _rnd = widget.random ?? math.Random();
 
   int _popped = 0;
   bool _won = false;
-
-  @override
-  GameLevel get gameLevel => widget.level;
-
-  @override
-  bool get hasWon => _won;
 
   /// True once the round's pop target is reached. Guards input during the
   /// short beat before `_won` flips and the celebration overlay appears —
@@ -95,8 +106,9 @@ class _BubblePopScreenState extends State<BubblePopScreen>
         AnimationController(vsync: this, duration: const Duration(seconds: 60))
           ..addStatusListener(_onFloatStatus)
           ..forward();
+    _target = _bubbleEmojis[_rnd.nextInt(_bubbleEmojis.length)];
     _bubbles = [];
-    for (var i = 0; i < _bubbleCount; i++) {
+    for (var i = 0; i < widget.bubbleCount; i++) {
       _bubbles.add(_spawn());
     }
   }
@@ -121,16 +133,23 @@ class _BubblePopScreenState extends State<BubblePopScreen>
     }
   }
 
-  /// A fresh bubble, wearing a face none of the others is currently wearing.
+  /// A fresh bubble.
+  ///
+  /// Enough of them carry the wanted animal that it is always findable, and
+  /// the rest are anything else. Duplicates among the *others* are fine — with
+  /// fifteen bubbles and ten faces they are unavoidable, and only the target
+  /// needs to be unmistakable.
   _BubbleData _spawn({_BubbleData? replacing}) {
-    final taken = {
+    final others = [
       for (final b in _bubbles)
-        if (!identical(b, replacing)) b.emoji,
-    };
-    final free = _bubbleEmojis.where((e) => !taken.contains(e)).toList();
-    final choices = free.isEmpty ? _bubbleEmojis : free;
+        if (!identical(b, replacing)) b,
+    ];
+    final targetsOut = others.where((b) => b.emoji == _target).length;
+    final wanted = math.max(1, (widget.bubbleCount * _targetShare).round());
+    final needsTarget = targetsOut < wanted;
+    final pool = _bubbleEmojis.where((e) => e != _target).toList();
     return _BubbleData(
-      emoji: choices[_rnd.nextInt(choices.length)],
+      emoji: needsTarget ? _target : pool[_rnd.nextInt(pool.length)],
       x: _rnd.nextDouble(),
       y: _rnd.nextDouble(),
       vx: (0.10 + _rnd.nextDouble() * 0.12) * (_rnd.nextBool() ? 1 : -1),
@@ -140,8 +159,15 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   }
 
   void _pop(_BubbleData bubble) {
-    if (bubble.popping || _won || _roundComplete || outOfTime) return;
-    startClock();
+    if (bubble.popping || _won || _roundComplete) return;
+    if (bubble.emoji != _target) {
+      // Wrong animal: it stays on screen. Popping it would hide the mistake,
+      // and the child needs to see that this one is still there to be avoided.
+      _wrong++;
+      HapticFeedback.lightImpact();
+      SoundEffects.instance.wrong();
+      return;
+    }
     setState(() {
       bubble.popTick++;
       bubble.popping = true;
@@ -154,30 +180,27 @@ class _BubblePopScreenState extends State<BubblePopScreen>
     HapticFeedback.lightImpact();
     SoundEffects.instance.pop();
     if (_popped >= _popsPerRound) {
-      // Stop the clock the moment the round is won, not when the celebration
-      // appears: a timeout must not land during the 400ms pop animation.
-      winClock();
       _winTimer = Timer(const Duration(milliseconds: 400), () {
-        if (!mounted || outOfTime) return;
+        if (!mounted) return;
         setState(() => _won = true);
       });
     }
   }
 
-  /// Bubble Pop has no wrong move to count, so the clock is the skill: finish
-  /// with most of it left for three stars.
+  /// Three stars for catching only the right animal — the same scale the
+  /// other games use.
   int get _stars {
-    final left = clock.fraction;
-    if (left > 0.5) return 3;
-    if (left > 0.2) return 2;
+    if (_wrong == 0) return 3;
+    if (_wrong <= 2) return 2;
     return 1;
   }
 
   void _reset() {
     _winTimer?.cancel();
-    resetClock();
     setState(() {
+      _target = _bubbleEmojis[_rnd.nextInt(_bubbleEmojis.length)];
       _popped = 0;
+      _wrong = 0;
       _won = false;
       _roundComplete = false;
       for (var i = 0; i < _bubbles.length; i++) {
@@ -208,36 +231,33 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                         emoji: '🏠',
                         onTap: () => Navigator.of(context).pop(),
                       ),
-                      // Expanded rather than Spacer-Text-Spacer: on a 360dp
-                      // phone the title plus two buttons can be wider than the
-                      // row, and Spacers cannot give back space they do not
-                      // have.
+                      // Which animal to catch, and how many are still
+                      // wanted. The emoji does the work; the number beside it
+                      // is for the grown-up.
                       Expanded(
-                        child: Text(
-                          // Clamped defensively: _roundComplete already stops
-                          // _popped from overshooting, but this keeps the
-                          // label honest even if that guard ever regresses.
-                          strings.popMore(math.max(0, _popsPerRound - _popped)),
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(color: Colors.black26, blurRadius: 6),
-                            ],
-                          ),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(_target, style: const TextStyle(fontSize: 34)),
+                            const SizedBox(width: 8),
+                            Text(
+                              '×${math.max(0, _popsPerRound - _popped)}',
+                              maxLines: 1,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                shadows: [
+                                  Shadow(color: Colors.black26, blurRadius: 6),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: GameTimerBar(controller: clock),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -328,11 +348,6 @@ class _BubblePopScreenState extends State<BubblePopScreen>
               onPrimary: _reset,
               secondaryLabel: strings.home,
               onSecondary: () => Navigator.of(context).pop(),
-            ),
-          if (outOfTime)
-            GameOverOverlay(
-              onRetry: _reset,
-              onHome: () => Navigator.of(context).pop(),
             ),
         ],
       ),

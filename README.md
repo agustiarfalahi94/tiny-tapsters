@@ -15,8 +15,9 @@ only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
 - **Memory Match** — flip cards to find matching animal pairs. Easy (2 pairs),
   Medium (3 pairs), Big (6 pairs). Stars are awarded based on how few moves it
   takes.
-- **Bubble Pop** — tap floating bubbles to pop them. Pop 8 per round; bubbles
-  get faster each round.
+- **Bubble Pop** — one animal is wanted; catch only that one and leave the
+  rest floating. Easy (catch 3 of 5 bubbles), Medium (6 of 10), Big (10 of 15).
+  Bubbles speed up as the game fills, and popping a wrong one costs a star.
 - **Find It!** — "Find the 🐶!": tap the matching animal in the grid. Find 5 to
   win; fewer wrong taps means more stars. Easy (6), Medium (9), Big (12).
 - **Count the Animals!** — count the big animal emojis and tap the number card

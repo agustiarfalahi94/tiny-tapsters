@@ -307,12 +307,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       LevelOption(
                         emoji: '🐣',
                         name: strings.easy,
-                        detail: strings.bubbles(6),
+                        detail: strings.catchTimes(3),
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
                           const BubblePopScreen(
-                            popsToWin: 6,
+                            popsToWin: 3,
+                            bubbleCount: 5,
                             level: GameLevel.easy,
                           ),
                         ),
@@ -320,12 +321,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       LevelOption(
                         emoji: '🐥',
                         name: strings.medium,
-                        detail: strings.bubbles(8),
+                        detail: strings.catchTimes(6),
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
                           const BubblePopScreen(
-                            popsToWin: 8,
+                            popsToWin: 6,
+                            bubbleCount: 10,
                             level: GameLevel.medium,
                           ),
                         ),
@@ -333,12 +335,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       LevelOption(
                         emoji: '🐤',
                         name: strings.big,
-                        detail: strings.bubbles(12),
+                        detail: strings.catchTimes(10),
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
                           const BubblePopScreen(
-                            popsToWin: 12,
+                            popsToWin: 10,
+                            bubbleCount: 15,
                             level: GameLevel.big,
                           ),
                         ),
