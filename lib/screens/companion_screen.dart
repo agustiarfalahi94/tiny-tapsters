@@ -1,16 +1,31 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
-import 'package:speech_to_text/speech_recognition_error.dart';
-import 'package:speech_to_text/speech_to_text.dart';
+import 'package:flutter/services.dart';
 
 import '../services/app_language.dart';
 import '../services/kid_safety.dart';
+import '../services/narrator.dart';
 import '../services/pollie_service.dart';
+import '../services/speech_sink.dart';
+import '../services/vad_gate.dart';
+import '../services/tts_service.dart';
 import '../widgets/game_background.dart';
 import '../widgets/pollie_bird.dart';
 import '../widgets/round_button.dart';
+
+/// Where a listening turn is.
+///
+/// `arming` and `warming` used to be invisible: the app said "listening" from
+/// the moment it asked, which is up to half a second before the microphone is
+/// actually recording. Naming them is what lets the child be told the truth.
+enum TurnState { idle, arming, warming, open, closing }
+
+/// Who decides when the child has finished.
+///
+/// `tap` leaves it to silence detection; `hold` leaves it to the finger, which
+/// is the one path that cannot misjudge.
+enum TurnMode { tap, hold }
 
 enum _PollieStatus { sleeping, awake, listening, thinking, speaking }
 
@@ -51,22 +66,83 @@ String? matchLocale(String wanted, List<String> available) {
 ///
 /// Skips a restatement, because some recognisers repeat the whole utterance in
 /// the following session and appending both would stutter.
+/// The words a child repeats when a short answer does not seem to land.
+///
+/// Both languages, because the recogniser runs in whichever one is chosen.
+const _answerWords = {
+  'yes',
+  'yeah',
+  'yep',
+  'yup',
+  'no',
+  'nope',
+  'ok',
+  'okay',
+  'ya',
+  'iya',
+  'tidak',
+  'nggak',
+  'enggak',
+  'oke',
+};
+
+/// Collapses "no no" back to "no".
+///
+/// A very short answer is often below what the recogniser will commit to, so
+/// the child says it again — and Google, once it has heard the second one,
+/// re-scores the first and returns **both** as a single guess. The transcript
+/// is not wrong (they did say it twice) but it is not what they meant.
+///
+/// Deliberately narrow: only when the *whole* utterance is one answer word
+/// repeated. Reduplication is meaningful elsewhere — "bye bye", "night night",
+/// "knock knock" — and collapsing those would be worse than the problem.
+String collapseRepeatedAnswer(String text) {
+  final raw = text.trim().split(RegExp(r'\s+'));
+  if (raw.length < 2) return text;
+  final words = _spokenWords(text);
+  if (!_answerWords.contains(words.first)) return text;
+  if (words.any((w) => w != words.first)) return text;
+  return raw.first;
+}
+
 String appendHeard(String banked, String pending) {
   final tail = pending.trim();
   if (tail.isEmpty) return banked;
   if (banked.isEmpty) return tail;
-  if (banked.endsWith(tail)) return banked;
-  // The next session often restarts from a word or two back; drop the overlap
-  // rather than repeat it.
-  final words = tail.split(RegExp(r'\s+'));
-  for (var take = words.length; take > 0; take--) {
-    final overlap = words.take(take).join(' ');
-    if (banked.endsWith(overlap)) {
-      final rest = words.skip(take).join(' ');
+
+  final bankedWords = _spokenWords(banked);
+  final tailWords = _spokenWords(tail);
+  final rawTail = tail.split(RegExp(r'\s+'));
+
+  // The longest run of leading `pending` words that `banked` already ends
+  // with, compared **lowercased and without punctuation**. The recogniser
+  // capitalises the first word of every fresh guess, so a child who repeats
+  // themselves produces "No" then "no" — the same word said once, which a
+  // literal comparison turned into "No no".
+  for (var take = tailWords.length; take > 0; take--) {
+    if (_endsWithRun(bankedWords, tailWords.take(take).toList())) {
+      final rest = rawTail.skip(take).join(' ');
       return rest.isEmpty ? banked : '$banked $rest';
     }
   }
   return '$banked $tail';
+}
+
+/// One entry per whitespace-separated token, lowercased and stripped of
+/// punctuation, so positions still line up with the original text.
+List<String> _spokenWords(String text) => text
+    .trim()
+    .split(RegExp(r'\s+'))
+    .map((w) => w.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''))
+    .toList();
+
+bool _endsWithRun(List<String> whole, List<String> run) {
+  if (run.isEmpty || run.length > whole.length) return false;
+  final offset = whole.length - run.length;
+  for (var i = 0; i < run.length; i++) {
+    if (whole[offset + i] != run[i]) return false;
+  }
+  return true;
 }
 
 /// End of a sentence: terminal punctuation, any closing quote or bracket,
@@ -80,6 +156,67 @@ final _sentenceEnd = RegExp(r'[.!?…]+["\u2019\u201d)\]]*(\s|$)');
 /// This is what lets Pollie start talking while the rest of her reply is still
 /// being generated, instead of the child waiting for generation and synthesis
 /// one after the other.
+/// Removes Pollie's own voice from the front of what the microphone heard.
+///
+/// The mic only opens after she has finished, but Android reports an utterance
+/// complete a little before the audio has actually drained, and a room with any
+/// reverb hands the tail back. Without this, Pollie occasionally transcribes
+/// herself and then answers it.
+///
+/// Deliberately timid. It only strips a run of at least [minEchoWords] words
+/// that Pollie really did just say, from the very start of what was heard — so
+/// a child answering "yes" to "…do you want a story, yes or no?" is never
+/// mistaken for an echo.
+const minEchoWords = 3;
+
+/// Whether [next] is the same hypothesis as [previous], still growing.
+///
+/// Android's recogniser does not only *extend* its guess. At a pause it wipes
+/// it and starts a new one **inside the same session** — measured on a Xiaomi
+/// 15, "tell me a story" was followed by an empty partial and then
+/// " about a big dinosaur". Nothing marks that moment: no final result, no
+/// session end, no error. Assigning the new text over the old one therefore
+/// loses everything said before the pause, which is exactly what turned
+/// "in minecraft how do you create a tnt" into half a question.
+///
+/// A shrinking guess is normal backtracking and is *not* a reset.
+bool continuesHypothesis(String previous, String next) {
+  final before = previous.trim().toLowerCase();
+  final after = next.trim().toLowerCase();
+  if (before.isEmpty) return true;
+  // The empty partial is the recogniser announcing it has started over.
+  if (after.isEmpty) return false;
+  return after.startsWith(before) || before.startsWith(after);
+}
+
+String stripEcho(String spoken, String heard) {
+  final said = _echoWords(spoken);
+  final got = _echoWords(heard);
+  if (said.isEmpty || got.length < minEchoWords) return heard;
+
+  // Longest prefix of `heard` that Pollie's last line contains as a run.
+  var strip = 0;
+  for (var take = got.length; take >= minEchoWords; take--) {
+    final run = got.take(take).join(' ');
+    if (said.join(' ').contains(run)) {
+      strip = take;
+      break;
+    }
+  }
+  if (strip == 0) return heard;
+  final rest = heard.trim().split(RegExp(r'\s+')).skip(strip).join(' ');
+  return rest;
+}
+
+List<String> _echoWords(String text) {
+  final clean = text
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+      .trim();
+  if (clean.isEmpty) return const [];
+  return clean.split(RegExp(r'\s+'));
+}
+
 int lastSentenceEnd(String text, int from) {
   var cut = from;
   for (final match in _sentenceEnd.allMatches(text, from)) {
@@ -89,10 +226,16 @@ int lastSentenceEnd(String text, int from) {
 }
 
 class CompanionScreen extends StatefulWidget {
-  const CompanionScreen({super.key, this.pollie});
+  const CompanionScreen({super.key, this.pollie, this.ttsService, this.speech});
 
   /// Injectable for tests; production builds its own, pointed at the proxy.
   final PollieService? pollie;
+
+  /// Injectable for tests; production shares the app's one TTS engine.
+  final TtsService? ttsService;
+
+  /// Injectable for tests; production drives the patched recogniser.
+  final SpeechSink? speech;
 
   @override
   State<CompanionScreen> createState() => _CompanionScreenState();
@@ -125,8 +268,9 @@ class _CompanionScreenState extends State<CompanionScreen>
   final _bubbles = <_Bubble>[];
   final _input = TextEditingController();
   final _scroll = ScrollController();
-  final _tts = FlutterTts();
-  final _speech = SpeechToText();
+  late final TtsService _ttsService = widget.ttsService ?? TtsService.instance;
+  TtsSession? _tts;
+  late final SpeechSink _speech = widget.speech ?? PluginSpeechSink();
   _PollieStatus _status = _PollieStatus.sleeping;
   bool _waking = false;
   bool _busy = false;
@@ -138,75 +282,169 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   // --- one listening "turn" -------------------------------------------------
   //
-  // Android's recogniser has two silence timers. `pauseFor` sets the long
-  // "definitely finished" one; the short "possibly finished" one — around
-  // 500ms on most devices — is set by an intent extra
-  // (EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS) that
-  // speech_to_text never sets and does not expose. That short timer is what
-  // ends a session while a child is still thinking mid-sentence.
+  // A turn is the child's, not the recogniser's. The recogniser ends sessions
+  // whenever it likes; a session ending banks its words and re-arms the mic.
+  // The turn ends only when the child stops speaking, releases a held mic,
+  // taps the mic, hits the 45s cap, or hits a real error.
   //
-  // So a turn is no longer one recogniser session. A session ending banks its
-  // words and re-arms the mic; the turn itself ends only when the child taps
-  // the mic, the 45s cap fires, a real error arrives, or the app goes to the
-  // background.
+  // **The app decides when the child stopped, from the sound level.** Every
+  // other clock in this stack measures the wrong thing:
   //
-  // An earlier version of this tried the same thing and was reverted, because
-  // `onResult(finalResult: true)` and `onStatus('done')` both fire for one
-  // session ending and both called restart — racing each other into
-  // "recognizer busy" and leaving the mic dead. `_restarting` is the missing
-  // piece: only the first of the two callers gets to restart, and it clears
-  // the flag once `listen()` has resolved. Do not remove that guard.
+  //   - the package's `pauseFor` stops the session N ms after the transcribed
+  //     *text last changed*, which is not silence at all — a child still
+  //     talking while the guess is stable gets cut off, and the words spoken
+  //     during the restart are gone. That is what turned "in minecraft how do
+  //     you create a tnt?" into "in minecraft how do you". It is now null.
+  //   - Android's own two silence timers are set past ours, so they are a
+  //     safety net rather than a competitor.
+  //   - the old `_armQuietTimer` re-armed on any recogniser activity, which in
+  //     a noisy room meant never.
   //
-  // The restart costs a few hundred milliseconds of dead air. That is a real
-  // cost, but it is only paid where the recogniser decided the child had
-  // stopped talking — which is exactly where there is least speech to lose.
-
-  static const _quietWindow = Duration(seconds: 3);
+  // The other half is knowing when the mic is actually recording. The plugin
+  // reports `listening` before it has even asked the recogniser to start, so
+  // the child was being invited to speak into a dead mic — which is why the
+  // first words went missing from the second turn on, and why a word as short
+  // as "yes" could vanish entirely. The patched plugin now forwards Android's
+  // `onReadyForSpeech`, and nothing tells the child to speak until it arrives.
+  //
+  // `_restarting` stays: `onResult(finalResult: true)` and `onStatus('done')`
+  // both fire for one session ending, and without the guard they race into
+  // "recognizer busy" and the turn goes deaf. That bug has been fixed once
+  // already. Do not remove it.
 
   /// Hard stop, so a turn can never leave the mic live forever.
   static const _maxTurn = Duration(seconds: 45);
 
-  /// How long the child has to be quiet, *after saying something*, before the
-  /// turn ends by itself and gets an answer.
+  /// Real silence, measured by us, that ends a turn once there is something to
+  /// answer.
   ///
-  /// Long enough to think mid-sentence — the recogniser's own half-second
-  /// guess is what caused the cutting-off — and short enough that the
-  /// conversation still feels hands-free.
-  static const _quietEndsTurn = Duration(seconds: 4);
+  /// This is the single most important number in the feature. It is now
+  /// *acoustic* silence rather than "the transcript stopped moving", so it can
+  /// be far shorter than the four seconds it replaces — but it still has to
+  /// survive a four-year-old thinking mid-sentence, which reaches about two
+  /// seconds ("in minecraft how do you … create a tnt"). Two seconds of
+  /// tolerance plus a tick plus jitter.
+  static const _endTurnOnSilence = Duration(milliseconds: 2200);
 
-  /// How long the mic waits when it has understood *nothing at all* before
-  /// giving up and closing.
+  /// The same, once the recogniser has also declared the utterance finished.
   ///
-  /// The recogniser reports plenty of activity while transcribing nothing —
-  /// on the test device it restarted every second or two with empty results.
-  /// Arming the timer only on recognised words meant that in a noisy room, or
-  /// with a child who mumbles, the timer never started and the mic sat open
-  /// until the 45-second cap. This closes it quietly instead, with nothing
-  /// sent, so the child can simply tap and try again.
-  static const _silenceGivesUp = Duration(seconds: 12);
+  /// Two independent endpointers agreeing is worth 1.3 seconds: it is what
+  /// makes a one-word answer feel like an answer instead of a wait.
+  static const _endTurnAfterFinal = Duration(milliseconds: 900);
 
-  /// Everything the turn's finished sessions have produced so far. A turn now
+  /// How long an open mic waits when it has heard no *voice* at all.
+  ///
+  /// Shorter than the twelve seconds it replaces because the signal is now
+  /// trustworthy: this is silence, not "the recogniser said nothing useful".
+  static const _noVoiceGivesUp = Duration(seconds: 8);
+
+  /// How long it waits when it *has* heard a voice but transcribed nothing.
+  ///
+  /// A different failure from silence and it gets a different answer: the
+  /// child is told to say it again rather than left wondering.
+  static const _noWordsGivesUp = Duration(seconds: 12);
+
+  /// How long to wait for the "microphone is recording" signal before assuming
+  /// it arrived.
+  ///
+  /// Nothing may *depend* on that signal: iOS, macOS and web have no
+  /// equivalent, and an OEM Android may not send it. It is an improvement when
+  /// present and invisible when absent.
+  static const _readyTimeout = Duration(milliseconds: 1200);
+
+  /// Below this, a press was a tap; above it, a deliberate hold.
+  ///
+  /// Under Flutter's 500ms long-press threshold, because a four-year-old's
+  /// "tap" is slow and a long-press gesture would lose the first half second
+  /// of a held turn.
+  static const _holdIsDeliberate = Duration(milliseconds: 250);
+
+  /// How long the mic stays open after a held button is released.
+  ///
+  /// Android's audio pipeline lags the finger by a couple of hundred
+  /// milliseconds; closing on the release itself clips the last syllable.
+  static const _holdReleaseTail = Duration(milliseconds: 350);
+
+  /// Gap between stopping one session and starting the next.
+  static const _restartGap = Duration(milliseconds: 60);
+
+  /// Consecutive turns that hear nothing before the mic stops re-opening
+  /// itself, so a noisy room cannot leave it hot forever.
+  static const _emptyTurnsBeforeStop = 2;
+
+  /// Everything the turn's finished sessions have produced so far. A turn
   /// spans however many sessions the recogniser decides to end, so this
   /// accumulates across all of them; `_partial` holds whatever the live
   /// session is still guessing.
   String _heard = '';
   Timer? _turnTimer;
-  Timer? _quietTimer;
+  Timer? _readyTimer;
+  Timer? _holdReleaseTimer;
 
-  /// One-shot: fires if the whole turn goes by without a single recognised
-  /// word. Deliberately *not* re-armed — the recogniser reports activity
-  /// constantly while transcribing nothing, so anything re-armed by activity
-  /// is postponed forever and the mic never closes.
-  Timer? _nothingHeardTimer;
-  bool _turnActive = false;
+  /// Ticks while the microphone is genuinely recording, accumulating silence.
+  ///
+  /// Deliberately an accumulator rather than `now - lastVoiceAt`. A restart
+  /// produces no sound-level events, so a wall-clock measure would count our
+  /// own plumbing as the child being quiet and could end the turn on it. Some
+  /// recognisers also stop reporting levels in true silence, which would stall
+  /// a reset-on-event scheme. And `Timer` is controllable inside a widget test
+  /// while `DateTime.now()` is not — without this choice none of the turn
+  /// machine could be tested at all.
+  Timer? _vadTicker;
+  int _silenceMs = 0;
+  int _openMs = 0;
+  final VadGate _vad = VadGate();
+
+  /// True between the mic actually recording and the session ending. Gates the
+  /// ticker, so restart gaps contribute no silence.
+  bool _micLive = false;
+
+  /// Runs when the recogniser has declared the utterance finished *and* the
+  /// room is quiet — the fast path that makes a one-word answer feel like an
+  /// answer.
+  ///
+  /// It has to be its own timer rather than a branch in the tick, because a
+  /// final result restarts the session and the microphone goes cold for a few
+  /// hundred milliseconds; the silence accumulator is deliberately paused for
+  /// exactly that window, so it cannot be the thing that notices.
+  ///
+  /// Cancelled the moment anything is heard again, so a child who was only
+  /// drawing breath is never cut off.
+  Timer? _finalQuietTimer;
+
+  /// Whether a voice has been heard at any point in *this turn*.
+  ///
+  /// Tracked here rather than read from [VadGate], because the gate is reset
+  /// on every session restart to re-measure the room — which also wiped this,
+  /// so "they spoke but I could not make it out" almost never fired and a
+  /// child whose short answer failed got no feedback at all.
+  bool _turnHeardVoice = false;
+
+  /// Set when the device reports no sound levels at all, so the whole VAD is
+  /// unavailable and endpointing falls back to transcript stability.
+  bool _vadUnavailable = false;
+  int _levelEvents = 0;
+
+  TurnState _turn = TurnState.idle;
+  TurnMode _mode = TurnMode.tap;
+  int _emptyTurns = 0;
+
+  /// Set once the press has lasted long enough to count as a deliberate hold.
+  ///
+  /// A [Timer] rather than comparing `DateTime.now()` at press and release:
+  /// wall-clock time does not advance inside a widget test, so a held button
+  /// would always look like an instant tap and none of the hold behaviour
+  /// could be tested.
+  Timer? _holdTimer;
+  bool _heldLongEnough = false;
+
+  bool get _turnActive => _turn != TurnState.idle && _turn != TurnState.closing;
 
   /// Single-flight guard around re-arming the mic. Both `onResult`'s final
   /// branch and `onStatus('done')` fire for one session ending; without this
   /// they race into "recognizer busy" and the turn goes deaf.
   bool _restarting = false;
 
-  /// What the child has said so far this turn: banked words plus whatever the
-  /// recogniser is currently guessing.
   String get _transcript =>
       [_heard, _partial].where((s) => s.isNotEmpty).join(' ');
 
@@ -236,14 +474,19 @@ class _CompanionScreenState extends State<CompanionScreen>
     WidgetsBinding.instance.removeObserver(this);
     // Never leave the mic, a pending turn, or the TTS engine running after
     // leaving Pollie.
-    _turnActive = false;
+    _turn = TurnState.idle;
+    _micLive = false;
     _turnTimer?.cancel();
-    _quietTimer?.cancel();
-    _nothingHeardTimer?.cancel();
+    _readyTimer?.cancel();
+    _holdReleaseTimer?.cancel();
+    _finalQuietTimer?.cancel();
+    _vadTicker?.cancel();
+    _speakWatchdog?.cancel();
     try {
       _speech.stop();
-      _tts.stop();
+      _tts?.stop();
     } catch (_) {}
+    _tts?.release();
     _pollie.dispose();
     _input.dispose();
     _scroll.dispose();
@@ -256,14 +499,17 @@ class _CompanionScreenState extends State<CompanionScreen>
         state == AppLifecycleState.hidden) {
       // No mic/TTS while the app is in the background. Drop the turn rather
       // than sending half a sentence the child never finished.
-      _turnActive = false;
+      _turn = TurnState.idle;
+      _micLive = false;
       _turnTimer?.cancel();
-      _quietTimer?.cancel();
-      _nothingHeardTimer?.cancel();
+      _readyTimer?.cancel();
+      _holdReleaseTimer?.cancel();
+      _finalQuietTimer?.cancel();
+      _vadTicker?.cancel();
       _heard = '';
       try {
         _speech.stop();
-        _tts.stop();
+        _tts?.stop();
       } catch (_) {}
       if (mounted && _status == _PollieStatus.listening) {
         setState(() {
@@ -280,13 +526,11 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// sentence by sentence must not do.
   Future<void> _initTts() async {
     try {
-      await _tts.setQueueMode(1);
-      _tts.setCompletionHandler(_onUtteranceComplete);
-      _tts.setCancelHandler(_onUtteranceComplete);
-      _tts.setErrorHandler((message) {
-        debugPrint('Pollie TTS error: $message');
-        _onUtteranceComplete();
-      });
+      // A game-name announcement still in flight would talk over the greeting,
+      // and its completion would land on the wrong owner.
+      await Narrator.instance.stop();
+      _tts = await _ttsService.acquire(this, queueMode: 1);
+      _tts!.onComplete = _onUtteranceComplete;
     } catch (e) {
       debugPrint('Pollie TTS setup failed: $e');
     }
@@ -300,7 +544,14 @@ class _CompanionScreenState extends State<CompanionScreen>
       final available = await _speech.initialize(
         onError: _onSpeechError,
         onStatus: (status) {
-          if (status != 'done' || !mounted) return;
+          if (!mounted) return;
+          // The patched plugin's "the microphone is really recording now".
+          // Everything that invites the child to speak hangs off this.
+          if (status == PluginSpeechSink.readyStatus) {
+            _onMicReady();
+            return;
+          }
+          if (status != PluginSpeechSink.doneStatus) return;
           // A session ended, not the turn. Re-arm and keep listening; the
           // child decides when they are finished, not the recogniser.
           if (_turnActive) {
@@ -340,8 +591,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   Future<void> _useAppLocale() async {
     final wanted = AppLanguageService.instance.current.value.localeId;
     try {
-      final available = await _speech.locales();
-      final ids = available.map((l) => l.localeId).toList();
+      final ids = await _speech.localeIds();
       final match = matchLocale(wanted, ids) ?? '';
       if (match.isEmpty) {
         // Not listed is not the same as not supported: this list often covers
@@ -426,8 +676,12 @@ class _CompanionScreenState extends State<CompanionScreen>
     });
   }
 
-  /// Starts a listening turn; the mic button toggles it off.
-  Future<void> _startListening() async {
+  /// Opens the mic for a new turn.
+  ///
+  /// [hold] means the finger is still down: the child owns the endpoint, so
+  /// silence detection is not allowed to end this turn.
+  Future<void> _startListening({bool hold = false}) async {
+    if (_turn != TurnState.idle) return;
     if (_status != _PollieStatus.awake || _busy) return;
     if (!_speechAvailable) {
       _bubbles.add(_Bubble(role: 'model', text: strings.pollieNoMic));
@@ -437,7 +691,17 @@ class _CompanionScreenState extends State<CompanionScreen>
     _heard = '';
     _listenRetries = 0;
     _restarting = false;
-    _turnActive = true;
+    _micLive = false;
+    _finalQuietTimer?.cancel();
+    _silenceMs = 0;
+    _openMs = 0;
+    _levelEvents = 0;
+    _vadUnavailable = false;
+    _turnHeardVoice = false;
+    _vad.reset();
+    trace('turn_start', hold ? 'hold' : 'tap');
+    _mode = hold ? TurnMode.hold : TurnMode.tap;
+    _turn = TurnState.arming;
     _turnTimer?.cancel();
     _turnTimer = Timer(_maxTurn, () => _endTurn(send: true));
     setState(() {
@@ -446,67 +710,26 @@ class _CompanionScreenState extends State<CompanionScreen>
       _partial = '';
       _soundLevel = 0;
     });
-    // Absolute, from the moment the mic opened. If nothing is ever
-    // understood, close it rather than sit open for the full 45s cap.
-    _nothingHeardTimer?.cancel();
-    _nothingHeardTimer = Timer(_silenceGivesUp, () {
-      if (_turnActive && _transcript.trim().isEmpty) _endTurn(send: false);
-    });
     await _listenOnce();
   }
 
-  /// The turn's one and only recogniser session — see the comment above
-  /// [_quietWindow] for why there is no restart loop here.
+  /// Opens one recogniser session. The turn spans as many as it takes.
   Future<void> _listenOnce() async {
     if (!_turnActive || !mounted) return;
     try {
       await _speech.listen(
-        onResult: (result) {
-          if (!_turnActive) return;
-          setState(() => _partial = result.recognizedWords);
-          _armQuietTimer();
-          if (!result.finalResult) return;
-
-          final words = result.recognizedWords.trim();
-          if (words.isNotEmpty) {
-            _heard = _heard.isEmpty ? words : '$_heard $words';
-          }
-          setState(() => _partial = '');
-          // This session is done; the turn is not. Bank and listen again.
-          _restartSession();
-        },
-        onSoundLevelChange: (level) {
-          // Same guard as onResult above: dispose() flips `_turnActive`
-          // to false before firing-and-forgetting `_speech.stop()`, so a
-          // sound-level event already in flight when the child leaves the
-          // Pollie screen must not call setState on a defunct State.
-          if (!_turnActive) return;
-          // Throttle: only rebuild when the level actually moved, so the
-          // mic pulse never rebuilds the whole screen dozens of times a
-          // second.
-          final l = level.clamp(0.0, 1.0);
-          if ((l - _soundLevel).abs() > 0.015) {
-            setState(() => _soundLevel = l);
-          }
-        },
-        listenOptions: SpeechListenOptions(
-          localeId: _localeId,
-          // The patched options (see packages/PATCH.md). Android's own
-          // "probably finished" guess is about half a second — shorter than
-          // the pause between words — and ending a session mid-sentence is
-          // what dropped words, because each restart leaves a gap nothing is
-          // captured in. Two and a half seconds lets a child think.
-          possiblyCompleteSilence: const Duration(milliseconds: 2500),
-          minimumLength: const Duration(seconds: 3),
-          // Long enough for a full toddler sentence; pauseFor (not a
-          // restart) is what actually absorbs mid-sentence pauses.
-          listenFor: const Duration(seconds: 30),
-          pauseFor: _quietWindow,
-        ),
+        localeId: _localeId,
+        onResult: _onResult,
+        onSoundLevel: _onSoundLevel,
       );
+      if (!_turnActive || !mounted) return;
+      _turn = TurnState.warming;
+      // The plugin says "listening" before it has asked the recogniser to
+      // start, so we wait for the patched `ready`. But never forever: a
+      // platform without it must still work.
+      _readyTimer?.cancel();
+      _readyTimer = Timer(_readyTimeout, () => _onMicReady(guessed: true));
     } catch (e) {
-      // Speech engine hiccup starting the session: a couple of quiet
-      // retries, then end the turn.
       debugPrint('Listening failed: $e');
       if (_turnActive && _listenRetries < 2) {
         _listenRetries++;
@@ -518,11 +741,149 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
   }
 
+  /// The microphone is now genuinely recording.
+  ///
+  /// Only here does the child get told to speak, and only here does the
+  /// silence clock start — everything before this point is dead air that the
+  /// old code counted as listening.
+  void _onMicReady({bool guessed = false}) {
+    _readyTimer?.cancel();
+    _readyTimer = null;
+    if (!_turnActive || !mounted) return;
+    if (_micLive) return;
+    trace('ready', guessed ? 'guessed' : 'real');
+    _micLive = true;
+    // Only the silence clock restarts with a session: nothing was captured
+    // during the changeover, so that stretch is not evidence about the child.
+    // `_openMs` deliberately does not, because it is what gives up on a turn
+    // nobody is speaking into — resetting it per session meant a recogniser
+    // that times out every few seconds kept the microphone open until the
+    // 45-second cap.
+    _silenceMs = 0;
+    _vad.reset();
+    if (_turn == TurnState.warming) _turn = TurnState.open;
+    // Felt, not heard: a "go" beep would either land inside the recording or
+    // have to play before the mic was hot, which is the bug being fixed.
+    if (!guessed) HapticFeedback.selectionClick();
+    _startVadTicker();
+    setState(() {});
+  }
+
+  void _startVadTicker() {
+    _vadTicker?.cancel();
+    _vadTicker = Timer.periodic(VadGate.tick, (_) => _onVadTick());
+  }
+
+  void _onVadTick() {
+    if (!_turnActive || !mounted) return;
+    final ms = VadGate.tick.inMilliseconds;
+    if (!_micLive) return; // a restart gap is not the child being quiet
+    _openMs += ms;
+
+    // A device that never reports levels cannot be endpointed acoustically.
+    if (!_vadUnavailable && _levelEvents == 0 && _openMs >= 1000) {
+      _vadUnavailable = true;
+      debugPrint('Pollie: no sound levels from this device; using text timing');
+    }
+
+    if (_vad.isVoice) {
+      _silenceMs = 0;
+    } else {
+      _silenceMs += ms;
+    }
+
+    // A held mic belongs to the finger. Nothing below may end it.
+    if (_mode == TurnMode.hold) return;
+
+    final hasWords = _transcript.trim().isNotEmpty;
+    if (hasWords) {
+      // Without levels there is nothing to measure, so fall back to the old
+      // "transcript stopped moving" rule with a longer, safer window.
+      final quietEnough = _vadUnavailable
+          ? _silenceMs >= 3500
+          : _silenceMs >= _endTurnOnSilence.inMilliseconds;
+      if (quietEnough) {
+        _endTurn(send: true);
+        return;
+      }
+    }
+
+    if (!_turnHeardVoice && _openMs >= _noVoiceGivesUp.inMilliseconds) {
+      // Nobody spoke. Close quietly; there is nothing to apologise for.
+      _emptyTurns++;
+      _endTurn(send: false);
+      return;
+    }
+    if (_turnHeardVoice &&
+        !hasWords &&
+        _openMs >= _noWordsGivesUp.inMilliseconds) {
+      // They did speak and we could not make it out. Say so, rather than
+      // closing silently and leaving them to guess why nothing happened.
+      _emptyTurns++;
+      _endTurn(send: false, sayAgain: true);
+    }
+  }
+
+  void _onSoundLevel(double level) {
+    if (!_turnActive) return;
+    _levelEvents++;
+    if (!_micLive) return;
+    final voice = _vad.feed(level);
+    if (voice) {
+      _turnHeardVoice = true;
+      // They are talking again: whatever the recogniser thought, this turn is
+      // not over.
+      _finalQuietTimer?.cancel();
+      _finalQuietTimer = null;
+    }
+    final meter = _vad.normalised;
+    if ((meter - _soundLevel).abs() > 0.02) {
+      setState(() => _soundLevel = meter);
+    }
+  }
+
+  void _onResult(SpeechRecognitionResult result) {
+    if (!_turnActive) return;
+    trace(result.finalResult ? 'final' : 'partial', result.recognizedWords);
+    // Trimmed: a fresh hypothesis arrives with a leading space on the device,
+    // which would otherwise show up as a double space once it is joined onto
+    // the banked text.
+    final words = stripEcho(_lastSpoken, result.recognizedWords).trim();
+    // Bank the old hypothesis before it is overwritten by an unrelated one.
+    if (!continuesHypothesis(_partial, words)) {
+      _heard = appendHeard(_heard, _partial);
+      trace('hypothesis_reset', _heard);
+    }
+    setState(() => _partial = words);
+    if (!result.finalResult) return;
+
+    final trimmed = words.trim();
+    if (trimmed.isNotEmpty) {
+      // Through appendHeard, not a raw concat: a recogniser that restates its
+      // utterance in the next session would otherwise stutter — "do you do
+      // you know". The de-duplicating join already existed and this path
+      // simply never used it.
+      _heard = appendHeard(_heard, trimmed);
+    }
+    setState(() => _partial = '');
+    // A final means Android's own endpointer decided the utterance ended —
+    // which, with the silence timers now set to four and six seconds, it does
+    // not say lightly. If the room agrees, answer rather than making the child
+    // wait for a fresh session to warm up just so the tick can notice.
+    if (_mode == TurnMode.tap &&
+        !_vad.isVoice &&
+        _transcript.trim().isNotEmpty) {
+      _finalQuietTimer?.cancel();
+      _finalQuietTimer = Timer(_endTurnAfterFinal, () {
+        if (_turnActive && !_vad.isVoice) _endTurn(send: true);
+      });
+    }
+    // This session is done; the turn is not.
+    _restartSession();
+  }
+
   /// Moves whatever the recogniser is currently guessing into the banked
   /// transcript, so a session ending cannot lose it.
-  ///
-  /// Skips a repeat: some recognisers restate the whole utterance in the next
-  /// session, and appending both would stutter — "do you do you know".
   void _bankPartial() {
     final pending = _partial.trim();
     if (pending.isEmpty) return;
@@ -530,49 +891,26 @@ class _CompanionScreenState extends State<CompanionScreen>
     if (mounted) setState(() => _partial = '');
   }
 
-  /// Restarts the "have they finished?" clock.
-  ///
-  /// Called on *every* sign of life from the recogniser, not only on
-  /// recognised words. On the test device the recogniser reported plenty of
-  /// activity while transcribing nothing — empty partials, and a session
-  /// ending every second or two. Arming this only on recognised words meant
-  /// that in a noisy room, or with a child who mumbles, it never started at
-  /// all and the mic sat open until the 45-second cap.
-  ///
-  /// The wait is short once there are words to answer and long while there are
-  /// none, so a pause mid-sentence is respected but an open mic still closes.
-  void _armQuietTimer() {
-    if (!_turnActive || _transcript.trim().isEmpty) return;
-    _quietTimer?.cancel();
-    _quietTimer = Timer(_quietEndsTurn, () {
-      if (_turnActive && _transcript.trim().isNotEmpty) _endTurn(send: true);
-    });
-  }
-
   /// Re-arms the mic for the same turn after a session ends.
-  ///
-  /// Guarded so the two callbacks that fire for one session ending cannot
-  /// both restart — see the comment above [_quietWindow].
   Future<void> _restartSession() async {
     if (!_turnActive || !mounted || _restarting) return;
+    trace('restart', 'heard=$_heard partial=$_partial');
     _restarting = true;
-    // Bank whatever the dying session was still guessing, *before* the next
-    // one starts. Its first result assigns to `_partial`, overwriting rather
-    // than appending — so without this the words from the session that just
-    // ended are simply gone. That is why "do you know about minecraft?" came
-    // back as "know minecraft": "do you" belonged to a session that ended
-    // without ever producing a final result.
+    // The dying session's guess would otherwise be overwritten by the next
+    // session's first result rather than appended, and simply disappear.
     _bankPartial();
+    // Nothing is being captured from here until `ready` arrives again, so the
+    // silence clock must not run.
+    _micLive = false;
+    _turn = TurnState.warming;
+    if (mounted) setState(() {});
     try {
-      // A session that ended on its own is already torn down; calling stop()
-      // again only adds dead air, and every millisecond here is speech nobody
-      // captures. Stop only when we are interrupting a live session.
       if (_speech.isListening) {
         try {
           await _speech.stop();
         } catch (_) {}
       }
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+      await Future<void>.delayed(_restartGap);
       if (!_turnActive || !mounted) return;
       await _listenOnce();
     } finally {
@@ -581,9 +919,8 @@ class _CompanionScreenState extends State<CompanionScreen>
   }
 
   /// Ends the turn, optionally sending everything banked during it.
-  void _endTurn({required bool send}) {
-    if (!_turnActive && _heard.isEmpty) {
-      // Already finished; still make sure the UI is idle.
+  void _endTurn({required bool send, bool sayAgain = false}) {
+    if (_turn == TurnState.idle && _heard.isEmpty) {
       if (mounted && _status == _PollieStatus.listening) {
         setState(() {
           _status = _PollieStatus.awake;
@@ -593,23 +930,30 @@ class _CompanionScreenState extends State<CompanionScreen>
       }
       return;
     }
-    _turnActive = false;
+    trace('endturn', 'send=$send transcript=${_transcript.trim()}');
+    _turn = TurnState.closing;
     _restarting = false;
+    _micLive = false;
     _turnTimer?.cancel();
     _turnTimer = null;
-    _quietTimer?.cancel();
-    _quietTimer = null;
-    _nothingHeardTimer?.cancel();
-    _nothingHeardTimer = null;
+    _readyTimer?.cancel();
+    _readyTimer = null;
+    _holdReleaseTimer?.cancel();
+    _holdReleaseTimer = null;
+    _finalQuietTimer?.cancel();
+    _finalQuietTimer = null;
+    _vadTicker?.cancel();
+    _vadTicker = null;
     try {
       _speech.stop();
     } catch (_) {}
 
-    // Capture the full transcript — every finished session's words plus
-    // whatever the live one was still guessing. On a mic tap mid-sentence,
-    // `_partial` is the only place the last few words exist.
-    final words = _transcript.trim();
+    // Banked words plus whatever the live session was still guessing — on a
+    // mic tap mid-sentence, `_partial` is the only place the last few words
+    // exist.
+    final words = collapseRepeatedAnswer(_transcript.trim());
     _heard = '';
+    _turn = TurnState.idle;
     if (!mounted) return;
     setState(() {
       _status = _PollieStatus.awake;
@@ -617,40 +961,81 @@ class _CompanionScreenState extends State<CompanionScreen>
       _partial = '';
       _soundLevel = 0;
     });
-    if (send && words.isNotEmpty) _send(words);
+    if (send && words.isNotEmpty) {
+      _emptyTurns = 0;
+      _send(words);
+    } else if (sayAgain) {
+      _bubbles.add(_Bubble(role: 'model', text: strings.pollieSayAgain));
+      _scrollToBottom();
+      // One retry, then stop: a room that is simply too noisy must not leave
+      // the mic cycling open forever.
+      if (_emptyTurns < _emptyTurnsBeforeStop) {
+        Future<void>.delayed(const Duration(milliseconds: 400), () {
+          if (mounted && _status == _PollieStatus.awake) _startListening();
+        });
+      }
+    }
   }
 
-  /// Tapping the mic while it is live means "I'm done" — send the full
-  /// transcript captured so far (banked words plus whatever was still
-  /// being guessed).
+  /// Tapping the mic while it is live means "I'm done".
   void _stopListening() => _endTurn(send: true);
+
+  /// Sends something the grown-up typed or tapped.
+  ///
+  /// Closes an open microphone first. `_send` refuses while `_busy`, and
+  /// listening sets `_busy` — so with the hands-free loop re-opening the mic
+  /// after every reply, typed messages were silently dropped.
+  void _sendTyped(String raw) {
+    if (raw.trim().isEmpty) return;
+    if (_turnActive) _endTurn(send: false);
+    _send(raw);
+  }
+
+  /// Recogniser errors that just mean "that session heard nothing useful".
+  ///
+  /// A four-year-old pausing to think produces these constantly. They are not
+  /// failures, they are the recogniser shrugging.
+  static const _recoverableSpeechErrors = {
+    'error_no_match',
+    'error_speech_timeout',
+  };
+
+  /// Errors worth one quiet retry: the engine was momentarily unavailable.
+  static const _retryableSpeechErrors = {
+    'error_busy',
+    'error_client',
+    'error_audio_error',
+    'error_server',
+    'error_server_disconnected',
+    'error_network',
+    'error_network_timeout',
+  };
 
   void _onSpeechError(SpeechRecognitionError error) {
     if (!mounted) return;
-    // "No match" / timeout / silence is normal when nobody speaks — stay
-    // quiet instead of popping an error bubble.
-    final message = error.errorMsg.toLowerCase();
-    final quiet =
-        message.contains('no match') ||
-        message.contains('timeout') ||
-        message.contains('no speech') ||
-        error.permanent;
+    final name = error.errorMsg.toLowerCase().trim();
 
-    // Mid-turn, a "no match"/timeout just means that session heard nothing
-    // worth transcribing — a child thinking, not a child finished. Re-arm
-    // quietly. A permanent error is different: that mic is not coming back.
-    if (_turnActive && quiet && !error.permanent) {
+    // `error.permanent` is deliberately ignored. The Android plugin hardcodes
+    // it to true for *every* error it sends, including error_no_match — so
+    // trusting it meant a child pausing mid-sentence ended the whole turn and
+    // sent half a question. Classify by name instead.
+    trace('speech_error', name);
+    if (_turnActive && _recoverableSpeechErrors.contains(name)) {
       _restartSession();
       return;
     }
 
-    if (!quiet) {
-      _bubbles.add(
-        _Bubble(
-          role: 'model',
-          text: "Oops, I didn't catch that! 😅 Tap the mic and try again?",
-        ),
-      );
+    if (_turnActive &&
+        _retryableSpeechErrors.contains(name) &&
+        _listenRetries < 2) {
+      _listenRetries++;
+      _restartSession();
+      return;
+    }
+
+    if (!_recoverableSpeechErrors.contains(name)) {
+      debugPrint('Pollie speech error: $name');
+      _bubbles.add(_Bubble(role: 'model', text: strings.pollieDidntCatch));
       _scrollToBottom();
     }
     if (_turnActive) {
@@ -662,17 +1047,6 @@ class _CompanionScreenState extends State<CompanionScreen>
       _busy = false;
       _partial = '';
     });
-  }
-
-  /// Sends something the grown-up typed or tapped.
-  ///
-  /// Closes an open microphone first. `_send` refuses while `_busy`, and
-  /// listening sets `_busy` — so with the hands-free loop re-opening the mic
-  /// after every reply, typed messages were silently dropped.
-  void _sendTyped(String raw) {
-    if (raw.trim().isEmpty) return;
-    if (_turnActive) _endTurn(send: false);
-    _send(raw);
   }
 
   Future<void> _send(String raw) async {
@@ -827,7 +1201,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// is how voice selection silently did nothing for so long. Rebuild the
   /// list element by element instead of asserting a shape it never has.
   Future<List<Map<dynamic, dynamic>>> _loadVoices() async {
-    final raw = await _tts.getVoices;
+    final raw = await _tts?.getVoices();
     if (raw is! List) return const [];
     return raw
         .whereType<Map>()
@@ -852,7 +1226,7 @@ class _CompanionScreenState extends State<CompanionScreen>
         'quality=${best['quality']}, network=${best['network_required']}, '
         'score=${voiceScore(best, lang)})',
       );
-      await _tts.setVoice(best.cast<String, String>());
+      await _tts?.setVoice(best.cast<String, String>());
     } catch (e) {
       // The engine default is a fine fallback — but say so, rather than
       // swallowing the reason the way the two earlier bugs here were.
@@ -868,6 +1242,9 @@ class _CompanionScreenState extends State<CompanionScreen>
   // child wait for the sum. Now she starts talking as soon as the first
   // sentence lands, and the rest is queued behind it.
 
+  /// The last thing Pollie said, for the echo guard.
+  String _lastSpoken = '';
+
   /// Utterances handed to the TTS engine that have not finished yet.
   int _pending = 0;
 
@@ -876,6 +1253,17 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   /// Whether to re-arm the mic once everything queued has been spoken.
   bool _relisten = false;
+
+  /// Last resort for a TTS engine that never reports a completion.
+  ///
+  /// Everything downstream of "Pollie finished talking" hangs off [_pending]
+  /// reaching zero — including re-opening the microphone. One dropped
+  /// `onDone` used to mean the mic never came back for the rest of the
+  /// session, with nothing on screen to say why. Owning the engine (see
+  /// [TtsService]) removes the known cause; this makes the *symptom*
+  /// impossible whatever the cause.
+  Timer? _speakWatchdog;
+  static const _speakWatchdogAfter = Duration(seconds: 10);
 
   /// Starts a spoken response. [more] is true when sentences are still
   /// arriving, false for a one-shot line.
@@ -892,9 +1280,12 @@ class _CompanionScreenState extends State<CompanionScreen>
   Future<void> _enqueueSpeech(String text) async {
     final clean = _cleanForSpeech(text);
     if (clean.isEmpty) return;
+    trace('tts_speak', clean);
+    _lastSpoken = clean;
     _pending++;
+    _armSpeakWatchdog();
     try {
-      await _tts.speak(clean);
+      await _tts?.speak(clean);
     } catch (_) {
       // TTS unavailable: the text bubble is still there.
       _pending--;
@@ -910,21 +1301,39 @@ class _CompanionScreenState extends State<CompanionScreen>
     // or with a name; now the app already knows.
     final lang = AppLanguageService.instance.current.value.localeId;
     try {
-      await _tts.setLanguage(lang);
+      await _tts?.setLanguage(lang);
       await _applyBestVoice(lang);
       // Just above natural: enough to read as friendly, not so high that the
       // synthesiser starts to sound like a chipmunk. Pushing pitch hard is
       // what made Pollie sound robotic, not the speed.
-      await _tts.setPitch(1.1);
-      await _tts.setSpeechRate(0.45);
+      await _tts?.setPitch(1.1);
+      await _tts?.setSpeechRate(0.45);
     } catch (e) {
       debugPrint('Pollie voice setup failed: $e');
     }
     return lang;
   }
 
+  void _armSpeakWatchdog() {
+    _speakWatchdog?.cancel();
+    _speakWatchdog = Timer(_speakWatchdogAfter, () {
+      if (!mounted || _pending == 0) return;
+      debugPrint('Pollie TTS never reported done; releasing the mic anyway');
+      _pending = 0;
+      _moreComing = false;
+      _finishSpeakingIfDone();
+    });
+  }
+
   void _onUtteranceComplete() {
+    trace('tts_done', _pending);
     _pending = _pending > 0 ? _pending - 1 : 0;
+    if (_pending == 0) {
+      _speakWatchdog?.cancel();
+      _speakWatchdog = null;
+    } else {
+      _armSpeakWatchdog();
+    }
     _finishSpeakingIfDone();
   }
 
@@ -1000,20 +1409,81 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
   }
 
-  void _onMicTap() {
+  /// True while the mic has been asked for but is not yet recording.
+  bool get _micWarming =>
+      _turn == TurnState.arming || _turn == TurnState.warming;
+
+  /// Amber means "nearly", red means "talk now".
+  ///
+  /// The distinction is the whole point: the plugin reports "listening" up to
+  /// half a second before the microphone is actually capturing, and a child
+  /// invited to speak in that window loses their first words.
+  Color get _micColor {
+    if (_micWarming) return const Color(0xFFFFB300);
+    if (_status == _PollieStatus.listening) return const Color(0xFFFF5252);
+    return Colors.white;
+  }
+
+  /// Finger down on the mic.
+  ///
+  /// The turn starts here rather than on the tap, for two reasons: it opens
+  /// the microphone roughly a tenth of a second earlier even for a plain tap,
+  /// and it means hold and tap share one path. Only the *release* differs,
+  /// which is what makes "released before the mic was even ready" behave.
+  void _onMicDown() {
+    _heldLongEnough = false;
+    _holdTimer?.cancel();
+    _holdTimer = Timer(_holdIsDeliberate, () => _heldLongEnough = true);
     switch (_status) {
       case _PollieStatus.listening:
-        _stopListening();
+        // Already live: this press is the child saying "I'm done", handled on
+        // release so a hold-to-continue still works.
+        break;
       case _PollieStatus.sleeping:
-        // The mic always responds: tapping it while Pollie sleeps wakes him.
         _wakeUp();
       case _PollieStatus.awake:
-        _startListening();
+        _startListening(hold: true);
       case _PollieStatus.thinking:
-      case _PollieStatus.speaking:
-        // Momentarily busy — the dimmed mic shows this; ignore quietly.
         break;
+      case _PollieStatus.speaking:
+        // Interrupting is allowed by pressing the button — that is the one
+        // barge-in the design keeps, because it cannot be confused with the
+        // microphone hearing Pollie herself.
+        _relisten = false;
+        _moreComing = false;
+        _pending = 0;
+        _speakWatchdog?.cancel();
+        _tts?.stop();
+        setState(() => _status = _PollieStatus.awake);
+        _startListening(hold: true);
     }
+  }
+
+  /// Finger up. The length of the press decides who owns the endpoint.
+  void _onMicUp() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    final wasHeld = _heldLongEnough;
+    _heldLongEnough = false;
+    if (_turn == TurnState.idle) return;
+
+    if (!wasHeld) {
+      // That was a tap. If a turn was already running it means "I'm done";
+      // otherwise the mic stays open and silence detection takes over.
+      if (_mode == TurnMode.tap) {
+        _stopListening();
+        return;
+      }
+      setState(() => _mode = TurnMode.tap);
+      return;
+    }
+
+    // A deliberate hold. Keep recording briefly: Android's audio pipeline lags
+    // the finger, so closing on the release itself clips the last syllable.
+    _holdReleaseTimer?.cancel();
+    _holdReleaseTimer = Timer(_holdReleaseTail, () {
+      if (_turnActive) _endTurn(send: true);
+    });
   }
 
   @override
@@ -1164,35 +1634,59 @@ class _CompanionScreenState extends State<CompanionScreen>
                       // The mic pulses with the sound level while listening.
                       // It dims when Pollie can't listen right now (sleeping,
                       // thinking, speaking) so it never looks broken.
-                      GestureDetector(
-                        onTap: _onMicTap,
-                        child: AnimatedScale(
-                          scale: _status == _PollieStatus.listening
-                              ? 1 + _soundLevel * 0.6
-                              : 1.0,
-                          duration: const Duration(milliseconds: 100),
+                      Listener(
+                        // Listener, not GestureDetector: onLongPressStart only
+                        // fires after Flutter's 500ms threshold, which would
+                        // lose the first half-second of a held turn, and a
+                        // four-year-old's "tap" is slow enough to trip it.
+                        onPointerDown: (_) => _onMicDown(),
+                        onPointerUp: (_) => _onMicUp(),
+                        // A finger dragged off the button must not strand a
+                        // hot microphone.
+                        onPointerCancel: (_) => _onMicUp(),
+                        child: Semantics(
+                          button: true,
+                          label: strings.talkToPollie,
                           child: Opacity(
                             opacity:
                                 (_status == _PollieStatus.awake ||
                                     _status == _PollieStatus.listening)
                                 ? 1.0
                                 : 0.45,
-                            child: Material(
-                              color: _status == _PollieStatus.listening
-                                  ? const Color(0xFFFF5252)
-                                  : Colors.white,
-                              shape: const CircleBorder(),
-                              elevation: 3,
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Text(
-                                  '🎤',
-                                  style: TextStyle(
-                                    fontSize: 26,
-                                    color: _status == _PollieStatus.listening
-                                        ? Colors.white
-                                        : null,
+                            // Colour and padding only — never a transform.
+                            // This button used to sit inside an AnimatedScale
+                            // driven by the sound level, which re-rasterises
+                            // the emoji glyph every frame and eventually stops
+                            // emoji painting app-wide (golden rule 4). The
+                            // level now moves a bar's *width*, which is
+                            // layout, not a transform.
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _micColor,
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black26,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
                                   ),
+                                ],
+                              ),
+                              // Amber "wait" shifts the emoji 2px down, so the
+                              // button reads as pressed-in even before it goes
+                              // red. A traffic light is a convention a
+                              // four-year-old already knows.
+                              padding: _micWarming
+                                  ? const EdgeInsets.fromLTRB(12, 14, 12, 10)
+                                  : const EdgeInsets.all(12),
+                              child: Text(
+                                '🎤',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  color: _status == _PollieStatus.listening
+                                      ? Colors.white
+                                      : null,
                                 ),
                               ),
                             ),

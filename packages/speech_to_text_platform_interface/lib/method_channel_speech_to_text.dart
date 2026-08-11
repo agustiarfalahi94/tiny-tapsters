@@ -116,6 +116,7 @@ class MethodChannelSpeechToText extends SpeechToTextPlatform {
       "possiblyCompleteSilence":
           options?.possiblyCompleteSilence?.inMilliseconds ?? null,
       "minimumLength": options?.minimumLength?.inMilliseconds ?? null,
+      "completeSilence": options?.completeSilence?.inMilliseconds ?? null,
       "listenFor": options?.listenFor?.inMilliseconds ?? null,
     };
     if (null != (localeId ?? options?.localeId)) {

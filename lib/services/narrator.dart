@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 
 import 'app_language.dart';
 import 'music_service.dart';
+import 'tts_service.dart';
 
 /// Says a game's name out loud when it opens.
 ///
@@ -18,8 +18,7 @@ class Narrator {
 
   static final Narrator instance = Narrator._();
 
-  final _tts = FlutterTts();
-  bool _ready = false;
+  TtsSession? _session;
 
   /// Says [text], unless the child has the sound off.
   ///
@@ -28,22 +27,20 @@ class Narrator {
   Future<void> announce(String text) async {
     if (!MusicService.instance.enabled) return;
     try {
-      if (!_ready) {
-        // Queue mode 0 replaces whatever is speaking — a child who taps
-        // through three games quickly should hear the last one, not all three.
-        await _tts.setQueueMode(0);
-        _ready = true;
-      }
-      await _tts.setLanguage(
+      // Queue mode 0 replaces whatever is speaking — a child who taps through
+      // three games quickly should hear the last one, not all three. Applied
+      // on every acquisition because Pollie sets mode 1 on the same engine.
+      final session = await TtsService.instance.acquire(this, queueMode: 0);
+      _session = session;
+      session.onComplete = MusicService.instance.unduck;
+      await session.setLanguage(
         AppLanguageService.instance.current.value.localeId,
       );
-      await _tts.setPitch(1.1);
-      await _tts.setSpeechRate(0.45);
+      await session.setPitch(1.1);
+      await session.setSpeechRate(0.45);
       // Duck the music so the name is clear over it, and restore when done.
       await MusicService.instance.duck();
-      _tts.setCompletionHandler(MusicService.instance.unduck);
-      _tts.setCancelHandler(MusicService.instance.unduck);
-      await _tts.speak(text);
+      await session.speak(text);
     } catch (e) {
       // Never let a missing voice stop a game from opening.
       debugPrint('Narrator failed: $e');
@@ -52,10 +49,14 @@ class Narrator {
   }
 
   /// Stops anything being said, for when a game is left quickly.
+  ///
+  /// Called when Pollie's screen opens: a game-name announcement still in
+  /// flight would otherwise talk over her greeting, and — because they share
+  /// one engine — its completion would land on the wrong owner.
   Future<void> stop() async {
-    try {
-      await _tts.stop();
-    } catch (_) {}
+    await _session?.stop();
+    _session?.release();
+    _session = null;
     await MusicService.instance.unduck();
   }
 }

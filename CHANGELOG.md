@@ -5,6 +5,79 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.25.0] — 2026-08-11
+
+### Fixed
+- **Pollie stopped cutting children off.** Five separate things were ending a
+  turn early or throwing words away, and none of them was measuring silence:
+  - **the recogniser wipes its own guess at a pause.** Measured on the phone:
+    it reported "tell me a story", then an empty guess, then started again
+    from "about a big dinosaur" — all without ending its session, so nothing
+    marked the moment. The app overwrote the first half with the second. This
+    was the actual cause of "in minecraft how do you create a tnt" arriving as
+    half a question, and it is now banked instead of dropped;
+  - the speech package's `pauseFor` stops a session a fixed time after the
+    *transcribed text last changed*, which is not silence — a child still
+    talking while the recogniser's guess was stable had the session pulled out
+    from under them, and the words spoken during the restart were lost. This is
+    what turned "in minecraft how do you create a tnt?" into "in minecraft how
+    do you";
+  - **every** error Android's speech plugin sends is marked permanent,
+    including the harmless "didn't catch that" one, and the app was also
+    looking for `no match` where Android sends `error_no_match`. A child
+    pausing to think produced one of these, and it ended the whole turn and
+    sent half a question;
+  - `minimumLength` forced every session to run three seconds, so a one-word
+    answer waited on a timer with nothing to wait for;
+  - a very short answer had to be repeated because the sound gate waited a
+    fifth of a second before believing anyone was speaking. A clearly-spoken
+    word now registers on the instant;
+  - a repeat that arrived as "No" then "no" was joined into "No no", because
+    the check that removes a restated word was case-sensitive and the
+    recogniser capitalises the first word of every fresh guess;
+  - the app said it was listening up to half a second before the microphone was
+    actually recording, so the first words of an answer landed in a hole. That
+    is why the clipping started on the second or third turn rather than the
+    first, and why a word as short as "yes" could disappear completely.
+- **The gap after Pollie finishes talking is gone.** It was a blind 1.2-second
+  wait, and the child was answering into it.
+- **Pollie can no longer get stuck not listening.** The app built two
+  text-to-speech engines, and because the plugin shares one channel, whichever
+  was built last silently took the "finished speaking" callback. If Pollie lost,
+  the microphone never re-opened.
+
+### Added
+- **A repeated yes/no answer counts once.** A very short "no" is often below
+  what the recogniser will commit to, so a child says it again — and once it
+  has heard the second one, Android re-scores the first and hands back "no no".
+  Only an answer word repeated on its own is collapsed; "bye bye" and "night
+  night" are left alone, because there the repetition is the word.
+- **Hold the microphone button to talk.** While a finger is down the mic stays
+  open no matter how long the pause — nothing is allowed to decide the child has
+  finished. Tapping still works exactly as before. Holding is the reliable path
+  in a noisy room or for a child who thinks mid-sentence.
+- The button is now **amber while the microphone is warming up and red once it
+  is really recording**, with a small buzz at the change, so nobody is invited
+  to speak into a mic that is not on yet.
+
+### Changed
+- Pollie now decides the child has finished from the **room being quiet** rather
+  than from the recogniser's guesses, and answers faster when both agree.
+
+### Notes
+- The mic emoji was being scaled on every sound-level change, which is the
+  animation that makes emoji vanish app-wide (golden rule 4). It now drives a
+  bar's width instead.
+- An idle microphone used to stay open until the 45-second cap whenever the
+  recogniser kept timing out and restarting, because the give-up clock
+  restarted with each session. It now measures the whole turn.
+- 58 new tests, covering the turn machine, the silence detection and the
+  vendored patch — none of which could be tested before. Every fix was checked
+  by reverting it and confirming the suite fails, and the main ones were then
+  confirmed again on the phone from a timestamped trace.
+
+---
+
 ## [1.24.2] — 2026-08-11
 
 ### Fixed
