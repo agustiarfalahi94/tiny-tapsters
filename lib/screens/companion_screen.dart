@@ -329,13 +329,14 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
   }
 
-  /// Points the recogniser at the chosen language, checking the device
-  /// actually has it.
+  /// Points the recogniser at the chosen language.
   ///
-  /// A phone without the Indonesian pack would otherwise fail silently: the
-  /// mic opens, hears everything, and recognises nothing. Falling back to a
-  /// language it does have is worse than useless for the child, but at least
-  /// it is visible in the log rather than a mystery.
+  /// Only ever *narrows* to the device's own spelling of that language —
+  /// Android reports `id_ID` as often as `id-ID`. It never falls back to a
+  /// different language: listening in one the child is not speaking is worse
+  /// than trying and failing. No offline pack is required, because the app
+  /// does not force on-device recognition and Pollie needs the internet
+  /// regardless.
   Future<void> _useAppLocale() async {
     final wanted = AppLanguageService.instance.current.value.localeId;
     try {
@@ -343,9 +344,14 @@ class _CompanionScreenState extends State<CompanionScreen>
       final ids = available.map((l) => l.localeId).toList();
       final match = matchLocale(wanted, ids) ?? '';
       if (match.isEmpty) {
+        // Not listed is not the same as not supported: this list often covers
+        // only the *downloaded* offline packs, while Google's online
+        // recogniser handles far more. Pollie needs the internet anyway, so
+        // keep the chosen language and let the online recogniser take it.
         debugPrint(
-          'Pollie: this device has no recogniser for $wanted. '
-          'Available: ${ids.take(12).join(", ")}',
+          'Pollie: $wanted is not in this device\'s locale list, trying it '
+          'anyway (online recognition usually covers it). '
+          'Listed: ${ids.take(12).join(", ")}',
         );
         return;
       }

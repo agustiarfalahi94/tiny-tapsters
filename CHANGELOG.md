@@ -20,9 +20,10 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 - Matching the language to a recogniser the device actually has is now
   tolerant: Android reports these as `id_ID` as often as `id-ID`, and sometimes
   as a bare `id`, so an exact comparison could miss a pack that was installed.
-  If the device genuinely has nothing for the language, that is written to the
-  log rather than failing silently with a mic that hears everything and
-  recognises nothing.
+  A language missing from that list is still attempted rather than abandoned:
+  the list often covers only *downloaded offline* packs, while Google's online
+  recogniser handles far more — and Pollie needs the internet anyway, so **no
+  user has to install a language pack** to speak Indonesian to her.
 
 ### Notes
 - `flutter analyze`: 0 issues; 108/108 tests.
