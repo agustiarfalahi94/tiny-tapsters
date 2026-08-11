@@ -513,10 +513,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(bottom: 10),
+          // Kept clear of Pollie's button in the corner. The English line is
+          // short enough to miss it; the Indonesian one is not, and ran
+          // underneath the bird.
+          padding: const EdgeInsets.only(left: 68, right: 68, bottom: 10),
           child: Text(
             strings.madeWithLove,
             textAlign: TextAlign.center,
+            maxLines: 2,
             style: const TextStyle(fontSize: 14, color: Colors.white),
           ),
         ),
