@@ -5,6 +5,25 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.22.0] — 2026-08-11
+
+### Changed
+- **The answer cards in Count the Animals are now just the number.** They used
+  to carry a matching pattern of dots — but the animals above and the dots
+  below were both laid out with a centred `Wrap`, so they wrapped into the
+  *same shape*. Comparing the two outlines answered the question without
+  counting anything, which is the entire point of the game.
+
+### Notes
+- The dots were a scaffold for a child who cannot yet read numerals, and
+  removing them makes the game purely about recognising the digit. If that
+  turns out to be too big a step, the better fix is not to bring them back as
+  they were but to lay them out in a fixed pattern — a die face, or a single
+  row — so they still help with counting but no longer mirror the question.
+- `flutter analyze`: 0 issues; 110/110 tests.
+
+---
+
 ## [1.21.5] — 2026-08-11
 
 ### Fixed
