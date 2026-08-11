@@ -21,6 +21,32 @@ enum _PollieStatus { sleeping, awake, listening, thinking, speaking }
 /// (system TTS) — then Pollie listens again automatically, so a toddler can
 /// just keep chatting like in the Gemini app. Toddlers can also tap the big
 /// chips; grown-ups can type.
+/// Joins what a recogniser session produced onto what earlier sessions did.
+///
+/// A session ending must not lose its words: the next session assigns to the
+/// partial rather than appending, so anything not banked here disappears. That
+/// is how "do you know about minecraft?" became "know minecraft".
+///
+/// Skips a restatement, because some recognisers repeat the whole utterance in
+/// the following session and appending both would stutter.
+String appendHeard(String banked, String pending) {
+  final tail = pending.trim();
+  if (tail.isEmpty) return banked;
+  if (banked.isEmpty) return tail;
+  if (banked.endsWith(tail)) return banked;
+  // The next session often restarts from a word or two back; drop the overlap
+  // rather than repeat it.
+  final words = tail.split(RegExp(r'\s+'));
+  for (var take = words.length; take > 0; take--) {
+    final overlap = words.take(take).join(' ');
+    if (banked.endsWith(overlap)) {
+      final rest = words.skip(take).join(' ');
+      return rest.isEmpty ? banked : '$banked $rest';
+    }
+  }
+  return '$banked $tail';
+}
+
 /// End of a sentence: terminal punctuation, any closing quote or bracket,
 /// then whitespace or the end of the text. Requiring that trailing whitespace
 /// is what keeps "3.5" in one piece.
@@ -458,6 +484,18 @@ class _CompanionScreenState extends State<CompanionScreen>
     }
   }
 
+  /// Moves whatever the recogniser is currently guessing into the banked
+  /// transcript, so a session ending cannot lose it.
+  ///
+  /// Skips a repeat: some recognisers restate the whole utterance in the next
+  /// session, and appending both would stutter — "do you do you know".
+  void _bankPartial() {
+    final pending = _partial.trim();
+    if (pending.isEmpty) return;
+    _heard = appendHeard(_heard, pending);
+    if (mounted) setState(() => _partial = '');
+  }
+
   /// Restarts the "have they finished?" clock.
   ///
   /// Called on *every* sign of life from the recogniser, not only on
@@ -484,6 +522,13 @@ class _CompanionScreenState extends State<CompanionScreen>
   Future<void> _restartSession() async {
     if (!_turnActive || !mounted || _restarting) return;
     _restarting = true;
+    // Bank whatever the dying session was still guessing, *before* the next
+    // one starts. Its first result assigns to `_partial`, overwriting rather
+    // than appending — so without this the words from the session that just
+    // ended are simply gone. That is why "do you know about minecraft?" came
+    // back as "know minecraft": "do you" belonged to a session that ended
+    // without ever producing a final result.
+    _bankPartial();
     try {
       // The plugin needs its previous session fully torn down before the
       // next `listen()`, or the platform reports the recogniser busy.
@@ -524,9 +569,8 @@ class _CompanionScreenState extends State<CompanionScreen>
     } catch (_) {}
 
     // Capture the full transcript — every finished session's words plus
-    // whatever the live one was still guessing — before the setState below
-    // clears `_partial`. On a mic tap mid-sentence, `_partial` is the only
-    // place the last few words exist.
+    // whatever the live one was still guessing. On a mic tap mid-sentence,
+    // `_partial` is the only place the last few words exist.
     final words = _transcript.trim();
     _heard = '';
     if (!mounted) return;

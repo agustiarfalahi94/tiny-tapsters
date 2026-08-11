@@ -2,7 +2,7 @@
 
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.18.3+40 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.18.4+41 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX), `google_generative_ai` + `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev.
 **Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The seven games are fully offline; Pollie is the sole network feature.
@@ -39,7 +39,7 @@ flutter build apk --release           # when native config or deps changed
 - `lib/screens/levels_screen.dart` — shared difficulty picker.
 - `lib/services/pollie_service.dart` — HTTP client for Pollie's proxy. Streams newline-delimited JSON; the model, prompt and safety settings all live in `worker/src/index.ts`.
 - `lib/widgets/pollie_bird.dart` — the bobbing bird and the "Tap to talk!" bubble. **Translate and rotate only, never scale**: scaling text re-rasterises emoji glyphs every frame and eventually stops every emoji in the app painting.
-- `worker/` — the Cloudflare Worker holding the Gemini key. `worker/README.md` has the account setup.
+- `worker/` — the Cloudflare Worker holding the Gemini key. **Read `docs/pollie-architecture-and-costs.md` before answering anything about the key, rate limits, costs, model choice, other providers, charging users, or the install id** — it records what was measured and why, so none of it has to be researched twice. `worker/README.md` has the account setup.
 - `lib/screens/companion_screen.dart` — Pollie. Two things here are easy to break: a listening **turn** is the app's, not the recogniser's (sessions are banked and the mic re-armed until the child is quiet for 5s — Android's short "possibly finished" endpointing is not configurable, so never go back to sending on the first final result); and `flutter_tts` reports voice quality as a **string**, so score voices with `voiceScore`/`pickBestVoice` and never cast `quality` to a number.
 - `lib/services/kid_safety.dart` — local adult-word guard (input + output).
 - `lib/services/sound_effects.dart` — one-shot SFX (pop, win, lose); regenerate `pop.wav` with `dart run tool/generate_sfx.dart`.

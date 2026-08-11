@@ -5,6 +5,29 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.18.4] — 2026-08-11
+
+### Fixed
+- **Pollie dropped the start of what was said.** "Do you know about minecraft?"
+  arrived as "know minecraft". When a recogniser session ended, whatever it was
+  still guessing was thrown away — the next session's first result *assigns* to
+  the partial rather than appending, so those words vanished. Sessions end
+  every second or two on a real phone, so this happened constantly. The dying
+  session's words are now banked before the next one starts, with the overlap
+  skipped so a restatement does not stutter into "do you do you know".
+
+### Added
+- `docs/pollie-architecture-and-costs.md` — why the key lives in a Worker, the
+  measured rate limits, cost per message at various scales, why Gemini rather
+  than DeepSeek/Qwen/MiMo, options for charging users, and why the install id
+  is not persistent. Both agent files point at it, so these questions do not
+  get researched twice.
+
+### Notes
+- `flutter analyze`: 0 issues; 97/97 tests.
+
+---
+
 ## [1.18.3] — 2026-08-10
 
 ### Fixed
