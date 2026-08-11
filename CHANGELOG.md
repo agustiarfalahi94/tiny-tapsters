@@ -1,6 +1,7 @@
 # Changelog
 
-All notable changes to Tiny Tapsters are documented here.
+All notable changes to Our Toddlers' Journey are documented here.
+
 Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
