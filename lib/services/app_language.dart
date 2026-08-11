@@ -217,6 +217,10 @@ class AppStrings {
     'Oops, I got lost for a moment! 😅 Can you ask me again?',
     'Aduh, aku bingung sebentar! 😅 Coba tanya lagi ya?',
   );
+  String get pollieSayAgain => _pick(
+    "Hmm, I didn't think of anything to say! 😊 Ask me again?",
+    'Hmm, aku tidak kepikiran jawabannya! 😊 Tanya lagi ya?',
+  );
   String get pollieBreath => _pick(
     'Phew! Let me catch my breath for a moment, then ask me again! 😊',
     'Fiuh! Aku istirahat sebentar, lalu tanya lagi ya! 😊',

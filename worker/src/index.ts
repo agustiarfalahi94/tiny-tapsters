@@ -184,6 +184,8 @@ function toNdjson(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> 
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let buffer = '';
+  let sentAnything = false;
+  let reason = '';
 
   return body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
@@ -197,8 +199,15 @@ function toNdjson(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> 
           const payload = line.slice(5).trim();
           if (!payload || payload === '[DONE]') continue;
           try {
-            const text = textOf(JSON.parse(payload) as GeminiResponse);
+            const parsed = JSON.parse(payload) as GeminiResponse;
+            // Remember why a reply stopped, in case it produced nothing.
+            const finish = parsed.candidates?.[0]?.finishReason;
+            const blocked = parsed.promptFeedback?.blockReason;
+            if (finish && finish !== 'STOP') reason = finish;
+            if (blocked) reason = `prompt:${blocked}`;
+            const text = textOf(parsed);
             if (text) {
+              sentAnything = true;
               controller.enqueue(encoder.encode(JSON.stringify({ text }) + '\n'));
             }
           } catch {
@@ -206,12 +215,30 @@ function toNdjson(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> 
           }
         }
       },
+      flush(controller) {
+        // A 200 that carried no words at all is the confusing case: the app
+        // used to report it as a generic failure and put Pollie to sleep.
+        // Saying *why* turns it into something diagnosable — usually a safety
+        // filter, given how strictly they are set for a four-year-old.
+        if (!sentAnything) {
+          controller.enqueue(
+            encoder.encode(
+              JSON.stringify({ empty: true, reason: reason || 'unknown' }) +
+                '\n',
+            ),
+          );
+        }
+      },
     }),
   );
 }
 
 interface GeminiResponse {
-  candidates?: { content?: { parts?: { text?: string }[] } }[];
+  candidates?: {
+    content?: { parts?: { text?: string }[] };
+    finishReason?: string;
+  }[];
+  promptFeedback?: { blockReason?: string };
 }
 
 function textOf(body: GeminiResponse): string {

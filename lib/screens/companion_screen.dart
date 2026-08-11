@@ -732,7 +732,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       final reply = buffer.toString().trim();
       if (reply.isEmpty) {
         _moreComing = false;
-        throw StateError('Pollie said nothing — maybe try again?');
+        throw const PollieEmptyReplyException();
       }
       // Output safety guard: if anything inappropriate slipped through the
       // model filters, the child never sees or hears it.
@@ -774,12 +774,17 @@ class _CompanionScreenState extends State<CompanionScreen>
       // and it also made a temporary hiccup look permanent.
       final brief = e is PollieQuotaException && e.isBrief;
       final quota = e is PollieQuotaException && !e.isBrief;
+      // An empty reply and a short pause are both hiccups, not breakdowns.
+      // Sleeping on them greyed out the mic and stranded the child.
+      final hiccup = brief || e is PollieEmptyReplyException;
       setState(() {
         _bubbles.removeLast();
         _bubbles.add(
           _Bubble(
             role: 'model',
-            text: brief
+            text: e is PollieEmptyReplyException
+                ? strings.pollieSayAgain
+                : brief
                 ? strings.pollieBreath
                 : quota
                 ? strings.pollieOutOfWords(_pollie.quotaResetLabel())
@@ -788,10 +793,18 @@ class _CompanionScreenState extends State<CompanionScreen>
                 : strings.pollieNoKey,
           ),
         );
-        // A pause leaves Pollie awake; only a real failure puts him to sleep.
-        _status = brief ? _PollieStatus.awake : _PollieStatus.sleeping;
+        // A hiccup leaves Pollie awake; only a real failure puts him to
+        // sleep. A sleeping Pollie disables the mic, and a child cannot work
+        // out that they must tap his face to bring it back.
+        _status = hiccup ? _PollieStatus.awake : _PollieStatus.sleeping;
         _busy = false;
       });
+      // Keep the conversation going rather than making the child restart it.
+      if (hiccup && _speechAvailable) {
+        Future<void>.delayed(const Duration(milliseconds: 900), () {
+          if (mounted && _status == _PollieStatus.awake) _startListening();
+        });
+      }
     }
     _scrollToBottom();
   }
