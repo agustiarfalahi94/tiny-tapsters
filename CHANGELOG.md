@@ -8,8 +8,14 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 ## [1.25.0] — 2026-08-11
 
 ### Fixed
-- **Pollie stopped cutting children off.** Four separate things were ending a
-  turn early and none of them was measuring silence:
+- **Pollie stopped cutting children off.** Five separate things were ending a
+  turn early or throwing words away, and none of them was measuring silence:
+  - **the recogniser wipes its own guess at a pause.** Measured on the phone:
+    it reported "tell me a story", then an empty guess, then started again
+    from "about a big dinosaur" — all without ending its session, so nothing
+    marked the moment. The app overwrote the first half with the second. This
+    was the actual cause of "in minecraft how do you create a tnt" arriving as
+    half a question, and it is now banked instead of dropped;
   - the speech package's `pauseFor` stops a session a fixed time after the
     *transcribed text last changed*, which is not silence — a child still
     talking while the recogniser's guess was stable had the session pulled out
@@ -51,9 +57,13 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 - The mic emoji was being scaled on every sound-level change, which is the
   animation that makes emoji vanish app-wide (golden rule 4). It now drives a
   bar's width instead.
-- 53 new tests, covering the turn machine, the silence detection and the
+- An idle microphone used to stay open until the 45-second cap whenever the
+  recogniser kept timing out and restarting, because the give-up clock
+  restarted with each session. It now measures the whole turn.
+- 58 new tests, covering the turn machine, the silence detection and the
   vendored patch — none of which could be tested before. Every fix was checked
-  by reverting it and confirming the suite fails.
+  by reverting it and confirming the suite fails, and the main ones were then
+  confirmed again on the phone from a timestamped trace.
 
 ---
 

@@ -19,8 +19,12 @@ export 'package:speech_to_text/speech_recognition_result.dart';
 ///
 /// Off by default and compiled out of a normal release. Build with
 /// `--dart-define=POLLIE_TRACE=1` and read it with
-/// `adb logcat -s flutter:V | grep PT|`.
-const kPollieTrace = bool.fromEnvironment('POLLIE_TRACE');
+/// `adb logcat | grep 'PT|'`.
+///
+/// Read as a String rather than `bool.fromEnvironment`, which only accepts the
+/// exact literal `true` — `POLLIE_TRACE=1` silently compiles to false, and a
+/// tracing build that traces nothing is a genuinely confusing hour.
+const kPollieTrace = String.fromEnvironment('POLLIE_TRACE') != '';
 
 /// One trace line: `PT|<event>|<millis>|<payload>`.
 void trace(String event, [Object? payload]) {

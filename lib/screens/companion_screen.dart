@@ -108,6 +108,26 @@ final _sentenceEnd = RegExp(r'[.!?…]+["\u2019\u201d)\]]*(\s|$)');
 /// mistaken for an echo.
 const minEchoWords = 3;
 
+/// Whether [next] is the same hypothesis as [previous], still growing.
+///
+/// Android's recogniser does not only *extend* its guess. At a pause it wipes
+/// it and starts a new one **inside the same session** — measured on a Xiaomi
+/// 15, "tell me a story" was followed by an empty partial and then
+/// " about a big dinosaur". Nothing marks that moment: no final result, no
+/// session end, no error. Assigning the new text over the old one therefore
+/// loses everything said before the pause, which is exactly what turned
+/// "in minecraft how do you create a tnt" into half a question.
+///
+/// A shrinking guess is normal backtracking and is *not* a reset.
+bool continuesHypothesis(String previous, String next) {
+  final before = previous.trim().toLowerCase();
+  final after = next.trim().toLowerCase();
+  if (before.isEmpty) return true;
+  // The empty partial is the recogniser announcing it has started over.
+  if (after.isEmpty) return false;
+  return after.startsWith(before) || before.startsWith(after);
+}
+
 String stripEcho(String spoken, String heard) {
   final said = _echoWords(spoken);
   final got = _echoWords(heard);
@@ -330,6 +350,14 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// Cancelled the moment anything is heard again, so a child who was only
   /// drawing breath is never cut off.
   Timer? _finalQuietTimer;
+
+  /// Whether a voice has been heard at any point in *this turn*.
+  ///
+  /// Tracked here rather than read from [VadGate], because the gate is reset
+  /// on every session restart to re-measure the room — which also wiped this,
+  /// so "they spoke but I could not make it out" almost never fired and a
+  /// child whose short answer failed got no feedback at all.
+  bool _turnHeardVoice = false;
 
   /// Set when the device reports no sound levels at all, so the whole VAD is
   /// unavailable and endpointing falls back to transcript stability.
@@ -608,6 +636,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     _openMs = 0;
     _levelEvents = 0;
     _vadUnavailable = false;
+    _turnHeardVoice = false;
     _vad.reset();
     trace('turn_start', hold ? 'hold' : 'tap');
     _mode = hold ? TurnMode.hold : TurnMode.tap;
@@ -663,8 +692,13 @@ class _CompanionScreenState extends State<CompanionScreen>
     if (_micLive) return;
     trace('ready', guessed ? 'guessed' : 'real');
     _micLive = true;
+    // Only the silence clock restarts with a session: nothing was captured
+    // during the changeover, so that stretch is not evidence about the child.
+    // `_openMs` deliberately does not, because it is what gives up on a turn
+    // nobody is speaking into — resetting it per session meant a recogniser
+    // that times out every few seconds kept the microphone open until the
+    // 45-second cap.
     _silenceMs = 0;
-    _openMs = 0;
     _vad.reset();
     if (_turn == TurnState.warming) _turn = TurnState.open;
     // Felt, not heard: a "go" beep would either land inside the recording or
@@ -713,13 +747,13 @@ class _CompanionScreenState extends State<CompanionScreen>
       }
     }
 
-    if (!_vad.heardVoice && _openMs >= _noVoiceGivesUp.inMilliseconds) {
+    if (!_turnHeardVoice && _openMs >= _noVoiceGivesUp.inMilliseconds) {
       // Nobody spoke. Close quietly; there is nothing to apologise for.
       _emptyTurns++;
       _endTurn(send: false);
       return;
     }
-    if (_vad.heardVoice &&
+    if (_turnHeardVoice &&
         !hasWords &&
         _openMs >= _noWordsGivesUp.inMilliseconds) {
       // They did speak and we could not make it out. Say so, rather than
@@ -735,6 +769,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     if (!_micLive) return;
     final voice = _vad.feed(level);
     if (voice) {
+      _turnHeardVoice = true;
       // They are talking again: whatever the recogniser thought, this turn is
       // not over.
       _finalQuietTimer?.cancel();
@@ -749,7 +784,15 @@ class _CompanionScreenState extends State<CompanionScreen>
   void _onResult(SpeechRecognitionResult result) {
     if (!_turnActive) return;
     trace(result.finalResult ? 'final' : 'partial', result.recognizedWords);
-    final words = stripEcho(_lastSpoken, result.recognizedWords);
+    // Trimmed: a fresh hypothesis arrives with a leading space on the device,
+    // which would otherwise show up as a double space once it is joined onto
+    // the banked text.
+    final words = stripEcho(_lastSpoken, result.recognizedWords).trim();
+    // Bank the old hypothesis before it is overwritten by an unrelated one.
+    if (!continuesHypothesis(_partial, words)) {
+      _heard = appendHeard(_heard, _partial);
+      trace('hypothesis_reset', _heard);
+    }
     setState(() => _partial = words);
     if (!result.finalResult) return;
 

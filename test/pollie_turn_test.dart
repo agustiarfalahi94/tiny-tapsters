@@ -293,6 +293,117 @@ void main() {
     });
   });
 
+  group('the recogniser resetting its own guess loses nothing', () {
+    testWidgets('a wiped hypothesis mid-session is banked, not dropped', (
+      tester,
+    ) async {
+      // Measured on the device: at a pause Android emits the text so far, then
+      // an EMPTY partial, then starts a brand new hypothesis — all inside one
+      // session, with no final, no done and no error to mark it. Overwriting
+      // is what lost the first half of every paused sentence.
+      await openPollie(tester);
+      await startTurn(tester);
+      await speaking(tester, 300);
+      speech.emitPartial('tell me a story');
+      await silence(tester, 500);
+      speech.emitPartial('');
+      await tester.pump();
+      await speaking(tester, 300);
+      speech.emitPartial(' about a big dinosaur');
+      await silence(tester, 2400);
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(pollie.sent.last, 'tell me a story about a big dinosaur');
+    });
+
+    testWidgets('a growing guess is not mistaken for a reset', (tester) async {
+      await openPollie(tester);
+      await startTurn(tester);
+      await speaking(tester, 200);
+      for (final guess in ['tell', 'tell me', 'tell me a', 'tell me a story']) {
+        speech.emitPartial(guess);
+        await tester.pump();
+      }
+      await silence(tester, 2400);
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(pollie.sent.last, 'tell me a story', reason: 'no duplication');
+    });
+
+    testWidgets('a shrinking guess is backtracking, not a reset', (
+      tester,
+    ) async {
+      // Recognisers routinely retract: "tell me a stork" becomes "tell me a".
+      await openPollie(tester);
+      await startTurn(tester);
+      await speaking(tester, 200);
+      speech.emitPartial('tell me a stork');
+      await tester.pump();
+      speech.emitPartial('tell me a');
+      await tester.pump();
+      speech.emitPartial('tell me a story');
+      await silence(tester, 2400);
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(pollie.sent.last, 'tell me a story');
+    });
+
+    testWidgets('being heard but not understood survives a session restart', (
+      tester,
+    ) async {
+      // The gate is reset each session to re-measure the room, which also
+      // wiped the fact that the child had spoken — so the "say that again"
+      // path almost never fired, and a failed short answer looked to the
+      // child exactly like the app ignoring them.
+      await openPollie(tester);
+      await startTurn(tester);
+      await speaking(tester, 600);
+
+      // The session times out and restarts, twice, still with no words.
+      for (var i = 0; i < 2; i++) {
+        speech.emitError('error_speech_timeout', permanent: true);
+        await tester.pump(const Duration(milliseconds: 100));
+        speech.emitReady();
+        await tester.pump();
+        await silence(tester, 7000);
+      }
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(pollie.sent, isEmpty);
+      expect(
+        find.textContaining(sayAgainFragment),
+        findsWidgets,
+        reason: 'they spoke; they deserve to be told it did not land',
+      );
+    });
+
+    testWidgets('an idle turn gives up even while sessions keep recycling', (
+      tester,
+    ) async {
+      // Also measured: the recogniser timed out and restarted every six
+      // seconds with nobody speaking. The give-up clock used to restart with
+      // each session, so it never fired and the mic stayed open to the
+      // 45-second cap.
+      await openPollie(tester);
+      await startTurn(tester);
+
+      for (var i = 0; i < 4; i++) {
+        await silence(tester, 2000);
+        speech.emitError('error_speech_timeout', permanent: true);
+        await tester.pump(const Duration(milliseconds: 100));
+        speech.emitReady();
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        micColour(tester),
+        Colors.white,
+        reason: 'the turn gave up rather than cycling to the 45s cap',
+      );
+    });
+  });
+
   group('nothing is lost at a session boundary', () {
     testWidgets('a final result is merged, not concatenated', (tester) async {
       // A recogniser that restates its utterance used to stutter, because the
