@@ -5,6 +5,24 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.21.3] — 2026-08-11
+
+### Fixed
+- **🦁 and 🐯 no longer share a board in "Which Animal?".** Both are big-cat
+  roars, and the two recordings measure as near-identical — 1236 against 1244
+  zero-crossings a second, where a bear or a dog sits far away. With both on
+  screen the round could not be answered by listening, which is the entire
+  game. Neither animal was removed; they simply never appear together, the same
+  rule that keeps 🍃 and 🌿 off one board in Animal Food.
+
+### Notes
+- The first attempt excluded only the *answer's* twin, which still let both
+  cats appear whenever the answer was a third animal. The test caught it, and
+  it was confirmed to fail again with the rule taken out.
+- `flutter analyze`: 0 issues; 105/105 tests.
+
+---
+
 ## [1.21.2] — 2026-08-11
 
 ### Fixed
