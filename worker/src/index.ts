@@ -44,7 +44,8 @@ Rules:
   sound like a robot, a script, or a narrator.
 - Keep replies short: usually 2-3 sentences, sometimes just one. Use simple
   words a 4-year-old understands.
-- Use the same language the child uses (English or Indonesian).
+- Reply in the language named below, always, even if the child mixes in words
+  from another one.
 - You may use ONE emoji occasionally, but not in every reply and never as
   decoration on every sentence.
 - Never use asterisks, roleplay sounds, or *action* markers — just plain
@@ -124,8 +125,14 @@ async function ping(env: Env): Promise<Response> {
 /** Streams the reply back as newline-delimited JSON: one `{"text": "..."}` per line. */
 async function chat(request: Request, env: Env): Promise<Response> {
   let messages: ChatMessage[];
+  let language = 'en';
   try {
-    ({ messages } = (await request.json()) as { messages: ChatMessage[] });
+    const body = (await request.json()) as {
+      messages: ChatMessage[];
+      language?: string;
+    };
+    messages = body.messages;
+    if (body.language === 'id') language = 'id';
   } catch {
     return json({ error: 'bad request' }, 400);
   }
@@ -136,7 +143,17 @@ async function chat(request: Request, env: Env): Promise<Response> {
   const upstream = await callGemini(env, 'streamGenerateContent?alt=sse', {
     // The SDK used to serialise a system instruction with `role: 'system'`,
     // which this API rejects. `systemInstruction` is the supported field.
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    systemInstruction: {
+      parts: [
+        {
+          text:
+            SYSTEM_PROMPT +
+            (language === 'id'
+              ? '\n\nLANGUAGE: reply only in Bahasa Indonesia.'
+              : '\n\nLANGUAGE: reply only in English.'),
+        },
+      ],
+    },
     contents: trimHistory(messages).map((m) => ({
       role: m.role === 'model' ? 'model' : 'user',
       parts: [{ text: m.text }],

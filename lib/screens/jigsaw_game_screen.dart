@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
 import '../widgets/game_over_overlay.dart';
@@ -58,6 +60,10 @@ class _JigsawGameScreenState extends State<JigsawGameScreen>
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.jigsaw),
+    );
     _picture = _pictures[math.Random().nextInt(_pictures.length)];
     _gameKey = UniqueKey();
   }
@@ -106,7 +112,7 @@ class _JigsawGameScreenState extends State<JigsawGameScreen>
                       // have.
                       Expanded(
                         child: Text(
-                          'Jigsaw ${widget.rows}×${widget.cols}',
+                          strings.jigsawSize(widget.rows, widget.cols),
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -158,11 +164,11 @@ class _JigsawGameScreenState extends State<JigsawGameScreen>
           if (_won)
             CelebrationOverlay(
               emoji: '🧩',
-              title: 'Jigsaw done!',
+              title: strings.wonJigsaw,
               stars: _stars,
-              primaryLabel: 'New puzzle 🧩',
+              primaryLabel: strings.newPuzzle,
               onPrimary: () => _reset(newPicture: true),
-              secondaryLabel: 'Levels 🏠',
+              secondaryLabel: strings.levels,
               onSecondary: () => Navigator.of(context).pop(),
             ),
           if (outOfTime)

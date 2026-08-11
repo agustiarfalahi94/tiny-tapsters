@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../data/animal_sounds.dart';
 import '../services/music_service.dart';
 import '../services/sound_effects.dart';
@@ -69,6 +71,10 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.whichAnimal),
+    );
     _cardKeys = List.generate(widget.choices, (_) => GlobalKey());
     // Turned down, not off: a child has to make out a cow over the music, but
     // a game that falls silent reads as broken.
@@ -210,7 +216,7 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
                 // and unlabelled, and it replays as often as the child likes.
                 Semantics(
                   button: true,
-                  label: 'Play the animal sound',
+                  label: strings.playTheSound,
                   child: GestureDetector(
                     key: const ValueKey('play-sound'),
                     onTap: _play,
@@ -235,8 +241,8 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Who made that sound?',
+                Text(
+                  strings.whoMadeThatSound,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -268,11 +274,11 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
           if (_won)
             CelebrationOverlay(
               emoji: '🔊',
-              title: 'Great listening!',
+              title: strings.wonSound,
               stars: _stars,
-              primaryLabel: 'Play again 🔁',
+              primaryLabel: strings.playAgain,
               onPrimary: _reset,
-              secondaryLabel: 'Home 🏠',
+              secondaryLabel: strings.home,
               onSecondary: () => Navigator.of(context).pop(),
             ),
           if (outOfTime)

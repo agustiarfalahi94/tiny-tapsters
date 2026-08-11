@@ -103,6 +103,9 @@ lib/
     companion_screen.dart        # Pollie chat (via the worker/ proxy)
     credits_screen.dart          # sound attribution (CC BY requires it)
   services/
+    app_language.dart            # English/Bahasa Indonesia + every string
+    narrator.dart                # speaks each game's name when it opens
+  services/
     pollie_service.dart          # HTTP client for Pollie's proxy (worker/)
     kid_safety.dart              # local adult-word guard (input + output)
     sound_effects.dart           # one-shot SFX (pop, win, lose)

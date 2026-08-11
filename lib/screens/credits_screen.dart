@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/app_language.dart';
 import '../data/asset_credits.dart';
 import '../widgets/game_background.dart';
 import '../widgets/round_button.dart';
@@ -28,9 +29,9 @@ class CreditsScreen extends StatelessWidget {
                     emoji: '🏠',
                     onTap: () => Navigator.of(context).pop(),
                   ),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Sound credits',
+                      strings.soundCredits,
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -47,13 +48,12 @@ class CreditsScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Text(
-                'The animal sounds come from Wikimedia Commons. Thank you to '
-                'everyone who recorded them and shared them freely.',
+                strings.soundCreditsBody,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.white),
+                style: const TextStyle(fontSize: 14, color: Colors.white),
               ),
             ),
             Expanded(

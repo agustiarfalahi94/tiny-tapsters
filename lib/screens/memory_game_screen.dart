@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/flip_card.dart';
@@ -86,6 +88,10 @@ class _MemoryGameScreenState extends State<MemoryGameScreen>
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.memory),
+    );
     _cards = _buildDeck();
   }
 
@@ -219,7 +225,7 @@ class _MemoryGameScreenState extends State<MemoryGameScreen>
                       // have.
                       Expanded(
                         child: Text(
-                          'Pairs left: $pairsLeft',
+                          strings.pairsLeft(pairsLeft),
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -258,11 +264,11 @@ class _MemoryGameScreenState extends State<MemoryGameScreen>
           ),
           if (_won)
             CelebrationOverlay(
-              title: 'Yay! You did it!',
+              title: strings.wonMemory,
               stars: _stars,
-              primaryLabel: 'Play again 🔁',
+              primaryLabel: strings.playAgain,
               onPrimary: _reset,
-              secondaryLabel: 'More games 🏠',
+              secondaryLabel: strings.moreGames,
               onSecondary: () => Navigator.of(context).pop(),
             ),
           if (outOfTime)

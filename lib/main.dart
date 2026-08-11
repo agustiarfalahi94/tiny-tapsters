@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
+import 'services/app_language.dart';
 import 'services/music_route_observer.dart';
 import 'services/music_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Stability: never let an uncaught error kill the app or show the red
   // debug screen to a toddler. Log everything; render a friendly fallback.
@@ -36,6 +37,9 @@ void main() {
   // Locking the phone must stop the music, not leave it playing in a
   // pocket. The games already paused their clocks; nothing told the music.
   WidgetsBinding.instance.addObserver(MusicLifecycleObserver());
+  // Read the stored language before the first frame, so the app never shows
+  // English and then flips.
+  await AppLanguageService.instance.load();
   runApp(const ToddlerGamesApp());
 }
 
@@ -64,6 +68,15 @@ class ToddlerGamesApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuilds the entire app when the language changes, which is why the
+    // strings can be read from a plain global rather than looked up.
+    return ValueListenableBuilder<AppLanguage>(
+      valueListenable: AppLanguageService.instance.current,
+      builder: (context, _, _) => _app(),
+    );
+  }
+
+  Widget _app() {
     return MaterialApp(
       title: 'Tiny Tapsters',
       debugShowCheckedModeBanner: false,
@@ -73,7 +86,11 @@ class ToddlerGamesApp extends StatelessWidget {
       ),
       // Keeps the background music in step with whichever screen is on top.
       navigatorObservers: [MusicRouteObserver()],
-      home: const HomeScreen(),
+      // Deliberately not `const`. A const widget is canonicalised to a single
+      // instance, and Flutter skips rebuilding a subtree whose widget is
+      // identical — so with `const` here the language switch changed nothing
+      // on screen.
+      home: HomeScreen(),
     );
   }
 }

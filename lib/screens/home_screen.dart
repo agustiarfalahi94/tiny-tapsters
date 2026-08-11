@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/app_language.dart';
 import '../services/music_route_observer.dart';
 import '../services/music_service.dart';
 import '../widgets/game_background.dart';
@@ -48,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => _openPollie(context),
             backgroundColor: Colors.white,
             elevation: 6,
-            tooltip: 'Talk to Pollie',
+            tooltip: strings.talkToPollie,
             child: const PollieBird(),
           ),
         ],
@@ -78,6 +79,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     _open(context, const CreditsScreen(), MusicTrack.menu),
               ),
             ),
+            // The language switch. A flag rather than a word, so it means the
+            // same thing whichever language you cannot read.
+            Positioned(
+              top: 8,
+              left: 78,
+              child: RoundButton(
+                emoji: AppLanguageService.instance.current.value.flag,
+                onTap: AppLanguageService.instance.toggle,
+              ),
+            ),
           ],
         ),
       ),
@@ -105,10 +116,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'Fun games for little learners',
+        Text(
+          strings.appTagline,
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 17, color: Colors.white),
+          style: const TextStyle(fontSize: 17, color: Colors.white),
         ),
         const SizedBox(height: 12),
         Expanded(
@@ -117,18 +128,18 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _GameCard(
                 emoji: '🧩',
-                title: 'Jigsaw Puzzle',
-                subtitle: 'Put the picture back together!',
+                title: strings.jigsaw,
+                subtitle: strings.jigsawSubtitle,
                 onTap: () => _openLevels(
                   context,
                   LevelsScreen(
-                    title: 'Jigsaw Puzzle 🧩',
-                    subtitle: 'Put the picture back together!',
+                    title: '${strings.jigsaw} 🧩',
+                    subtitle: strings.jigsawSubtitle,
                     levels: [
                       LevelOption(
                         emoji: '🐣',
-                        name: 'Easy',
-                        detail: '4 pieces',
+                        name: strings.easy,
+                        detail: strings.pieces(4),
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
@@ -141,8 +152,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐥',
-                        name: 'Medium',
-                        detail: '6 pieces',
+                        name: strings.medium,
+                        detail: strings.pieces(6),
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
@@ -155,8 +166,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐤',
-                        name: 'Big',
-                        detail: '9 pieces',
+                        name: strings.big,
+                        detail: strings.pieces(9),
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
@@ -174,18 +185,18 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               _GameCard(
                 emoji: '🐰',
-                title: 'Animal Food',
-                subtitle: 'Feed each animal its food!',
+                title: strings.animalFood,
+                subtitle: strings.animalFoodSubtitle,
                 onTap: () => _openLevels(
                   context,
                   LevelsScreen(
-                    title: 'Animal Food 🐰',
-                    subtitle: 'Feed each animal its favorite food!',
+                    title: '${strings.animalFood} 🐰',
+                    subtitle: strings.animalFoodSubtitleLong,
                     levels: [
                       LevelOption(
                         emoji: '🐣',
-                        name: 'Easy',
-                        detail: '3 animals',
+                        name: strings.easy,
+                        detail: strings.animals(3),
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
@@ -197,8 +208,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐥',
-                        name: 'Medium',
-                        detail: '6 animals',
+                        name: strings.medium,
+                        detail: strings.animals(6),
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
@@ -210,8 +221,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐤',
-                        name: 'Big',
-                        detail: '9 animals',
+                        name: strings.big,
+                        detail: strings.animals(9),
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
@@ -228,18 +239,18 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               _GameCard(
                 emoji: '🃏',
-                title: 'Memory Match',
-                subtitle: 'Flip the cards and find the pairs!',
+                title: strings.memory,
+                subtitle: strings.memorySubtitle,
                 onTap: () => _openLevels(
                   context,
                   LevelsScreen(
-                    title: 'Memory Match 🃏',
-                    subtitle: 'Pick a level!',
+                    title: '${strings.memory} 🃏',
+                    subtitle: strings.pickALevel,
                     levels: [
                       LevelOption(
                         emoji: '🐣',
-                        name: 'Easy',
-                        detail: '2 pairs',
+                        name: strings.easy,
+                        detail: strings.pairs(2),
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
@@ -252,8 +263,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐥',
-                        name: 'Medium',
-                        detail: '3 pairs',
+                        name: strings.medium,
+                        detail: strings.pairs(3),
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
@@ -266,8 +277,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐤',
-                        name: 'Big',
-                        detail: '6 pairs',
+                        name: strings.big,
+                        detail: strings.pairs(6),
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
@@ -285,18 +296,18 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               _GameCard(
                 emoji: '🎈',
-                title: 'Bubble Pop',
-                subtitle: 'Pop the floating bubbles!',
+                title: strings.bubblePop,
+                subtitle: strings.bubblePopSubtitle,
                 onTap: () => _openLevels(
                   context,
                   LevelsScreen(
-                    title: 'Bubble Pop 🎈',
-                    subtitle: 'Pop them all before the time runs out!',
+                    title: '${strings.bubblePop} 🎈',
+                    subtitle: strings.bubblePopGoal,
                     levels: [
                       LevelOption(
                         emoji: '🐣',
-                        name: 'Easy',
-                        detail: '6 bubbles',
+                        name: strings.easy,
+                        detail: strings.bubbles(6),
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
@@ -308,8 +319,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐥',
-                        name: 'Medium',
-                        detail: '8 bubbles',
+                        name: strings.medium,
+                        detail: strings.bubbles(8),
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
@@ -321,8 +332,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐤',
-                        name: 'Big',
-                        detail: '12 bubbles',
+                        name: strings.big,
+                        detail: strings.bubbles(12),
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
@@ -339,18 +350,18 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               _GameCard(
                 emoji: '🔍',
-                title: 'Find It!',
-                subtitle: 'Find the animal that matches!',
+                title: strings.findIt,
+                subtitle: strings.findItSubtitle,
                 onTap: () => _openLevels(
                   context,
                   LevelsScreen(
-                    title: 'Find It! 🔍',
-                    subtitle: 'Pick a level!',
+                    title: '${strings.findIt} 🔍',
+                    subtitle: strings.pickALevel,
                     levels: [
                       LevelOption(
                         emoji: '🐣',
-                        name: 'Easy',
-                        detail: '6 animals',
+                        name: strings.easy,
+                        detail: strings.animals(6),
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
@@ -362,8 +373,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐥',
-                        name: 'Medium',
-                        detail: '9 animals',
+                        name: strings.medium,
+                        detail: strings.animals(9),
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
@@ -375,8 +386,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐤',
-                        name: 'Big',
-                        detail: '12 animals',
+                        name: strings.big,
+                        detail: strings.animals(12),
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
@@ -393,18 +404,18 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               _GameCard(
                 emoji: '🔊',
-                title: 'Which Animal?',
-                subtitle: 'Listen and find the animal!',
+                title: strings.whichAnimal,
+                subtitle: strings.whichAnimalSubtitle,
                 onTap: () => _openLevels(
                   context,
                   LevelsScreen(
-                    title: 'Which Animal? 🔊',
-                    subtitle: 'Listen, then tap who made that sound!',
+                    title: '${strings.whichAnimal} 🔊',
+                    subtitle: strings.whichAnimalGoal,
                     levels: [
                       LevelOption(
                         emoji: '🐣',
-                        name: 'Easy',
-                        detail: '2 to choose from',
+                        name: strings.easy,
+                        detail: strings.choices(2),
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
@@ -416,8 +427,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐥',
-                        name: 'Medium',
-                        detail: '3 to choose from',
+                        name: strings.medium,
+                        detail: strings.choices(3),
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
@@ -429,8 +440,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐤',
-                        name: 'Big',
-                        detail: '5 to choose from',
+                        name: strings.big,
+                        detail: strings.choices(5),
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
@@ -447,18 +458,18 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 12),
               _GameCard(
                 emoji: '🔢',
-                title: 'Count the Animals!',
-                subtitle: 'Count the animals and tap the number!',
+                title: strings.countAnimals,
+                subtitle: strings.countAnimalsSubtitle,
                 onTap: () => _openLevels(
                   context,
                   LevelsScreen(
-                    title: 'Count the Animals! 🔢',
-                    subtitle: 'Pick a level!',
+                    title: '${strings.countAnimals} 🔢',
+                    subtitle: strings.pickALevel,
                     levels: [
                       LevelOption(
                         emoji: '🐣',
-                        name: 'Easy',
-                        detail: 'Count to 3',
+                        name: strings.easy,
+                        detail: strings.countTo(3),
                         color: const Color(0xFF4CAF50),
                         onTap: () => _openGame(
                           context,
@@ -470,8 +481,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐥',
-                        name: 'Medium',
-                        detail: 'Count to 5',
+                        name: strings.medium,
+                        detail: strings.countTo(5),
                         color: const Color(0xFFFF9800),
                         onTap: () => _openGame(
                           context,
@@ -483,8 +494,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       LevelOption(
                         emoji: '🐤',
-                        name: 'Big',
-                        detail: 'Count to 10',
+                        name: strings.big,
+                        detail: strings.countTo(10),
                         color: const Color(0xFFE91E63),
                         onTap: () => _openGame(
                           context,
@@ -501,12 +512,12 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.only(bottom: 10),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
           child: Text(
-            'Made with ❤️ for our toddler',
+            strings.madeWithLove,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.white),
+            style: const TextStyle(fontSize: 14, color: Colors.white),
           ),
         ),
       ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/app_language.dart';
 import '../services/sound_effects.dart';
 
 /// Shown when the clock runs out.
@@ -10,12 +11,13 @@ import '../services/sound_effects.dart';
 class GameOverOverlay extends StatefulWidget {
   const GameOverOverlay({
     super.key,
-    this.title = "Time's up!",
+    this.title,
     required this.onRetry,
     required this.onHome,
   });
 
-  final String title;
+  /// Defaults to the translated "Time's up!".
+  final String? title;
   final VoidCallback onRetry;
   final VoidCallback onHome;
 
@@ -44,7 +46,7 @@ class _GameOverOverlayState extends State<GameOverOverlay> {
                 const Text('⏰', style: TextStyle(fontSize: 80)),
                 const SizedBox(height: 8),
                 Text(
-                  widget.title,
+                  widget.title ?? strings.timesUp,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 28,
@@ -66,9 +68,12 @@ class _GameOverOverlayState extends State<GameOverOverlay> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                   ),
-                  child: const Text(
-                    'Try again 🔁',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  child: Text(
+                    strings.tryAgain,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -85,9 +90,12 @@ class _GameOverOverlayState extends State<GameOverOverlay> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                   ),
-                  child: const Text(
-                    'Home 🏠',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  child: Text(
+                    strings.home,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],

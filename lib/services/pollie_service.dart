@@ -160,11 +160,17 @@ class PollieService {
   /// The proxy hands back newline-delimited JSON — one `{"text": "..."}` per
   /// line — rather than an SSE dialect, so there is as little protocol as
   /// possible for a phone on a bad connection to get wrong.
-  Stream<String> reply(List<ChatMessage> history) async* {
+  /// [language] is 'en' or 'id'. Pollie used to infer it from the child's
+  /// words, which got it wrong on short replies; the app already knows.
+  Stream<String> reply(
+    List<ChatMessage> history, {
+    String language = 'en',
+  }) async* {
     if (!isConfigured) {
       throw StateError('Pollie endpoint not configured');
     }
     final response = await _post('/chat', {
+      'language': language,
       'messages': [
         for (final message in history)
           {'role': message.role, 'text': message.text},

@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
@@ -72,6 +74,10 @@ class _CountGameScreenState extends State<CountGameScreen>
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.countAnimals),
+    );
     _newRound();
   }
 
@@ -267,11 +273,11 @@ class _CountGameScreenState extends State<CountGameScreen>
           if (_won)
             CelebrationOverlay(
               emoji: '🔢',
-              title: 'Great counting!',
+              title: strings.wonCount,
               stars: _stars,
-              primaryLabel: 'Play again 🔁',
+              primaryLabel: strings.playAgain,
               onPrimary: _reset,
-              secondaryLabel: 'Home 🏠',
+              secondaryLabel: strings.home,
               onSecondary: () => Navigator.of(context).pop(),
             ),
           if (outOfTime)
