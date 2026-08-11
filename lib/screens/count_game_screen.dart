@@ -369,9 +369,13 @@ class _CountCardState extends State<_CountCard>
                 ),
                 // Scale digit + dots down (never up) so huge system text or
                 // narrow cards can't push the dots past the card bounds.
-                // Breathing room inside the card. Without it the dot pattern
-                // runs flush to the rounded edge, and on Big — ten dots in two
-                // rows — the bottom row sits right on the border.
+                // The card is the digit and nothing else. It used to carry a
+                // matching pattern of dots, which was a scaffold for a child
+                // who cannot yet read numerals — but both the animals above
+                // and the dots below were laid out with a centred `Wrap`, so
+                // they wrapped into the *same shape*. Comparing the two
+                // outlines answered the question without counting anything,
+                // which is the entire point of the game.
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -390,8 +394,6 @@ class _CountCardState extends State<_CountCard>
                             color: Color(0xFF37474F),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        _DotPattern(count: widget.value),
                       ],
                     ),
                   ),
@@ -407,40 +409,3 @@ class _CountCardState extends State<_CountCard>
 
 /// Plain circles laid out 5 per row (up to 2 rows for 10), sized to fit the
 /// card so toddlers can point and count.
-class _DotPattern extends StatelessWidget {
-  const _DotPattern({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const gap = 5.0;
-        final dot = ((constraints.maxWidth - gap * 4) / 5)
-            .clamp(12.0, 18.0)
-            .toDouble();
-        return SizedBox(
-          width: dot * 5 + gap * 4,
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            runAlignment: WrapAlignment.center,
-            spacing: gap,
-            runSpacing: gap,
-            children: [
-              for (var i = 0; i < count; i++)
-                Container(
-                  width: dot,
-                  height: dot,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFFFFB74D),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
