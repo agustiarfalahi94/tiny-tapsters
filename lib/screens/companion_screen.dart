@@ -464,6 +464,13 @@ class _CompanionScreenState extends State<CompanionScreen>
         },
         listenOptions: SpeechListenOptions(
           localeId: _localeId,
+          // The patched options (see packages/PATCH.md). Android's own
+          // "probably finished" guess is about half a second — shorter than
+          // the pause between words — and ending a session mid-sentence is
+          // what dropped words, because each restart leaves a gap nothing is
+          // captured in. Two and a half seconds lets a child think.
+          possiblyCompleteSilence: const Duration(milliseconds: 2500),
+          minimumLength: const Duration(seconds: 3),
           // Long enough for a full toddler sentence; pauseFor (not a
           // restart) is what actually absorbs mid-sentence pauses.
           listenFor: const Duration(seconds: 30),
@@ -530,12 +537,15 @@ class _CompanionScreenState extends State<CompanionScreen>
     // without ever producing a final result.
     _bankPartial();
     try {
-      // The plugin needs its previous session fully torn down before the
-      // next `listen()`, or the platform reports the recogniser busy.
-      try {
-        await _speech.stop();
-      } catch (_) {}
-      await Future<void>.delayed(const Duration(milliseconds: 120));
+      // A session that ended on its own is already torn down; calling stop()
+      // again only adds dead air, and every millisecond here is speech nobody
+      // captures. Stop only when we are interrupting a live session.
+      if (_speech.isListening) {
+        try {
+          await _speech.stop();
+        } catch (_) {}
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 60));
       if (!_turnActive || !mounted) return;
       await _listenOnce();
     } finally {
