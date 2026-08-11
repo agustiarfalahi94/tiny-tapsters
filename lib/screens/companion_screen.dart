@@ -22,6 +22,27 @@ enum _PollieStatus { sleeping, awake, listening, thinking, speaking }
 /// (system TTS) — then Pollie listens again automatically, so a toddler can
 /// just keep chatting like in the Gemini app. Toddlers can also tap the big
 /// chips; grown-ups can type.
+/// Finds the device's own name for [wanted] among the recognisers it has.
+///
+/// Android reports these inconsistently — `id_ID` as often as `id-ID`, and
+/// sometimes only a bare `id` — so an exact string comparison misses a
+/// recogniser that is actually installed. Falls back to matching on the
+/// language alone, which is what a child is speaking anyway.
+///
+/// Returns null when the device genuinely has nothing for that language.
+String? matchLocale(String wanted, List<String> available) {
+  String normalise(String id) => id.replaceAll('_', '-').toLowerCase();
+  final target = normalise(wanted);
+  final language = target.split('-').first;
+  for (final id in available) {
+    if (normalise(id) == target) return id;
+  }
+  for (final id in available) {
+    if (normalise(id).split('-').first == language) return id;
+  }
+  return null;
+}
+
 /// Joins what a recogniser session produced onto what earlier sessions did.
 ///
 /// A session ending must not lose its words: the next session assigns to the
@@ -298,16 +319,41 @@ class _CompanionScreenState extends State<CompanionScreen>
       );
       if (!mounted) return;
       setState(() => _speechAvailable = available);
-      if (available) {
-        final lang = (await _speech.systemLocale())?.localeId ?? '';
-        if (lang.startsWith('id') || lang.startsWith('in')) {
-          _localeId = 'id-ID';
-        } else if (lang.startsWith('en')) {
-          _localeId = 'en-US';
-        }
-      }
+      // The *app's* language decides what Pollie listens for, not the phone's.
+      // This used to read the system locale here and overwrite the choice
+      // above, so on an English phone Pollie answered in Indonesian while
+      // still listening in English — the child could not be understood.
+      if (available) await _useAppLocale();
     } catch (_) {
       _speechAvailable = false;
+    }
+  }
+
+  /// Points the recogniser at the chosen language, checking the device
+  /// actually has it.
+  ///
+  /// A phone without the Indonesian pack would otherwise fail silently: the
+  /// mic opens, hears everything, and recognises nothing. Falling back to a
+  /// language it does have is worse than useless for the child, but at least
+  /// it is visible in the log rather than a mystery.
+  Future<void> _useAppLocale() async {
+    final wanted = AppLanguageService.instance.current.value.localeId;
+    try {
+      final available = await _speech.locales();
+      final ids = available.map((l) => l.localeId).toList();
+      final match = matchLocale(wanted, ids) ?? '';
+      if (match.isEmpty) {
+        debugPrint(
+          'Pollie: this device has no recogniser for $wanted. '
+          'Available: ${ids.take(12).join(", ")}',
+        );
+        return;
+      }
+      _localeId = match;
+      debugPrint('Pollie listening in $_localeId');
+    } catch (e) {
+      debugPrint('Pollie could not list speech locales: $e');
+      _localeId = wanted;
     }
   }
 

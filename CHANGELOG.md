@@ -5,6 +5,30 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.21.4] — 2026-08-11
+
+### Fixed
+- **Pollie could not understand Indonesian, even with the language set to
+  Indonesian.** She *replied* in Indonesian, so the setting looked as though it
+  had worked — but the microphone was still listening in English, which is why
+  speaking English got a response and speaking Indonesian got nothing. The
+  language was applied to the recogniser and then immediately overwritten by
+  the phone's *system* locale a few lines later. The app's setting is now the
+  only thing that decides.
+
+### Changed
+- Matching the language to a recogniser the device actually has is now
+  tolerant: Android reports these as `id_ID` as often as `id-ID`, and sometimes
+  as a bare `id`, so an exact comparison could miss a pack that was installed.
+  If the device genuinely has nothing for the language, that is written to the
+  log rather than failing silently with a mic that hears everything and
+  recognises nothing.
+
+### Notes
+- `flutter analyze`: 0 issues; 108/108 tests.
+
+---
+
 ## [1.21.3] — 2026-08-11
 
 ### Fixed
