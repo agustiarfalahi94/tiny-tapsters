@@ -5,6 +5,58 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.25.0] — 2026-08-11
+
+### Fixed
+- **Pollie stopped cutting children off.** Four separate things were ending a
+  turn early and none of them was measuring silence:
+  - the speech package's `pauseFor` stops a session a fixed time after the
+    *transcribed text last changed*, which is not silence — a child still
+    talking while the recogniser's guess was stable had the session pulled out
+    from under them, and the words spoken during the restart were lost. This is
+    what turned "in minecraft how do you create a tnt?" into "in minecraft how
+    do you";
+  - **every** error Android's speech plugin sends is marked permanent,
+    including the harmless "didn't catch that" one, and the app was also
+    looking for `no match` where Android sends `error_no_match`. A child
+    pausing to think produced one of these, and it ended the whole turn and
+    sent half a question;
+  - `minimumLength` forced every session to run three seconds, so a one-word
+    answer waited on a timer with nothing to wait for;
+  - the app said it was listening up to half a second before the microphone was
+    actually recording, so the first words of an answer landed in a hole. That
+    is why the clipping started on the second or third turn rather than the
+    first, and why a word as short as "yes" could disappear completely.
+- **The gap after Pollie finishes talking is gone.** It was a blind 1.2-second
+  wait, and the child was answering into it.
+- **Pollie can no longer get stuck not listening.** The app built two
+  text-to-speech engines, and because the plugin shares one channel, whichever
+  was built last silently took the "finished speaking" callback. If Pollie lost,
+  the microphone never re-opened.
+
+### Added
+- **Hold the microphone button to talk.** While a finger is down the mic stays
+  open no matter how long the pause — nothing is allowed to decide the child has
+  finished. Tapping still works exactly as before. Holding is the reliable path
+  in a noisy room or for a child who thinks mid-sentence.
+- The button is now **amber while the microphone is warming up and red once it
+  is really recording**, with a small buzz at the change, so nobody is invited
+  to speak into a mic that is not on yet.
+
+### Changed
+- Pollie now decides the child has finished from the **room being quiet** rather
+  than from the recogniser's guesses, and answers faster when both agree.
+
+### Notes
+- The mic emoji was being scaled on every sound-level change, which is the
+  animation that makes emoji vanish app-wide (golden rule 4). It now drives a
+  bar's width instead.
+- 53 new tests, covering the turn machine, the silence detection and the
+  vendored patch — none of which could be tested before. Every fix was checked
+  by reverting it and confirming the suite fails.
+
+---
+
 ## [1.24.2] — 2026-08-11
 
 ### Fixed
