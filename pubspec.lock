@@ -192,14 +192,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  google_generative_ai:
-    dependency: "direct main"
-    description:
-      name: google_generative_ai
-      sha256: "71f613d0247968992ad87a0eb21650a566869757442ba55a31a81be6746e0d1f"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.4.7"
   hooks:
     dependency: transitive
     description:
@@ -440,18 +432,16 @@ packages:
   speech_to_text:
     dependency: "direct main"
     description:
-      name: speech_to_text
-      sha256: "75587f7400f485fdf166beacd471549d98fe5d58e634f708916bb65dec05d6a4"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/speech_to_text"
+      relative: true
+    source: path
     version: "7.4.0"
   speech_to_text_platform_interface:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: speech_to_text_platform_interface
-      sha256: a7e16e02853853ed7534ac2bde9a1c4f39c8879970a7974ac6ff832d4bdaa4b0
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/speech_to_text_platform_interface"
+      relative: true
+    source: path
     version: "2.4.0"
   speech_to_text_windows:
     dependency: transitive

@@ -2,8 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
+import '../widgets/game_over_overlay.dart';
+import '../widgets/game_timer.dart';
 import '../widgets/pair_drag_game.dart';
 import '../widgets/round_button.dart';
 
@@ -11,16 +15,25 @@ import '../widgets/round_button.dart';
 /// slices are scrambled in the drawer, and a faint copy of the whole picture
 /// sits behind the board as a reference. Drag each slice to its spot.
 class JigsawGameScreen extends StatefulWidget {
-  const JigsawGameScreen({super.key, required this.rows, required this.cols});
+  const JigsawGameScreen({
+    super.key,
+    required this.rows,
+    required this.cols,
+    required this.level,
+  });
 
   final int rows;
   final int cols;
+
+  /// Sets the clock: 30s / 1m / 2m for the whole puzzle.
+  final GameLevel level;
 
   @override
   State<JigsawGameScreen> createState() => _JigsawGameScreenState();
 }
 
-class _JigsawGameScreenState extends State<JigsawGameScreen> {
+class _JigsawGameScreenState extends State<JigsawGameScreen>
+    with WidgetsBindingObserver, TimedGame {
   static const _pictures = [
     '🦁',
     '🐼',
@@ -36,15 +49,35 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
   late String _picture;
   late Key _gameKey;
   bool _won = false;
+  int _stars = 3;
+
+  @override
+  GameLevel get gameLevel => widget.level;
+
+  @override
+  bool get hasWon => _won;
 
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.jigsaw),
+    );
     _picture = _pictures[math.Random().nextInt(_pictures.length)];
     _gameKey = UniqueKey();
   }
 
+  /// 3 stars for a clean board, 2 for a couple of mistakes, 1 otherwise —
+  /// the same scale the other games use.
+  static int starsFor(int wrongDrops) {
+    if (wrongDrops == 0) return 3;
+    if (wrongDrops <= 2) return 2;
+    return 1;
+  }
+
   void _reset({bool newPicture = false}) {
+    resetClock();
     setState(() {
       if (newPicture) {
         _picture = _pictures[math.Random().nextInt(_pictures.length)];
@@ -73,22 +106,33 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
                         emoji: '🏠',
                         onTap: () => Navigator.of(context).pop(),
                       ),
-                      const Spacer(),
-                      Text(
-                        'Jigsaw ${widget.rows}×${widget.cols}',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(color: Colors.black26, blurRadius: 6),
-                          ],
+                      // Expanded rather than Spacer-Text-Spacer: on a 360dp
+                      // phone the title plus two buttons can be wider than the
+                      // row, and Spacers cannot give back space they do not
+                      // have.
+                      Expanded(
+                        child: Text(
+                          strings.jigsawSize(widget.rows, widget.cols),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(color: Colors.black26, blurRadius: 6),
+                            ],
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
                       RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: GameTimerBar(controller: clock),
                 ),
                 Expanded(
                   child: PairDragGame(
@@ -104,7 +148,14 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
                     boardBackgroundBuilder: _buildBoardBackground,
                     slotBuilder: _buildSlot,
                     pieceBuilder: _buildSlice,
-                    onCompleted: () => setState(() => _won = true),
+                    onFirstMove: startClock,
+                    onCompleted: (wrongDrops) {
+                      winClock();
+                      setState(() {
+                        _stars = starsFor(wrongDrops);
+                        _won = true;
+                      });
+                    },
                   ),
                 ),
               ],
@@ -113,11 +164,17 @@ class _JigsawGameScreenState extends State<JigsawGameScreen> {
           if (_won)
             CelebrationOverlay(
               emoji: '🧩',
-              title: 'Jigsaw done!',
-              primaryLabel: 'New puzzle 🧩',
+              title: strings.wonJigsaw,
+              stars: _stars,
+              primaryLabel: strings.newPuzzle,
               onPrimary: () => _reset(newPicture: true),
-              secondaryLabel: 'Levels 🏠',
+              secondaryLabel: strings.levels,
               onSecondary: () => Navigator.of(context).pop(),
+            ),
+          if (outOfTime)
+            GameOverOverlay(
+              onRetry: _reset,
+              onHome: () => Navigator.of(context).pop(),
             ),
         ],
       ),

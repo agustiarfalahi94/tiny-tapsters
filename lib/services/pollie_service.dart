@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 
 /// One chat turn in the conversation history.
 class ChatMessage {
@@ -13,57 +17,67 @@ class ChatMessage {
 /// Result of a connectivity probe.
 enum PolliePing { ok, quota, unreachable }
 
-/// Thin wrapper around the Gemini API for the in-app companion (Pollie 🦜).
+/// Talks to Pollie's proxy (see `worker/`), which holds the Gemini key.
 ///
-/// The API key comes from the build environment:
-///   flutter build apk --release --dart-define=GEMINI_API_KEY=...
-/// It is never stored in the repository.
+/// This used to call Gemini directly through `google_generative_ai`. That
+/// package is discontinued and cannot express `thinkingConfig` at all, which
+/// meant every reply paid for a reasoning pass before its first word — and it
+/// required the API key to ship inside the APK, where `strings libapp.so`
+/// finds it. Both problems live on the other side of the proxy now, so this is
+/// a plain HTTP client and one dependency fewer.
 class PollieService {
-  PollieService() {
-    const key = String.fromEnvironment('GEMINI_API_KEY');
-    if (key.isNotEmpty) {
-      _model = GenerativeModel(
-        model: _modelId,
-        apiKey: key,
-        generationConfig: GenerationConfig(
-          temperature: 0.9,
-          // Generous budget: the current flash models "think" first, and
-          // thinking tokens count toward this cap.
-          maxOutputTokens: 800,
-        ),
-      );
-    }
+  PollieService({String? endpoint, HttpClient? client})
+    : _endpoint = endpoint ?? _defaultEndpoint,
+      _client = client;
+
+  /// The proxy the app talks to.
+  ///
+  /// A `--dart-define` that is *present but empty* would otherwise win over
+  /// the fallback and silently disable Pollie — which is exactly what CI does
+  /// when the `POLLIE_ENDPOINT` repository variable is not set, because the
+  /// workflow always passes the flag. An empty value means "not configured",
+  /// not "no proxy".
+  static String get _defaultEndpoint =>
+      _fromEnvironment.isEmpty ? _deployedProxy : _fromEnvironment;
+
+  static const _fromEnvironment = String.fromEnvironment('POLLIE_ENDPOINT');
+  static const _deployedProxy = 'https://pollie.inkpebble.workers.dev';
+
+  /// Closes the connection pool. Called when the companion screen is left.
+  void dispose() {
+    _disposed = true;
+    _client?.close(force: true);
+    _client = null;
   }
 
-  // The "latest" alias always tracks Google's current flash model, so this
-  // never needs updating when models get retired.
-  static const _modelId = 'gemini-flash-latest';
+  /// Identifies this install to the proxy's rate limiter and nothing else.
+  ///
+  /// Random per launch, because the app deliberately writes nothing to disk.
+  /// That is enough to bound one session's burst, and it stores nothing about
+  /// the child.
+  static final String _installId = _randomId();
 
-  static const _systemPrompt = '''
-You are Pollie, a warm, friendly companion who talks to a young child.
-Rules:
-- Talk like a normal, warm person would: relaxed, casual, natural. Never
-  sound like a robot, a script, or a narrator.
-- Keep replies short: usually 2-3 sentences, sometimes just one. Use simple
-  words a 4-year-old understands.
-- Use the same language the child uses (English or Indonesian).
-- You may use ONE emoji occasionally, but not in every reply and never as
-  decoration on every sentence.
-- Never use asterisks, roleplay sounds, or *action* markers — just plain
-  speech.
-- Never mention that you are an AI or a model.
-- SAFETY (most important): NEVER discuss sex, dating, romance, violence,
-  drugs, death, or anything adult. NEVER use bad words, insults, or slurs.
-  If the child says something rude or inappropriate, gently say "That's not
-  a nice thing to say!" and change the subject to something fun.
-- If the child asks to do something dangerous or unsafe, gently say no and
-  suggest a safe, fun alternative instead.
-- For stories and songs, keep them very short and sweet.''';
+  final String _endpoint;
 
-  GenerativeModel? _model;
+  /// One client for the whole session, created on first use.
+  ///
+  /// This used to be `_client ?? HttpClient()` inside the request method,
+  /// which built a fresh client — and a fresh connection pool — for *every*
+  /// message, and never closed any of them. A long chat exhausted the phone's
+  /// sockets, after which every request failed for the rest of the session.
+  /// That is what "it worked, then suddenly stopped" was.
+  HttpClient? _client;
+
+  /// How many clients this service has built. Exactly one per session is the
+  /// whole point; a test asserts it, because the bug it replaces was invisible
+  /// until a real phone ran out of sockets.
+  @visibleForTesting
+  int clientsCreated = 0;
+
+  bool _disposed = false;
   DateTime? _lastPingOk;
 
-  bool get isConfigured => _model != null;
+  bool get isConfigured => _endpoint.isNotEmpty;
 
   /// True when a successful ping happened within the last few minutes — the
   /// companion skips the network call in that case (free-tier quota is
@@ -120,73 +134,138 @@ Rules:
     return inDst ? 7 : 8;
   }
 
-  /// Strictest possible safety blocking on every category, applied to both
-  /// the child's input and Pollie's output.
-  static final _safetySettings = [
-    SafetySetting(HarmCategory.harassment, HarmBlockThreshold.low),
-    SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.low),
-    SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.low),
-    SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.low),
-  ];
-
-  /// Lightweight connectivity probe: true if Gemini answers.
+  /// Lightweight connectivity probe: true if Pollie answers.
   ///
   /// This is what turns Pollie's face from sleeping 😴 to smiling 😊.
   Future<PolliePing> ping() async {
-    final model = _model;
-    if (model == null) return PolliePing.unreachable;
+    if (!isConfigured) return PolliePing.unreachable;
     try {
-      final response = await model.generateContent(
-        [Content.text('Reply with just the word: OK')],
-        safetySettings: _safetySettings,
-        generationConfig: GenerationConfig(
-          temperature: 0,
-          // Must leave room for the model's thinking tokens, or the answer
-          // comes back empty and the SDK throws "Unhandled format".
-          maxOutputTokens: 200,
-        ),
-      );
-      final ok = response.text?.trim().isNotEmpty ?? false;
+      final response = await _post('/ping', const {});
+      if (response.statusCode == 429) return PolliePing.quota;
+      if (response.statusCode != 200) return PolliePing.unreachable;
+      final body =
+          jsonDecode(await response.transform(utf8.decoder).join())
+              as Map<String, dynamic>;
+      final ok = body['ok'] == true;
       if (ok) _lastPingOk = DateTime.now();
       return ok ? PolliePing.ok : PolliePing.unreachable;
     } catch (e) {
       debugPrint('Pollie ping failed: $e');
-      if (e.toString().toLowerCase().contains('quota')) {
-        return PolliePing.quota;
-      }
       return PolliePing.unreachable;
     }
   }
 
-  /// Streams the model's reply token by token for the given conversation.
-  Stream<String> reply(List<ChatMessage> history) {
-    final model = _model;
-    if (model == null) {
-      return Stream.error(StateError('Gemini API key not configured'));
+  /// Streams the reply as it arrives, one piece of text at a time.
+  ///
+  /// The proxy hands back newline-delimited JSON — one `{"text": "..."}` per
+  /// line — rather than an SSE dialect, so there is as little protocol as
+  /// possible for a phone on a bad connection to get wrong.
+  /// [language] is 'en' or 'id'. Pollie used to infer it from the child's
+  /// words, which got it wrong on short replies; the app already knows.
+  Stream<String> reply(
+    List<ChatMessage> history, {
+    String language = 'en',
+  }) async* {
+    if (!isConfigured) {
+      throw StateError('Pollie endpoint not configured');
     }
-    final contents = <Content>[
-      // The SDK (0.4.7) serializes Content.system into `systemInstruction`
-      // with a `role: 'system'` field, which the current Gemini API rejects
-      // ("Role 'system' is not supported"). Riding along as the first user
-      // turn works on every API version instead.
-      Content.text(_systemPrompt),
-      // Keep long sessions within the model's context window: only the
-      // most recent turns go with each request.
-      for (final message in _trimmedHistory(history))
-        if (message.role == 'user')
-          Content.text(message.text)
-        else
-          Content.model([TextPart(message.text)]),
-    ];
-    return model
-        .generateContentStream(contents, safetySettings: _safetySettings)
-        .map((r) => r.text ?? '');
+    final response = await _post('/chat', {
+      'language': language,
+      'messages': [
+        for (final message in history)
+          {'role': message.role, 'text': message.text},
+      ],
+    });
+    if (response.statusCode == 429) {
+      throw PollieQuotaException(retryAfter: _retryAfter(response));
+    }
+    if (response.statusCode != 200) {
+      // The body says which of Google's limits or errors it was; without it
+      // a misconfigured proxy is indistinguishable from a retired model.
+      final body = await response.transform(utf8.decoder).join();
+      debugPrint('Pollie chat HTTP ${response.statusCode}: $body');
+      throw HttpException('Pollie returned ${response.statusCode}');
+    }
+    final lines = response
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+    await for (final line in lines) {
+      if (line.trim().isEmpty) continue;
+      try {
+        final chunk = jsonDecode(line) as Map<String, dynamic>;
+        final text = chunk['text'];
+        if (text is String && text.isNotEmpty) yield text;
+      } catch (_) {
+        // One malformed line is not worth failing a whole reply over.
+      }
+    }
   }
 
-  /// The last 20 conversation turns (a toddler chat never needs more).
-  static List<ChatMessage> _trimmedHistory(List<ChatMessage> history) {
-    return history.length <= 20
-        ? history
-        : history.sublist(history.length - 20);
+  /// The one client for this session, built on first use.
+  HttpClient get _httpClient {
+    final existing = _client;
+    if (existing != null) return existing;
+    clientsCreated++;
+    return _client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10)
+      ..idleTimeout = const Duration(seconds: 20)
+      // A toddler chat is one request at a time; more connections would only
+      // be sockets sitting idle.
+      ..maxConnectionsPerHost = 2;
   }
+
+  Future<HttpClientResponse> _post(String path, Object body) async {
+    if (_disposed) throw StateError('Pollie service was disposed');
+    final request = await _httpClient.postUrl(Uri.parse('$_endpoint$path'));
+    request.headers.contentType = ContentType(
+      'application',
+      'json',
+      charset: 'utf-8',
+    );
+    request.headers.set('X-Install-Id', _installId);
+    // Cloudflare's bot protection rejects requests whose client signature
+    // looks automated (error 1010). Dart's default agent passes today, but
+    // saying who we are is both politer and less fragile.
+    request.headers.set(HttpHeaders.userAgentHeader, 'TinyTapsters/1.0');
+    // Write UTF-8 bytes, not a string. `request.write` encodes with the
+    // request's charset, which defaults to Latin-1 — so the first time Pollie
+    // used an emoji, that reply went into the history and every request after
+    // it threw "Contains invalid characters" for the rest of the session.
+    // Indonesian accents would have done the same.
+    final payload = utf8.encode(jsonEncode(body));
+    request.headers.contentLength = payload.length;
+    request.add(payload);
+    return request.close();
+  }
+
+  static Duration? _retryAfter(HttpClientResponse response) {
+    final header = response.headers.value(HttpHeaders.retryAfterHeader);
+    final seconds = int.tryParse(header ?? '');
+    return seconds == null ? null : Duration(seconds: seconds);
+  }
+
+  static String _randomId() {
+    final random = Random.secure();
+    return List.generate(
+      32,
+      (_) => random.nextInt(16).toRadixString(16),
+    ).join();
+  }
+}
+
+/// Pollie cannot answer right now because of a limit.
+///
+/// [retryAfter] separates "slow down for a moment" from "that is all for
+/// today" — the app says something different for each, because telling a child
+/// to come back tomorrow when the answer is ten seconds away is a lie.
+class PollieQuotaException implements Exception {
+  const PollieQuotaException({this.retryAfter});
+
+  final Duration? retryAfter;
+
+  bool get isBrief =>
+      retryAfter != null && retryAfter! < const Duration(minutes: 5);
+
+  @override
+  String toString() => 'quota';
 }

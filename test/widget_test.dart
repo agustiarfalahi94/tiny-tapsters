@@ -12,11 +12,15 @@ import 'package:tiny_tapsters/screens/jigsaw_game_screen.dart';
 import 'package:tiny_tapsters/screens/memory_game_screen.dart';
 import 'package:tiny_tapsters/services/kid_safety.dart';
 import 'package:tiny_tapsters/services/pollie_service.dart';
+import 'package:tiny_tapsters/widgets/game_timer.dart';
 import 'package:tiny_tapsters/widgets/pair_drag_game.dart';
 
 void main() {
-  testWidgets('home screen shows all six games', (tester) async {
+  // The home screen now has a perpetually bobbing Pollie, so these tests
+  // pump frames instead of settling — the same reason Bubble Pop's do.
+  testWidgets('home screen shows all seven games', (tester) async {
     await tester.pumpWidget(const ToddlerGamesApp());
+    await tester.pump(const Duration(milliseconds: 100));
     final scrollable = find.byType(Scrollable).first;
     for (final title in [
       'Jigsaw Puzzle',
@@ -24,6 +28,7 @@ void main() {
       'Memory Match',
       'Bubble Pop',
       'Find It!',
+      'Which Animal?',
       'Count the Animals!',
     ]) {
       await tester.scrollUntilVisible(
@@ -37,30 +42,44 @@ void main() {
 
   testWidgets('all game screens build without errors', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+      const MaterialApp(
+        home: JigsawGameScreen(rows: 2, cols: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
     await tester.pumpWidget(
-      const MaterialApp(home: AnimalFoodGameScreen(pairs: 3)),
+      const MaterialApp(
+        home: AnimalFoodGameScreen(pairs: 3, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(home: FindItScreen(level: GameLevel.easy)),
+    );
     await tester.pump(const Duration(milliseconds: 100));
 
     await tester.pumpWidget(
-      const MaterialApp(home: CountGameScreen(maxCount: 3)),
+      const MaterialApp(
+        home: CountGameScreen(maxCount: 3, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
     // Bubble Pop runs an endless animation; pump frames instead of settling.
-    await tester.pumpWidget(const MaterialApp(home: BubblePopScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BubblePopScreen(popsToWin: 8, level: GameLevel.medium),
+      ),
+    );
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 1));
 
     await tester.pumpWidget(
-      const MaterialApp(home: MemoryGameScreen(pairs: 2, columns: 2)),
+      const MaterialApp(
+        home: MemoryGameScreen(pairs: 2, columns: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
   });
@@ -75,7 +94,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           key: ValueKey('attempt-$attempt'),
-          home: const AnimalFoodGameScreen(pairs: 9),
+          home: const AnimalFoodGameScreen(pairs: 9, level: GameLevel.big),
         ),
       );
       await tester.pump(const Duration(milliseconds: 100));
@@ -94,7 +113,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: AnimalFoodGameScreen(pairs: 3)),
+      const MaterialApp(
+        home: AnimalFoodGameScreen(pairs: 3, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -137,7 +158,11 @@ void main() {
   testWidgets('bubble pop header never shows a negative remaining count', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: BubblePopScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BubblePopScreen(popsToWin: 8, level: GameLevel.medium),
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 100));
 
     await popBubblesUntilOneLeft(tester);
@@ -180,7 +205,11 @@ void main() {
   testWidgets('bubble pop reset during the win delay cancels the celebration', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: BubblePopScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: BubblePopScreen(popsToWin: 8, level: GameLevel.medium),
+      ),
+    );
     await tester.pump(const Duration(milliseconds: 100));
 
     // Read the fresh-round label from the live tree rather than
@@ -217,6 +246,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(const ToddlerGamesApp());
+    await tester.pump(const Duration(milliseconds: 100));
     final title = find.text('Tiny Tapsters');
 
     expect(
@@ -233,15 +263,15 @@ void main() {
     // scrollUntilVisible only guarantees partial visibility — scroll a bit
     // more so the card is fully on screen before tapping it.
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -120));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('Find It!'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('Easy'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('🏠')); // back from the game
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('🏠')); // back from the level picker
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(tester.getCenter(title).dx, closeTo(400, 5));
   });
@@ -250,7 +280,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+      const MaterialApp(
+        home: JigsawGameScreen(rows: 2, cols: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -275,7 +307,9 @@ void main() {
 
   testWidgets('jigsaw uses no text scaling and square tiles', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+      const MaterialApp(
+        home: JigsawGameScreen(rows: 2, cols: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -306,7 +340,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(home: JigsawGameScreen(rows: 2, cols: 2)),
+      const MaterialApp(
+        home: JigsawGameScreen(rows: 2, cols: 2, level: GameLevel.easy),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -340,16 +376,22 @@ void main() {
     );
   });
 
-  testWidgets('companion shows graceful message without an API key', (
+  testWidgets('companion shows graceful message with no proxy configured', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
+    // The app now ships pointing at the deployed proxy, so an unconfigured
+    // Pollie has to be constructed deliberately. The fallback still matters:
+    // it is what a build with an empty POLLIE_ENDPOINT shows.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanionScreen(pollie: PollieService(endpoint: '')),
+      ),
+    );
     await tester.pump();
 
     expect(find.text('Pollie'), findsOneWidget);
     expect(find.text('sleeping… 😴'), findsOneWidget);
     expect(find.text('🎤'), findsOneWidget); // voice button present
-    // No GEMINI_API_KEY in the test environment → friendly fallback text.
     expect(find.textContaining('magic key'), findsOneWidget);
 
     // Tapping a chip without a key must not crash; it shows the same hint.
@@ -361,11 +403,37 @@ void main() {
 
   testWidgets('home screen has the Pollie button', (tester) async {
     await tester.pumpWidget(const ToddlerGamesApp());
+    await tester.pump(const Duration(milliseconds: 100));
     expect(find.byTooltip('Talk to Pollie'), findsOneWidget);
+    expect(find.text('🦜'), findsOneWidget);
+
+    // The nudge that tells a grown-up the bird is a button arrives a beat
+    // later, so it reads as Pollie noticing you rather than as a label.
+    expect(find.text('Tap to talk! 💬'), findsOneWidget);
+    final before = tester.widget<AnimatedOpacity>(
+      find.ancestor(
+        of: find.text('Tap to talk! 💬'),
+        matching: find.byType(AnimatedOpacity),
+      ),
+    );
+    expect(before.opacity, 0);
+
+    await tester.pump(const Duration(seconds: 4));
+    final after = tester.widget<AnimatedOpacity>(
+      find.ancestor(
+        of: find.text('Tap to talk! 💬'),
+        matching: find.byType(AnimatedOpacity),
+      ),
+    );
+    expect(after.opacity, 1);
   });
 
   testWidgets('companion blocks inappropriate input gently', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanionScreen(pollie: PollieService(endpoint: '')),
+      ),
+    );
     await tester.pump();
 
     await tester.enterText(find.byType(TextField), 'fuck you');
@@ -499,7 +567,11 @@ void main() {
   });
 
   testWidgets('companion mic tap always responds', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: CompanionScreen()));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanionScreen(pollie: PollieService(endpoint: '')),
+      ),
+    );
     await tester.pump();
 
     // Pollie is asleep (no API key in tests) → tapping the mic wakes him
@@ -526,7 +598,13 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(home: CountGameScreen(maxCount: 3, random: math.Random(42))),
+      MaterialApp(
+        home: CountGameScreen(
+          maxCount: 3,
+          level: GameLevel.medium,
+          random: math.Random(42),
+        ),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -570,7 +648,13 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(home: CountGameScreen(maxCount: 3, random: math.Random(7))),
+      MaterialApp(
+        home: CountGameScreen(
+          maxCount: 3,
+          level: GameLevel.medium,
+          random: math.Random(7),
+        ),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -598,7 +682,13 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(home: CountGameScreen(maxCount: 10, random: math.Random(7))),
+      MaterialApp(
+        home: CountGameScreen(
+          maxCount: 10,
+          level: GameLevel.big,
+          random: math.Random(7),
+        ),
+      ),
     );
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -619,7 +709,9 @@ void main() {
   });
 
   testWidgets('wrong tap in Find It! fades back to white', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: FindItScreen()));
+    await tester.pumpWidget(
+      const MaterialApp(home: FindItScreen(level: GameLevel.easy)),
+    );
 
     // The target is the big emoji in the prompt (fontSize 44).
     final target = tester
@@ -656,6 +748,14 @@ void main() {
             as BoxDecoration;
     expect(cardBox.color, Colors.white);
   });
+}
+
+/// `pumpAndSettle` never returns now that Pollie bobs forever on the home
+/// screen, so navigation steps pump a frame to start the route transition and
+/// then advance well past it.
+Future<void> settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 1));
 }
 
 // --- Bubble Pop test helpers ------------------------------------------------

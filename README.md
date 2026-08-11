@@ -55,23 +55,35 @@ open a version and grab the `tiny-tapsters-vX.Y.Z.apk` asset.
 - **First install**: Android will ask to allow installs from the browser
   ("unknown sources") — that's normal for sideloaded APKs. Play Protect
   may also show a scan warning; the APK is signed by your own key.
-- **Pollie works out of the box**: the release APK is built with the
-  Gemini key baked in, so the companion is fully functional in
-  downloaded copies too (the key lives in the APK, as with any
-  sideloaded app).
+- **Pollie works out of the box**: the release APK points at the proxy,
+  so the companion is fully functional in downloaded copies without
+  anyone needing an API key of their own.
 
 ## Pollie (Gemini companion)
 
-To enable Pollie, build with your own free API key from
-<https://aistudio.google.com/apikey>:
+Pollie talks to a small Cloudflare Worker (`worker/`) that holds the
+Gemini key. It is deployed, and the app points at it by default — so a
+plain `flutter build apk --release` produces an app where Pollie works
+for whoever installs it, with no key of their own.
+
+To point a build at a different proxy:
 
 ```sh
-flutter build apk --release --dart-define=GEMINI_API_KEY=your_key_here
+flutter build apk --release \
+  --dart-define=POLLIE_ENDPOINT=https://pollie.your-subdomain.workers.dev
 ```
 
-The key is compiled into the APK and never committed to the repository.
-Chat messages and voice input are sent to Google's Gemini and speech
-services. Without a key, Pollie shows a friendly fallback message.
+The key used to be compiled into the APK. That was a mistake: a
+`--dart-define` string ends up in `libapp.so` in the clear, and
+`strings libapp.so | grep AIza` recovers it in seconds — the repo being
+private did not help, because the signed APK is attached to releases.
+Everyone also shared one free-tier quota. `worker/README.md` has the
+setup, which takes a free Cloudflare account and about five minutes.
+
+Chat messages and voice input are sent to Google's Gemini and to the
+device's speech services. Without an endpoint, Pollie shows a friendly
+fallback message and the seven games are unaffected — they are all fully
+offline.
 
 ## Project layout
 
@@ -87,11 +99,18 @@ lib/
     bubble_pop_screen.dart       # bubble popping
     find_it_screen.dart          # find the matching animal
     count_game_screen.dart       # count the animals
-    companion_screen.dart        # Pollie chat (Gemini)
+    animal_sound_screen.dart     # guess the animal by its call
+    companion_screen.dart        # Pollie chat (via the worker/ proxy)
+    credits_screen.dart          # sound attribution (CC BY requires it)
   services/
-    pollie_service.dart          # Gemini API wrapper
+    app_language.dart            # English/Bahasa Indonesia + every string
+    narrator.dart                # speaks each game's name when it opens
+  services/
+    pollie_service.dart          # HTTP client for Pollie's proxy (worker/)
     kid_safety.dart              # local adult-word guard (input + output)
-    sound_effects.dart           # one-shot SFX (bubble pop)
+    sound_effects.dart           # one-shot SFX (pop, win, lose)
+    music_service.dart           # looping background music
+    music_route_observer.dart    # keeps the music in step with the screen
   widgets/
     game_background.dart         # shared gradient background
     round_button.dart            # shared round emoji button
@@ -102,10 +121,18 @@ lib/
 assets/
   branding/
     tiny-tapsters-logo.png       # master artwork (build-time only, not bundled)
-  sfx/pop.wav
+  animal_sounds/*.m4a            # 15 animal calls (see ASSET_CREDITS.md)
+  sfx/pop.wav                    # right answer / bubble pop
+  sfx/wrong.wav                  # wrong answer
+  sfx/win_high.m4a               # 3-star fanfare
+  sfx/win_low.m4a                # 1- and 2-star fanfare
+  sfx/lose.m4a                   # out of time
+  music/main_theme.m4a           # menus
+  music/game_song.m4a            # games
 tool/
   generate_icon.dart             # launcher icons, derived from the logo
-  generate_sfx.dart              # regenerates pop.wav
+  generate_sfx.dart              # regenerates pop.wav + wrong.wav
+  normalize_audio.py             # rebuilds every audio asset at one loudness
 ```
 
 ## Branding

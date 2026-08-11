@@ -4,23 +4,41 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
+import '../widgets/game_over_overlay.dart';
+import '../widgets/game_timer.dart';
 import '../widgets/round_button.dart';
 
 /// Bubble Pop: friendly bubbles drift around the screen; tap one to pop it
-/// into a sparkle. Pop 8 bubbles per round; each round the bubbles float a
-/// little faster.
+/// into a sparkle. Pop them all before the clock runs out — and the closer to
+/// done, the faster they drift.
+///
+/// This used to be endless escalating rounds. A game with no finish line has
+/// nothing for a countdown to run out against, so it is now one timed round
+/// and the escalation happens inside it instead of between rounds.
 class BubblePopScreen extends StatefulWidget {
-  const BubblePopScreen({super.key});
+  const BubblePopScreen({
+    super.key,
+    required this.level,
+    required this.popsToWin,
+  });
+
+  /// How many bubbles this level asks for (6 / 8 / 12).
+  final int popsToWin;
+
+  /// Sets the clock: 30s / 1m / 2m.
+  final GameLevel level;
 
   @override
   State<BubblePopScreen> createState() => _BubblePopScreenState();
 }
 
 class _BubblePopScreenState extends State<BubblePopScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver, TimedGame {
   static const _bubbleEmojis = [
     '🐶',
     '🐱',
@@ -34,16 +52,22 @@ class _BubblePopScreenState extends State<BubblePopScreen>
     '🐙',
   ];
   static const _bubbleCount = 4;
-  static const _popsPerRound = 8;
   static const _bubbleSize = 90.0;
 
+  int get _popsPerRound => widget.popsToWin;
+
   late final AnimationController _float;
-  late final List<_BubbleData> _bubbles;
+  late List<_BubbleData> _bubbles;
   final math.Random _rnd = math.Random();
 
-  int _round = 1;
   int _popped = 0;
   bool _won = false;
+
+  @override
+  GameLevel get gameLevel => widget.level;
+
+  @override
+  bool get hasWon => _won;
 
   /// True once the round's pop target is reached. Guards input during the
   /// short beat before `_won` flips and the celebration overlay appears —
@@ -63,11 +87,18 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.bubblePop),
+    );
     _float =
         AnimationController(vsync: this, duration: const Duration(seconds: 60))
           ..addStatusListener(_onFloatStatus)
           ..forward();
-    _bubbles = [for (var i = 0; i < _bubbleCount; i++) _spawn()];
+    _bubbles = [];
+    for (var i = 0; i < _bubbleCount; i++) {
+      _bubbles.add(_spawn());
+    }
   }
 
   @override
@@ -90,9 +121,16 @@ class _BubblePopScreenState extends State<BubblePopScreen>
     }
   }
 
-  _BubbleData _spawn() {
+  /// A fresh bubble, wearing a face none of the others is currently wearing.
+  _BubbleData _spawn({_BubbleData? replacing}) {
+    final taken = {
+      for (final b in _bubbles)
+        if (!identical(b, replacing)) b.emoji,
+    };
+    final free = _bubbleEmojis.where((e) => !taken.contains(e)).toList();
+    final choices = free.isEmpty ? _bubbleEmojis : free;
     return _BubbleData(
-      emoji: _bubbleEmojis[_rnd.nextInt(_bubbleEmojis.length)],
+      emoji: choices[_rnd.nextInt(choices.length)],
       x: _rnd.nextDouble(),
       y: _rnd.nextDouble(),
       vx: (0.10 + _rnd.nextDouble() * 0.12) * (_rnd.nextBool() ? 1 : -1),
@@ -102,7 +140,8 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   }
 
   void _pop(_BubbleData bubble) {
-    if (bubble.popping || _won || _roundComplete) return;
+    if (bubble.popping || _won || _roundComplete || outOfTime) return;
+    startClock();
     setState(() {
       bubble.popTick++;
       bubble.popping = true;
@@ -115,17 +154,29 @@ class _BubblePopScreenState extends State<BubblePopScreen>
     HapticFeedback.lightImpact();
     SoundEffects.instance.pop();
     if (_popped >= _popsPerRound) {
+      // Stop the clock the moment the round is won, not when the celebration
+      // appears: a timeout must not land during the 400ms pop animation.
+      winClock();
       _winTimer = Timer(const Duration(milliseconds: 400), () {
-        if (!mounted) return;
+        if (!mounted || outOfTime) return;
         setState(() => _won = true);
       });
     }
   }
 
-  void _nextRound() {
+  /// Bubble Pop has no wrong move to count, so the clock is the skill: finish
+  /// with most of it left for three stars.
+  int get _stars {
+    final left = clock.fraction;
+    if (left > 0.5) return 3;
+    if (left > 0.2) return 2;
+    return 1;
+  }
+
+  void _reset() {
     _winTimer?.cancel();
+    resetClock();
     setState(() {
-      _round++;
       _popped = 0;
       _won = false;
       _roundComplete = false;
@@ -137,7 +188,9 @@ class _BubblePopScreenState extends State<BubblePopScreen>
 
   @override
   Widget build(BuildContext context) {
-    final speedFactor = 1 + 0.3 * (_round - 1);
+    // The bubbles speed up as the round fills, so the last few are the
+    // hardest — the escalation the old between-rounds version had.
+    final speedFactor = 1 + 0.6 * (_popped / _popsPerRound);
     return Scaffold(
       body: Stack(
         children: [
@@ -155,37 +208,36 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                         emoji: '🏠',
                         onTap: () => Navigator.of(context).pop(),
                       ),
-                      const Spacer(),
-                      Text(
-                        // Clamped defensively: _roundComplete already stops
-                        // _popped from overshooting, but this keeps the
-                        // label honest even if that guard ever regresses.
-                        'Pop ${math.max(0, _popsPerRound - _popped)} more!',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(color: Colors.black26, blurRadius: 6),
-                          ],
+                      // Expanded rather than Spacer-Text-Spacer: on a 360dp
+                      // phone the title plus two buttons can be wider than the
+                      // row, and Spacers cannot give back space they do not
+                      // have.
+                      Expanded(
+                        child: Text(
+                          // Clamped defensively: _roundComplete already stops
+                          // _popped from overshooting, but this keeps the
+                          // label honest even if that guard ever regresses.
+                          strings.popMore(math.max(0, _popsPerRound - _popped)),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(color: Colors.black26, blurRadius: 6),
+                            ],
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
-                      RoundButton(
-                        emoji: '🔁',
-                        onTap: () {
-                          _winTimer?.cancel();
-                          setState(() {
-                            _popped = 0;
-                            _roundComplete = false;
-                            for (var i = 0; i < _bubbles.length; i++) {
-                              _bubbles[i] = _spawn();
-                            }
-                          });
-                        },
-                      ),
+                      RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: GameTimerBar(controller: clock),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -240,7 +292,9 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                                           bubble: bubble,
                                           onFinished: () => setState(() {
                                             bubble.popping = false;
-                                            final fresh = _spawn();
+                                            final fresh = _spawn(
+                                              replacing: bubble,
+                                            );
                                             bubble
                                               ..emoji = fresh.emoji
                                               ..x = fresh.x
@@ -268,11 +322,17 @@ class _BubblePopScreenState extends State<BubblePopScreen>
           if (_won)
             CelebrationOverlay(
               emoji: '🎈',
-              title: 'Pop-tastic!',
-              primaryLabel: 'Next round 🎈',
-              onPrimary: _nextRound,
-              secondaryLabel: 'Home 🏠',
+              title: strings.wonBubbles,
+              stars: _stars,
+              primaryLabel: strings.playAgainBubbles,
+              onPrimary: _reset,
+              secondaryLabel: strings.home,
               onSecondary: () => Navigator.of(context).pop(),
+            ),
+          if (outOfTime)
+            GameOverOverlay(
+              onRetry: _reset,
+              onHome: () => Navigator.of(context).pop(),
             ),
         ],
       ),
@@ -346,10 +406,13 @@ class _PopSparkle extends StatelessWidget {
       duration: const Duration(milliseconds: 400),
       onEnd: onFinished,
       builder: (context, value, _) {
+        // Fade and rise rather than grow. Scaling this ✨ ran a transform
+        // over text on every frame of every pop, which is the fastest way in
+        // this app to exhaust the glyph raster cache and stop emoji painting.
         return Opacity(
           opacity: 1 - value,
-          child: Transform.scale(
-            scale: 1 + value * 0.9,
+          child: Transform.translate(
+            offset: Offset(0, -value * size * 0.35),
             child: SizedBox(
               width: size,
               height: size,

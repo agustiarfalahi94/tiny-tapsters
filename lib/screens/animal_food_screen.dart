@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
+import '../widgets/game_over_overlay.dart';
+import '../widgets/game_timer.dart';
 import '../widgets/pair_drag_game.dart';
 import '../widgets/round_button.dart';
 
@@ -32,15 +36,23 @@ const kAnimalEmojis = [
 ];
 
 class AnimalFoodGameScreen extends StatefulWidget {
-  const AnimalFoodGameScreen({super.key, required this.pairs});
+  const AnimalFoodGameScreen({
+    super.key,
+    required this.pairs,
+    required this.level,
+  });
 
   final int pairs;
+
+  /// Sets the clock: 30s / 1m / 2m for the whole board.
+  final GameLevel level;
 
   @override
   State<AnimalFoodGameScreen> createState() => _AnimalFoodGameScreenState();
 }
 
-class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
+class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
+    with WidgetsBindingObserver, TimedGame {
   /// Animal, the food it eats, and the food's name (shown once the child
   /// gets the match right, so a grown-up can say the word out loud).
   ///
@@ -82,10 +94,21 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
   late List<(String, String, String)> _pairs;
   late Key _gameKey;
   bool _won = false;
+  int _stars = 3;
+
+  @override
+  GameLevel get gameLevel => widget.level;
+
+  @override
+  bool get hasWon => _won;
 
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.animalFood),
+    );
     _pairs = _shuffledPairs();
     _gameKey = UniqueKey();
   }
@@ -101,7 +124,16 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
     return pool.take(widget.pairs).toList();
   }
 
+  /// 3 stars for a clean board, 2 for a couple of mistakes, 1 otherwise —
+  /// the same scale the other games use.
+  static int starsFor(int wrongDrops) {
+    if (wrongDrops == 0) return 3;
+    if (wrongDrops <= 2) return 2;
+    return 1;
+  }
+
   void _reset() {
+    resetClock();
     setState(() {
       _pairs = _shuffledPairs();
       _won = false;
@@ -129,22 +161,33 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
                         emoji: '🏠',
                         onTap: () => Navigator.of(context).pop(),
                       ),
-                      const Spacer(),
-                      const Text(
-                        'Feed the animals!',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          shadows: [
-                            Shadow(color: Colors.black26, blurRadius: 6),
-                          ],
+                      // Expanded rather than Spacer-Text-Spacer: on a 360dp
+                      // phone the title plus two buttons is wider than the
+                      // row, and Spacers cannot give back space they do not
+                      // have.
+                      Expanded(
+                        child: Text(
+                          strings.feedTheAnimals,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(color: Colors.black26, blurRadius: 6),
+                            ],
+                          ),
                         ),
                       ),
-                      const Spacer(),
                       RoundButton(emoji: '🔁', onTap: _reset),
                     ],
                   ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: GameTimerBar(controller: clock),
                 ),
                 Expanded(
                   child: PairDragGame(
@@ -194,7 +237,14 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
                         ),
                       );
                     },
-                    onCompleted: () => setState(() => _won = true),
+                    onFirstMove: startClock,
+                    onCompleted: (wrongDrops) {
+                      winClock();
+                      setState(() {
+                        _stars = starsFor(wrongDrops);
+                        _won = true;
+                      });
+                    },
                   ),
                 ),
               ],
@@ -203,11 +253,17 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen> {
           if (_won)
             CelebrationOverlay(
               emoji: '🥕',
-              title: 'Yay! All fed!',
-              primaryLabel: 'Play again 🔁',
+              title: strings.wonAnimalFood,
+              stars: _stars,
+              primaryLabel: strings.playAgain,
               onPrimary: _reset,
-              secondaryLabel: 'Levels 🏠',
+              secondaryLabel: strings.levels,
               onSecondary: () => Navigator.of(context).pop(),
+            ),
+          if (outOfTime)
+            GameOverOverlay(
+              onRetry: _reset,
+              onHome: () => Navigator.of(context).pop(),
             ),
         ],
       ),

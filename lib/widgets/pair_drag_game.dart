@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/sound_effects.dart';
+
 /// A generic "drag each piece to its own slot" board used by the jigsaw and
 /// animal-food games.
 ///
@@ -19,6 +21,7 @@ class PairDragGame extends StatefulWidget {
     required this.slotBuilder,
     required this.pieceBuilder,
     required this.onCompleted,
+    this.onFirstMove,
     this.boardBackgroundBuilder,
     this.slotCaption,
     this.gap = 12,
@@ -44,8 +47,14 @@ class PairDragGame extends StatefulWidget {
   )
   pieceBuilder;
 
-  /// Called shortly after every piece is placed.
-  final VoidCallback onCompleted;
+  /// Called shortly after every piece is placed, with the number of pieces
+  /// dropped onto the *wrong* slot along the way — the games turn that into
+  /// a star rating.
+  final void Function(int wrongDrops) onCompleted;
+
+  /// Fired once, on the first piece the child picks up. The games use it to
+  /// start their clock, so staring at a fresh board costs no time.
+  final VoidCallback? onFirstMove;
 
   /// Optional widget drawn behind the whole slot board (e.g. the faint
   /// reference picture of a jigsaw).
@@ -78,6 +87,7 @@ class _PairDragGameState extends State<PairDragGame> {
   final List<Offset?> _pos = [];
   final List<bool> _placed = [];
 
+  int _wrongDrops = 0;
   int? _dragIndex;
   Offset _dragStart = Offset.zero;
   Offset _pieceStart = Offset.zero;
@@ -103,7 +113,13 @@ class _PairDragGameState extends State<PairDragGame> {
     _placed.addAll([for (var i = 0; i < widget.pairCount; i++) false]);
   }
 
+  bool _moved = false;
+
   void _onPanStart(int index, Offset globalPosition) {
+    if (!_moved) {
+      _moved = true;
+      widget.onFirstMove?.call();
+    }
     if (_done) return;
     // Grab the piece where it currently is — even if it is still sliding
     // back to the drawer — so re-grabbing never makes it jump.
@@ -160,11 +176,12 @@ class _PairDragGameState extends State<PairDragGame> {
           );
         });
         HapticFeedback.mediumImpact();
+        SoundEffects.instance.pop();
         if (_placed.every((p) => p)) {
           Future.delayed(const Duration(milliseconds: 100), () {
             if (!mounted) return;
             _done = true;
-            widget.onCompleted();
+            widget.onCompleted(_wrongDrops);
           });
         }
         return;
@@ -175,6 +192,24 @@ class _PairDragGameState extends State<PairDragGame> {
     // — an animated slide-back is what reads as a "trail" on screen).
     setState(() => _pos[index] = null);
     HapticFeedback.lightImpact();
+    // Only a piece dropped *onto the wrong slot* is a wrong answer. Letting go
+    // over empty space is a change of mind, and buzzing at that would punish
+    // the child for thinking.
+    if (_slotUnder(pieceCenter) != null) {
+      _wrongDrops++;
+      SoundEffects.instance.wrong();
+    }
+  }
+
+  /// The slot [globalPoint] is inside, if any.
+  int? _slotUnder(Offset globalPoint) {
+    for (var i = 0; i < widget.pairCount; i++) {
+      final box = _slotKeys[i].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null) continue;
+      final origin = box.localToGlobal(Offset.zero);
+      if ((origin & box.size).contains(globalPoint)) return i;
+    }
+    return null;
   }
 
   /// A drag that got interrupted (system gesture, second finger, …): put the
@@ -197,31 +232,61 @@ class _PairDragGameState extends State<PairDragGame> {
         final boardRows =
             (widget.pairCount + widget.maxCols - 1) ~/ widget.maxCols;
 
-        double slotSize = math.min(
-          math.min((W - 32) / widget.maxCols, (H * 0.52) / boardRows),
-          140.0,
+        final drawerRows =
+            (widget.pairCount + widget.maxCols - 1) ~/ widget.maxCols;
+
+        // Chrome around the two blocks, kept as named values because the fit
+        // below has to subtract exactly what the layout below adds.
+        const sidePad = 16.0;
+        const topPad = 16.0;
+        const bottomPad = 12.0;
+        const drawerPad = 20.0;
+
+        // A caption hangs in the gap *under* its slot, so the last row needs
+        // one more gap beneath it than the row spacing provides. Without this
+        // the bottom row's words landed on top of the drawer.
+        final captionSpace = widget.slotCaption != null ? widget.gap : 0.0;
+
+        final rowGaps = (boardRows - 1) * widget.gap;
+        final drawerGaps = (drawerRows - 1) * widget.gap;
+
+        // Width has to pay for the gaps between columns too. Leaving them out
+        // made the board (maxCols - 1) × gap wider than the space allowed, so
+        // the outer slots hung off both edges.
+        final widthLimit =
+            (W - 2 * sidePad - (widget.maxCols - 1) * widget.gap) /
+            widget.maxCols;
+        final heightBudget = (H * 0.52 - rowGaps - captionSpace) / boardRows;
+        double slotSize = math.max(
+          1,
+          math.min(math.min(widthLimit, heightBudget), 140.0),
         );
         var pieceSize = math.min(
           slotSize * widget.pieceScale,
           widget.pieceSizeCap,
         );
-        final drawerRows =
-            (widget.pairCount + widget.maxCols - 1) ~/ widget.maxCols;
-        var drawerHeight =
-            drawerRows * pieceSize + (drawerRows - 1) * widget.gap + 20;
-        final boardHeight = boardRows * slotSize + (boardRows - 1) * widget.gap;
-        // Shrink everything if the board + drawer would overflow the screen.
-        final total = 16 + boardHeight + 16 + drawerHeight + 12;
-        if (total > H) {
-          final shrink = (H - 28) / (boardHeight + drawerHeight);
-          slotSize *= shrink;
+
+        double boardBlock(double slot) =>
+            boardRows * slot + rowGaps + captionSpace;
+        double drawerBlock(double piece) =>
+            drawerRows * piece + drawerGaps + drawerPad;
+
+        // Shrink to fit rather than overflow. Solving for the slot size (with
+        // the piece expressed as slot × pieceScale) lands in one step; the
+        // piece cap only ever makes pieces smaller, so ignoring it here is
+        // safe and leaves a little slack.
+        final available = H - topPad - bottomPad;
+        if (boardBlock(slotSize) + drawerBlock(pieceSize) > available) {
+          final fixed = rowGaps + captionSpace + drawerGaps + drawerPad;
+          final perSlot = boardRows + drawerRows * widget.pieceScale;
+          slotSize = math.max(24.0, (available - fixed) / perSlot);
           pieceSize = math.min(
             slotSize * widget.pieceScale,
             widget.pieceSizeCap,
           );
-          drawerHeight =
-              drawerRows * pieceSize + (drawerRows - 1) * widget.gap + 20;
         }
+        final drawerHeight = drawerBlock(pieceSize);
+        final boardHeight = boardRows * slotSize + rowGaps;
         _slotSize = slotSize;
         _pieceSize = pieceSize;
 

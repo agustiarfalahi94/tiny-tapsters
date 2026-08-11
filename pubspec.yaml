@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.8.0+26
+version: 1.21.2+46
 
 environment:
   sdk: ^3.11.4
@@ -34,10 +34,20 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  google_generative_ai: ^0.4.7
+
   flutter_tts: ^4.2.5
-  speech_to_text: ^7.4.0
+  # Vendored and patched — see packages/PATCH.md. Android's short
+  # "probably finished" silence timer is not settable through the published
+  # package, and it is what cut a child off mid-sentence.
+  speech_to_text:
+    path: packages/speech_to_text
   audioplayers: ^6.7.1
+
+dependency_overrides:
+  # The vendored plugin depends on the published interface; both must be ours
+  # or the new options never reach the platform channel.
+  speech_to_text_platform_interface:
+    path: packages/speech_to_text_platform_interface
 
 dev_dependencies:
   flutter_test:
@@ -63,6 +73,27 @@ flutter:
 
   assets:
     - assets/sfx/pop.wav
+    - assets/sfx/wrong.wav
+    - assets/sfx/win_high.m4a
+    - assets/sfx/win_low.m4a
+    - assets/sfx/lose.m4a
+    - assets/music/main_theme.m4a
+    - assets/music/game_song.m4a
+    - assets/animal_sounds/cat.m4a
+    - assets/animal_sounds/dog.m4a
+    - assets/animal_sounds/cow.m4a
+    - assets/animal_sounds/horse.m4a
+    - assets/animal_sounds/pig.m4a
+    - assets/animal_sounds/chicken.m4a
+    - assets/animal_sounds/bird.m4a
+    - assets/animal_sounds/mouse.m4a
+    - assets/animal_sounds/frog.m4a
+    - assets/animal_sounds/lion.m4a
+    - assets/animal_sounds/tiger.m4a
+    - assets/animal_sounds/monkey.m4a
+    - assets/animal_sounds/bear.m4a
+    - assets/animal_sounds/elephant.m4a
+    - assets/animal_sounds/penguin.m4a
 
   # To add assets to your application, add an assets section, like this:
   # assets:
