@@ -5,6 +5,39 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.20.0] — 2026-08-11
+
+### Fixed
+- **Icons vanished on Find It's Big board.** The wrong-answer shake rotated the
+  card, and a rotation is still a transform over text — the glyph has to be
+  re-rendered for every frame of it. With twelve large emoji on screen that
+  empties the glyph cache and icons stop painting, the home and restart buttons
+  included. The shake now slides sideways instead, which just moves pixels that
+  are already drawn. Same change in Count the Animals and Which Animal?.
+  Measured on the device: sixty taps across a Big board, everything still
+  drawn.
+- **The 1–2 star clapping was too loud.** Its *average* level is lower than the
+  3-star fanfare, but clapping is all transients and its peaks reach full
+  scale, which on a phone speaker reads as louder and harsher. Matching average
+  levels is right for sustained sound and wrong here, so it now plays back
+  about 4 dB down.
+
+### Added
+- **The screen no longer locks while the app is open.** A toddler looking at a
+  jigsaw touches nothing for a minute, and the phone locking ends the game. One
+  window flag in `MainActivity`, tied to the app's own window, so it lifts by
+  itself when the app is backgrounded — no wake lock to leak, no permission, no
+  package.
+
+### Notes
+- The silence-timer patch from 1.19.0 is confirmed working on the device:
+  recogniser restarts fell from roughly one every 1–2 seconds to **two in
+  twenty-five seconds** of silence. Restarts are the gaps where speech is lost,
+  so this is the measurement that matters.
+- `flutter analyze`: 0 issues; 97/97 tests.
+
+---
+
 ## [1.19.0] — 2026-08-11
 
 ### Changed

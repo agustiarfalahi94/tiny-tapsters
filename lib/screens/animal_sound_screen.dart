@@ -328,10 +328,15 @@ class _AnimalCardState extends State<_AnimalCard>
           final v = _shake.value;
           // Decaying wiggle; the red tint rises then falls so the card is
           // white again when it settles. Same treatment as Find It!.
-          final angle = math.sin(v * math.pi * 6) * 0.12 * (1 - v);
+          // Slide, do not rotate. A rotation is still a transform over text, and
+          // the glyph has to be re-rendered for every frame of it — with a
+          // dozen large emoji on a Big board that is what empties the cache
+          // and stops icons painting (golden rule 4). A translation just
+          // moves pixels already drawn.
+          final shift = math.sin(v * math.pi * 6) * 10 * (1 - v);
           final redTint = v < 0.5 ? v * 2 : (1 - v) * 2;
-          return Transform.rotate(
-            angle: angle,
+          return Transform.translate(
+            offset: Offset(shift, 0),
             child: Container(
               decoration: BoxDecoration(
                 color: Color.lerp(

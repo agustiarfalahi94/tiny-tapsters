@@ -54,7 +54,14 @@ class SoundEffects {
       stars >= 3 ? 'sfx/win_high.m4a' : 'sfx/win_low.m4a';
 
   /// The little fanfare at the end of a game.
-  Future<void> win(int stars) => _finish(winAsset(stars));
+  ///
+  /// The 1-2 star clip is clapping, and clapping is all transients: its
+  /// average level is *lower* than the 3-star fanfare, but its peaks reach
+  /// full scale, which on a phone speaker reads as louder and harsher. Matching
+  /// average levels is the right thing for sustained sound and the wrong thing
+  /// here, so it is played back a few dB down.
+  Future<void> win(int stars) =>
+      _finish(winAsset(stars), volume: stars >= 3 ? 1.0 : 0.6);
 
   /// Played when the clock runs out.
   Future<void> lose() => _finish('sfx/lose.m4a');
@@ -68,8 +75,8 @@ class SoundEffects {
 
   /// Finish sounds get their own player: [pop] stops its player before every
   /// play, so sharing one would let a stray tap cut the fanfare off.
-  Future<void> _finish(String asset) =>
-      _duckedPlay(_finishPlayer ??= AudioPlayer(), asset, 1);
+  Future<void> _finish(String asset, {double volume = 1}) =>
+      _duckedPlay(_finishPlayer ??= AudioPlayer(), asset, volume);
 
   /// Plays [asset] with the music turned down under it, and restores the
   /// music afterwards.
