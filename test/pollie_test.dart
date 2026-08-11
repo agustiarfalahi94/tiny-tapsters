@@ -286,6 +286,38 @@ void main() {
       expect(await pollie.ping(), PolliePing.unreachable);
     });
 
+    test('an empty reply is a hiccup, not a breakdown', () async {
+      // A 200 carrying no words used to surface as a generic failure, which
+      // put Pollie to sleep and greyed out the mic — leaving a child with no
+      // way to continue. It is now its own thing, so the screen can stay
+      // awake and simply invite them to ask again.
+      final proxy = await FakeProxy.start();
+      addTearDown(proxy.stop);
+      proxy.chunks = ['{"empty":true,"reason":"SAFETY"}\n'];
+
+      final pollie = PollieService(endpoint: proxy.url);
+      addTearDown(pollie.dispose);
+      await expectLater(
+        pollie.reply(const [ChatMessage(role: 'user', text: 'hi')]).toList(),
+        throwsA(isA<PollieEmptyReplyException>()),
+      );
+    });
+
+    test('words still arrive when the proxy also reports the reason', () async {
+      final proxy = await FakeProxy.start();
+      addTearDown(proxy.stop);
+      proxy.chunks = ['{"text":"Halo!"}\n'];
+
+      final pollie = PollieService(endpoint: proxy.url);
+      addTearDown(pollie.dispose);
+      expect(
+        (await pollie.reply(const [
+          ChatMessage(role: 'user', text: 'hi'),
+        ]).toList()).join(),
+        'Halo!',
+      );
+    });
+
     test('a brief pause is told apart from the day being over', () async {
       final proxy = await FakeProxy.start();
       addTearDown(proxy.stop);

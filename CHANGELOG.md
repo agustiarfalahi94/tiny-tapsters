@@ -5,6 +5,30 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.21.5] — 2026-08-11
+
+### Fixed
+- **One empty answer put Pollie to sleep and greyed out the microphone.** When
+  a reply came back with no words — which happens now and then, usually a
+  safety filter catching something innocent — the app treated it as a
+  breakdown. A child was then stuck: the mic was disabled, and the only way
+  back was tapping Pollie's face, which no four-year-old will work out. An
+  empty reply is now a hiccup: Pollie stays awake, says "ask me again", and
+  re-opens the microphone by herself.
+
+### Changed
+- The proxy now says *why* a reply was empty (a safety filter, a stopped
+  generation) instead of returning a silent success. That reason goes to the
+  log, so the next occurrence is diagnosable rather than a mystery.
+
+### Notes
+- Reproduced from the reported conversation; the same exchange succeeded on
+  retry, which is what identified it as intermittent and made the app's
+  reaction — not the failure itself — the thing worth fixing.
+- `flutter analyze`: 0 issues; 110/110 tests.
+
+---
+
 ## [1.21.4] — 2026-08-11
 
 ### Fixed
