@@ -5,6 +5,19 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.21.2] — 2026-08-11
+
+### Fixed
+- **The dots on the answer cards in Count the Animals touched the edges.** They
+  ran flush to the rounded border, and on Big — ten dots in two rows — the
+  bottom row sat right on it. The cards now have padding inside, so the number
+  and the dots sit in clear space.
+
+### Notes
+- `flutter analyze`: 0 issues; 104/104 tests.
+
+---
+
 ## [1.21.1] — 2026-08-11
 
 ### Fixed

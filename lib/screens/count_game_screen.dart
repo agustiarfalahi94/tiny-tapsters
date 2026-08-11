@@ -369,22 +369,31 @@ class _CountCardState extends State<_CountCard>
                 ),
                 // Scale digit + dots down (never up) so huge system text or
                 // narrow cards can't push the dots past the card bounds.
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${widget.value}',
-                        style: const TextStyle(
-                          fontSize: 54,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF37474F),
+                // Breathing room inside the card. Without it the dot pattern
+                // runs flush to the rounded edge, and on Big — ten dots in two
+                // rows — the bottom row sits right on the border.
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${widget.value}',
+                          style: const TextStyle(
+                            fontSize: 54,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF37474F),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      _DotPattern(count: widget.value),
-                    ],
+                        const SizedBox(height: 6),
+                        _DotPattern(count: widget.value),
+                      ],
+                    ),
                   ),
                 ),
               ),
