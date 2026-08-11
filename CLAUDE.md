@@ -66,4 +66,6 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
    ```bash
    adb push app.apk /data/local/tmp/x.apk && adb shell pm install -r -t /data/local/tmp/x.apk
    ```
-10. Renaming the `applicationId` resets the app's identity: runtime permissions are revoked and the old package lingers until `adb uninstall`. Re-grant with `adb shell pm grant <pkg> android.permission.RECORD_AUDIO` so Pollie's mic keeps working.
+10. **Never `adb uninstall` the app to swap build types.** With "Install via USB" off in Developer options, HyperOS refuses *every* first-time install — `adb install`, `adb install -t`, and the `/data/local/tmp` + `pm install -r -t` workaround in rule 9 all fail with `INSTALL_FAILED_USER_RESTRICTED` and **no on-screen prompt**. Uninstalling therefore strands the device with no way back until the user re-enables that toggle. Updates over an existing install are unaffected, so switch between release and profile builds by other means (or ask first).
+11. Dart `print`/`debugPrint` does **not** reach `logcat` from a `--release` build. Any on-device tracing needs `--profile` — which is signed with the debug key, so it cannot be installed over a release build (see rule 10 before reaching for uninstall).
+12. Renaming the `applicationId` resets the app's identity: runtime permissions are revoked and the old package lingers until `adb uninstall`. Re-grant with `adb shell pm grant <pkg> android.permission.RECORD_AUDIO` so Pollie's mic keeps working.

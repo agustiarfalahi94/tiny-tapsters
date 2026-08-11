@@ -609,6 +609,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     _levelEvents = 0;
     _vadUnavailable = false;
     _vad.reset();
+    trace('turn_start', hold ? 'hold' : 'tap');
     _mode = hold ? TurnMode.hold : TurnMode.tap;
     _turn = TurnState.arming;
     _turnTimer?.cancel();
@@ -660,6 +661,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     _readyTimer = null;
     if (!_turnActive || !mounted) return;
     if (_micLive) return;
+    trace('ready', guessed ? 'guessed' : 'real');
     _micLive = true;
     _silenceMs = 0;
     _openMs = 0;
@@ -746,6 +748,7 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   void _onResult(SpeechRecognitionResult result) {
     if (!_turnActive) return;
+    trace(result.finalResult ? 'final' : 'partial', result.recognizedWords);
     final words = stripEcho(_lastSpoken, result.recognizedWords);
     setState(() => _partial = words);
     if (!result.finalResult) return;
@@ -787,6 +790,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// Re-arms the mic for the same turn after a session ends.
   Future<void> _restartSession() async {
     if (!_turnActive || !mounted || _restarting) return;
+    trace('restart', 'heard=$_heard partial=$_partial');
     _restarting = true;
     // The dying session's guess would otherwise be overwritten by the next
     // session's first result rather than appended, and simply disappear.
@@ -822,6 +826,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       }
       return;
     }
+    trace('endturn', 'send=$send transcript=${_transcript.trim()}');
     _turn = TurnState.closing;
     _restarting = false;
     _micLive = false;
@@ -910,6 +915,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     // it to true for *every* error it sends, including error_no_match — so
     // trusting it meant a child pausing mid-sentence ended the whole turn and
     // sent half a question. Classify by name instead.
+    trace('speech_error', name);
     if (_turnActive && _recoverableSpeechErrors.contains(name)) {
       _restartSession();
       return;
@@ -1170,6 +1176,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   Future<void> _enqueueSpeech(String text) async {
     final clean = _cleanForSpeech(text);
     if (clean.isEmpty) return;
+    trace('tts_speak', clean);
     _lastSpoken = clean;
     _pending++;
     _armSpeakWatchdog();
@@ -1215,6 +1222,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   }
 
   void _onUtteranceComplete() {
+    trace('tts_done', _pending);
     _pending = _pending > 0 ? _pending - 1 : 0;
     if (_pending == 0) {
       _speakWatchdog?.cancel();

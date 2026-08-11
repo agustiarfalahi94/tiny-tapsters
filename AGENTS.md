@@ -62,3 +62,9 @@ flutter build apk --release           # when native config or deps changed
 - `test/layout_test.dart` — board bounds and caption room at phone size, no screen overflowing at 360dp, memory-match concurrency, and Find It! not repeating an animal.
 
 Counts deliberately omitted here — the total lives in the validation line above, and per-file numbers went stale every release.
+
+## Device testing gotchas
+
+- **Never `adb uninstall` the app to swap build types.** With "Install via USB" off, HyperOS refuses every *first-time* install — `adb install`, `-t`, and the `/data/local/tmp` + `pm install` workaround all fail with `INSTALL_FAILED_USER_RESTRICTED` and no prompt. Updates over an existing install still work.
+- Dart `debugPrint` does not reach `logcat` from a release build; on-device tracing needs `--profile` (debug-signed, so it cannot update a release install).
+- Pollie has a trace behind `--dart-define=POLLIE_TRACE=1`: `PT|<event>|<millis>|<payload>`, read with `adb logcat -s flutter:V | grep 'PT|'`.

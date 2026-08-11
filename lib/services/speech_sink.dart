@@ -14,6 +14,21 @@ export 'package:speech_to_text/speech_recognition_result.dart';
 /// `_listening`, `_notifyFinalTimer` and friends into each other and become
 /// order-dependent, which is why the turn machine had no coverage at all until
 /// this seam existed.
+/// Turns on a timestamped trace of the whole listening pipeline, plus the
+/// vendored plugin's own Android logging.
+///
+/// Off by default and compiled out of a normal release. Build with
+/// `--dart-define=POLLIE_TRACE=1` and read it with
+/// `adb logcat -s flutter:V | grep PT|`.
+const kPollieTrace = bool.fromEnvironment('POLLIE_TRACE');
+
+/// One trace line: `PT|<event>|<millis>|<payload>`.
+void trace(String event, [Object? payload]) {
+  if (!kPollieTrace) return;
+  final now = DateTime.now().millisecondsSinceEpoch;
+  debugPrint('PT|$event|$now|${payload ?? ''}');
+}
+
 abstract interface class SpeechSink {
   Future<bool> initialize({
     required void Function(SpeechRecognitionError) onError,
@@ -60,7 +75,11 @@ class PluginSpeechSink implements SpeechSink {
   Future<bool> initialize({
     required void Function(SpeechRecognitionError) onError,
     required void Function(String) onStatus,
-  }) => _speech.initialize(onError: onError, onStatus: onStatus);
+  }) => _speech.initialize(
+    onError: onError,
+    onStatus: onStatus,
+    debugLogging: kPollieTrace,
+  );
 
   @override
   Future<List<String>> localeIds() async {
@@ -73,22 +92,25 @@ class PluginSpeechSink implements SpeechSink {
     required void Function(SpeechRecognitionResult) onResult,
     required void Function(double) onSoundLevel,
     required String localeId,
-  }) => _speech.listen(
-    onResult: onResult,
-    onSoundLevelChange: onSoundLevel,
-    listenOptions: SpeechListenOptions(
-      localeId: localeId,
-      possiblyCompleteSilence: _possiblyComplete,
-      completeSilence: _completeSilence,
-      listenFor: _sessionCap,
-      // Deliberately null. `pauseFor` would arm the package's Dart-side timer
-      // (see _completeSilence above); `minimumLength` forced every session to
-      // run at least three seconds, which made a one-word answer wait for a
-      // timer that had nothing to wait for.
-      pauseFor: null,
-      minimumLength: null,
-    ),
-  );
+  }) {
+    trace('listen_call', localeId);
+    return _speech.listen(
+      onResult: onResult,
+      onSoundLevelChange: onSoundLevel,
+      listenOptions: SpeechListenOptions(
+        localeId: localeId,
+        possiblyCompleteSilence: _possiblyComplete,
+        completeSilence: _completeSilence,
+        listenFor: _sessionCap,
+        // Deliberately null. `pauseFor` would arm the package's Dart-side timer
+        // (see _completeSilence above); `minimumLength` forced every session to
+        // run at least three seconds, which made a one-word answer wait for a
+        // timer that had nothing to wait for.
+        pauseFor: null,
+        minimumLength: null,
+      ),
+    );
+  }
 
   @override
   Future<void> stop() => _speech.stop();
