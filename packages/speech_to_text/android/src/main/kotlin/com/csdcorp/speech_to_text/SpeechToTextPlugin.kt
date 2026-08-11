@@ -64,6 +64,9 @@ enum class SpeechToTextStatus {
     available,
     done,
     doneNoResult,
+    // TINY TAPSTERS PATCH — see packages/PATCH.md. Appended last; the value
+    // travels as .name, so ordinals do not matter.
+    readyForSpeech,
 }
 
 enum class ListenMode {
@@ -130,6 +133,7 @@ public class SpeechToTextPlugin :
     // TINY TAPSTERS PATCH — see packages/PATCH.md
     private var previousPossiblyComplete: Int? = null
     private var previousMinimumLength: Int? = null
+    private var previousCompleteSilence: Int? = null
     private var lastFinalTime: Long = 0
     private var speechStartTime: Long = 0
     private var minRms: Float = 1000.0F
@@ -225,8 +229,10 @@ public class SpeechToTextPlugin :
                         call.argument<Int?>("possiblyCompleteSilence")
                     val minimumLength =
                         call.argument<Int?>("minimumLength")
+                    val completeSilence =
+                        call.argument<Int?>("completeSilence")
                     startListening(result, localeId, partialResults, listenModeIndex, onDevice,
-                        pauseFor, possiblyCompleteSilence, minimumLength )
+                        pauseFor, possiblyCompleteSilence, minimumLength, completeSilence )
                 }
                 "stop" -> stopListening(result)
                 "cancel" -> cancelListening(result)
@@ -292,7 +298,8 @@ public class SpeechToTextPlugin :
     private fun startListening(result: Result, languageTag: String, partialResults: Boolean,
                                listenModeIndex: Int, onDevice: Boolean, pauseFor: Int?,
                                possiblyCompleteSilence: Int? = null,
-                               minimumLength: Int? = null) {
+                               minimumLength: Int? = null,
+                               completeSilence: Int? = null) {
         if (sdkVersionTooLow() || isNotInitialized() || isListening()) {
             result.success(false)
             return
@@ -307,7 +314,7 @@ public class SpeechToTextPlugin :
 
         optionallyStartBluetooth()
         setupRecognizerIntent(languageTag, partialResults, listenMode, onDevice, pauseFor,
-            possiblyCompleteSilence, minimumLength )
+            possiblyCompleteSilence, minimumLength, completeSilence )
         handler.post {
             run {
                 speechRecognizer?.startListening(recognizerIntent)
@@ -664,20 +671,23 @@ public class SpeechToTextPlugin :
     }
 
     private fun setupRecognizerIntent(languageTag: String, partialResults: Boolean, listenMode: ListenMode, onDevice: Boolean, pauseFor: Int?,
-                                      possiblyCompleteSilence: Int? = null, minimumLength: Int? = null ) {
+                                      possiblyCompleteSilence: Int? = null, minimumLength: Int? = null,
+                                      completeSilence: Int? = null ) {
         debugLog("setupRecognizerIntent")
         if (previousRecognizerLang == null ||
                 previousRecognizerLang != languageTag ||
                 partialResults != previousPartialResults || previousListenMode != listenMode ||
                 previousPauseFor != pauseFor ||
                 previousPossiblyComplete != possiblyCompleteSilence ||
-                previousMinimumLength != minimumLength ) {
+                previousMinimumLength != minimumLength ||
+                previousCompleteSilence != completeSilence ) {
             previousRecognizerLang = languageTag;
             previousPartialResults = partialResults
             previousListenMode = listenMode
             previousPauseFor = pauseFor
             previousPossiblyComplete = possiblyCompleteSilence
             previousMinimumLength = minimumLength
+            previousCompleteSilence = completeSilence
             handler.post {
                 run {
                     recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -706,7 +716,12 @@ public class SpeechToTextPlugin :
                         }
                         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,10)
 
-                        pauseFor?.also {
+                        // TINY TAPSTERS PATCH — completeSilence decouples this
+                        // native timer from pauseFor, which also arms a
+                        // Dart-side timer that stops the session N ms after the
+                        // transcript last *changed* (not after silence). Falls
+                        // back to pauseFor, so an unpatched caller is upstream.
+                        (completeSilence ?: pauseFor)?.also {
                             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, it)
                         }
                         // TINY TAPSTERS PATCH — the whole reason for this fork.
@@ -761,7 +776,11 @@ public class SpeechToTextPlugin :
     }
 
     override fun onEndOfSpeech() {
-        (previousPauseFor ?: 1000).also {
+        // TINY TAPSTERS PATCH — this timer is a fourth, undocumented
+        // endpointer. With pauseFor null it would fall to a hard 1s cut,
+        // which is shorter than the pause between a child's words and worse
+        // than upstream. Read the decoupled value first.
+        (previousCompleteSilence ?: previousPauseFor ?: 1000).also {
             timerTask = object : TimerTask() {
                 override fun run() {
                     timer = null
@@ -840,7 +859,21 @@ public class SpeechToTextPlugin :
         }
     }
 
-    override fun onReadyForSpeech(p0: Bundle?) {}
+    // TINY TAPSTERS PATCH — the only signal that AudioRecord is actually
+    // open. startListening() reports `listening` and returns before the
+    // handler.post that starts the recogniser has even run, so `listening`
+    // means "asked", not "hot"; a child talking into that gap loses their
+    // first words. The guard drops a stale callback from a session the caller
+    // already abandoned, which would otherwise re-open their gate on a dead mic.
+    override fun onReadyForSpeech(p0: Bundle?) {
+        if (!listening) return
+        handler.post {
+            run {
+                channel?.invokeMethod(SpeechToTextCallbackMethods.notifyStatus.name,
+                        SpeechToTextStatus.readyForSpeech.name)
+            }
+        }
+    }
     override fun onBufferReceived(p0: ByteArray?) {}
     override fun onEvent(p0: Int, p1: Bundle?) {}
 

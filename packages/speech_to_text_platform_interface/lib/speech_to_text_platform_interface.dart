@@ -78,6 +78,17 @@ class SpeechListenOptions {
   /// short silence at the start cannot end it immediately. Android only.
   final Duration? minimumLength;
 
+  /// TINY TAPSTERS PATCH — Android's *long* "definitely finished" silence
+  /// timer, decoupled from [pauseFor].
+  ///
+  /// Upstream derives the Android intent extra from [pauseFor], but [pauseFor]
+  /// *also* arms a Dart-side timer that stops the session N ms after the
+  /// transcript last **changed** — which is not the same thing as silence at
+  /// all. A caller that owns its own silence detection needs the native timer
+  /// without that Dart one, so it passes `pauseFor: null` and sets this
+  /// instead. Android only.
+  final Duration? completeSilence;
+
   SpeechListenOptions({
     /// If true the listen session will automatically be canceled on a permanent error.
     this.cancelOnError = false,
@@ -131,6 +142,10 @@ class SpeechListenOptions {
 
     /// TINY TAPSTERS PATCH — minimum session length, Android only.
     this.minimumLength = null,
+
+    /// TINY TAPSTERS PATCH — the long silence timer, without arming the
+    /// Dart-side pause timer. See the field docs above.
+    this.completeSilence = null,
   });
 
   SpeechListenOptions copyWith({
@@ -145,6 +160,7 @@ class SpeechListenOptions {
     Duration? listenFor,
     Duration? possiblyCompleteSilence,
     Duration? minimumLength,
+    Duration? completeSilence,
     String? localeId,
   }) {
     return SpeechListenOptions(
@@ -159,6 +175,7 @@ class SpeechListenOptions {
         possiblyCompleteSilence:
             possiblyCompleteSilence ?? this.possiblyCompleteSilence,
         minimumLength: minimumLength ?? this.minimumLength,
+        completeSilence: completeSilence ?? this.completeSilence,
         listenFor: listenFor ?? this.listenFor,
         localeId: localeId ?? this.localeId);
   }

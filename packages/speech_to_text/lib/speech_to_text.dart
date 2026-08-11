@@ -109,6 +109,15 @@ class SpeechToText {
   static const String notListeningStatus = 'notListening';
   static const String doneStatus = 'done';
 
+  /// TINY TAPSTERS PATCH — see packages/PATCH.md.
+  ///
+  /// Android's `onReadyForSpeech`, forwarded. This is the only signal that
+  /// audio capture has actually started: the plugin reports [listeningStatus]
+  /// and returns from `listen()` before it has even posted `startListening()`
+  /// to the main looper, so "listening" means *asked*, not *hot*. Speech in
+  /// that gap is lost.
+  static const String readyStatus = 'readyForSpeech';
+
   /// This one is kind of a faux status, it's used internally
   /// to tell the status notifier that the final result has been seen
   /// since the status notifier wants to tell the world that it is 'done'
@@ -182,6 +191,9 @@ class SpeechToText {
   /// seen.
   bool _notifiedDone = false;
 
+  /// TINY TAPSTERS PATCH — true once the platform said the mic is really open.
+  bool _micReady = false;
+
   int _listenStartedAt = 0;
   int _lastSpeechEventAt = 0;
   Duration? _pauseFor;
@@ -248,6 +260,12 @@ class SpeechToText {
   bool get isListening => _listening;
 
   bool get isNotListening => !isListening;
+
+  /// TINY TAPSTERS PATCH — true once the platform reported the microphone is
+  /// genuinely capturing, as opposed to [isListening], which is true from the
+  /// moment `listen()` was *asked*. Android only; stays false elsewhere, so
+  /// callers must treat it as an optimisation and never a precondition.
+  bool get isMicReady => _micReady;
 
   /// The last error received or null if none, see [initialize] to
   /// register an optional listener to be notified of errors.
@@ -469,6 +487,7 @@ class SpeechToText {
     _recognized = false;
     _latestResultType = ResultType.partial;
     _notifiedDone = false;
+    _micReady = false;
     _resultListener = onResult;
     _soundLevelChange = onSoundLevelChange;
     _partialResults = partialResults;
@@ -720,6 +739,15 @@ class SpeechToText {
   void _onNotifyStatus(String status) {
     // print('status $status');
     switch (status) {
+      // TINY TAPSTERS PATCH — `ready` is an EVENT, not a state, and must
+      // return before `_listening = status == listeningStatus` below. Falling
+      // through would set isListening FALSE while the mic is hot, which
+      // silently kills _onSoundLevelChange and every isListening guard in
+      // callers. _lastStatus deliberately keeps saying 'listening'.
+      case readyStatus:
+        _micReady = true;
+        statusListener?.call(status);
+        return;
       case doneStatus:
         _notifiedDone = true;
         if (_latestResultType == ResultType.partial) return;

@@ -2,7 +2,7 @@
 
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.24.2+54 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.0+55 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. `google_generative_ai` is gone — Pollie talks to the Worker over plain `HttpClient`.
 **Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The seven games are fully offline; Pollie is the sole network feature.
@@ -62,3 +62,9 @@ flutter build apk --release           # when native config or deps changed
 - `test/layout_test.dart` — board bounds and caption room at phone size, no screen overflowing at 360dp, memory-match concurrency, and Find It! not repeating an animal.
 
 Counts deliberately omitted here — the total lives in the validation line above, and per-file numbers went stale every release.
+
+## Device testing gotchas
+
+- **Never `adb uninstall` the app to swap build types.** With "Install via USB" off, HyperOS refuses every *first-time* install — `adb install`, `-t`, and the `/data/local/tmp` + `pm install` workaround all fail with `INSTALL_FAILED_USER_RESTRICTED` and no prompt. Updates over an existing install still work.
+- Dart `debugPrint` does not reach `logcat` from a release build; on-device tracing needs `--profile` (debug-signed, so it cannot update a release install).
+- Pollie has a trace behind `--dart-define=POLLIE_TRACE=1`: `PT|<event>|<millis>|<payload>`, read with `adb logcat -s flutter:V | grep 'PT|'`.

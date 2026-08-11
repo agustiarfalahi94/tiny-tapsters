@@ -90,6 +90,32 @@ void main() {
     });
   });
 
+  group('a repeated short answer', () {
+    test('collapses back to what the child meant', () {
+      // Measured on the device: two spoken "no"s came back as one guess,
+      // "no no", because the recogniser re-scores the first once it has heard
+      // the second.
+      expect(collapseRepeatedAnswer('no no'), 'no');
+      expect(collapseRepeatedAnswer('no no no'), 'no');
+      expect(collapseRepeatedAnswer('Yes yes'), 'Yes');
+      expect(collapseRepeatedAnswer('tidak tidak'), 'tidak');
+    });
+
+    test('leaves reduplication that means something alone', () {
+      // These are real words, not a child repeating themselves.
+      expect(collapseRepeatedAnswer('bye bye'), 'bye bye');
+      expect(collapseRepeatedAnswer('night night'), 'night night');
+      expect(collapseRepeatedAnswer('knock knock'), 'knock knock');
+    });
+
+    test('never touches a real sentence', () {
+      expect(collapseRepeatedAnswer('no i want a story'), 'no i want a story');
+      expect(collapseRepeatedAnswer('yes please'), 'yes please');
+      expect(collapseRepeatedAnswer('no'), 'no');
+      expect(collapseRepeatedAnswer(''), '');
+    });
+  });
+
   group('choosing the recogniser language', () {
     test('the app language wins, in whatever form the device spells it', () {
       // The reported bug: the setting said Indonesian, Pollie answered in
@@ -143,6 +169,20 @@ void main() {
       expect(
         appendHeard('tell me a', 'a story about dogs'),
         'tell me a story about dogs',
+      );
+    });
+
+    test('a repeat is one word, whatever the recogniser capitalises', () {
+      // A child whose short "no" did not register says it again. The
+      // recogniser capitalises the first word of every fresh guess, so this
+      // arrives as "No" then "no" — and a literal comparison sent "No no".
+      expect(appendHeard('No', 'no'), 'No');
+      expect(appendHeard('no', 'No'), 'no');
+      expect(appendHeard('Yes', 'yes please'), 'Yes please');
+      expect(appendHeard('No.', 'no'), 'No.');
+      expect(
+        appendHeard('tell me a story', 'Story about a dog'),
+        'tell me a story about a dog',
       );
     });
 
