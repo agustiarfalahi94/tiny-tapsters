@@ -302,15 +302,20 @@ class _FindCardState extends State<_FindCard>
           final v = _shake.value;
           // Decaying wiggle while shaking; the red tint is a triangle wave
           // (up then back to 0) so the card returns to white when done.
-          final angle = math.sin(v * math.pi * 6) * 0.12 * (1 - v);
+          // Slide, do not rotate. A rotation is still a transform over text, and
+          // the glyph has to be re-rendered for every frame of it — with a
+          // dozen large emoji on a Big board that is what empties the cache
+          // and stops icons painting (golden rule 4). A translation just
+          // moves pixels already drawn.
+          final shift = math.sin(v * math.pi * 6) * 10 * (1 - v);
           final redTint = v < 0.5 ? v * 2 : (1 - v) * 2;
           // Rotation only. An AnimatedScale here re-rasterised the emoji
           // glyph every frame, and on the test device that eventually stopped
           // animals painting at all — they reappeared only while another
           // repaint (holding the back gesture) forced the raster cache to
           // rebuild. The correct answer is shown by the green border instead.
-          return Transform.rotate(
-            angle: angle,
+          return Transform.translate(
+            offset: Offset(shift, 0),
             child: Padding(
               padding: EdgeInsets.all(widget.happy ? 0 : 4),
               child: Container(
