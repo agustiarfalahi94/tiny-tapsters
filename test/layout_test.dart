@@ -222,7 +222,11 @@ void main() {
       ),
       'find it': const FindItScreen(cardsPerRound: 12, level: GameLevel.big),
       'count': const CountGameScreen(maxCount: 10, level: GameLevel.big),
-      'bubble pop': const BubblePopScreen(popsToWin: 12, level: GameLevel.big),
+      'bubble pop': const BubblePopScreen(
+        popsToWin: 10,
+        bubbleCount: 15,
+        level: GameLevel.big,
+      ),
       'which animal': const AnimalSoundScreen(choices: 5, level: GameLevel.big),
       'home': const HomeScreen(),
     };

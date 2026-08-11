@@ -117,7 +117,9 @@ The overlay currently takes `stars` but plays nothing. Add an
 `onShown`-equivalent: convert to a `StatefulWidget` and fire
 `SoundEffects.instance.win(stars ?? 3)` once in `initState`. Games that pass no
 star rating (Jigsaw, Animal Food, Bubble Pop) finish successfully, so they get
-the 3-star sound.
+the 3-star sound. *(Superseded: all seven games rate stars now — Jigsaw and
+Animal Food from wrong drops, Bubble Pop from wrong catches — so the
+`?? 3` fallback is no longer reached from a game screen.)*
 
 This keeps every game's win sound correct without touching six screens.
 

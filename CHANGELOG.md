@@ -5,6 +5,163 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.24.2] — 2026-08-11
+
+### Fixed
+- **Documentation caught up with the code.** A pass over every doc against
+  what actually ships found: the README never listed **Which Animal?** at all
+  and still described Count the Animals' dot patterns, removed in 1.22.0; it
+  said Pollie "needs an API key", which stopped being true when the key moved
+  to the Worker; `AGENTS.md` still listed the `google_generative_ai`
+  dependency, dropped in 1.10.0, and claimed Android's endpointing timer is
+  not configurable, which the vendored patch in `packages/` disproves; both
+  agent files said every game uses the `TimedGame` mixin, now six of seven;
+  and `CLAUDE.md` still read v1.23.0.
+- The timers and audio design specs now carry superseded notes where Bubble
+  Pop's clock and the "these games pass no star rating" list no longer match
+  the code — agents are told to read those specs before touching a feature.
+
+### Added
+- The README now states the countdown rule (30 s / 1 min / 2 min, Bubble Pop
+  excepted) and the language switch, neither of which it mentioned.
+
+---
+
+## [1.24.1] — 2026-08-11
+
+### Fixed
+- **Bubble Pop asked for things that are not animals.** The game says "catch
+  the right animal", but the bubble pool included ⭐ 🌸 🌈 🍓 — so it could
+  open by asking a child to catch a rainbow. The pool is animals only now:
+  🐶 🐱 🐸 🐢 🦋 🐙 🐰 🐭 🐷 🐥 🐝 🐬.
+
+---
+
+## [1.24.0] — 2026-08-11
+
+### Changed
+- **Bubble Pop is now a game of choosing, not just tapping.** The header shows
+  one animal — say 🐢 — and only that animal counts. Everything else stays on
+  screen when tapped, because making the mistake disappear hides it. Easy asks
+  for 3 catches among 5 floating bubbles, Medium 6 among 10, Big 10 among 15.
+- **The clock is gone from Bubble Pop.** Rushing a child into grabbing the
+  wrong bubble punishes exactly the care the game is now asking for.
+- Stars come from mistakes, the way the other games do: three for catching
+  only the right animal, two for up to two wrong, otherwise one.
+
+### Notes
+- Roughly a third of the bubbles carry the wanted animal at any moment, so it
+  is always findable without being the only thing on screen.
+- The "Pop N more!" phrase is gone from both languages; the header shows the
+  animal and the count instead, which a non-reader can act on.
+
+---
+
+## [1.23.0] — 2026-08-11
+
+### Changed
+- **The animals in Count the Animals are no longer arranged the same way every
+  time.** A single wrapping row folds identically for a given number, so six
+  always came out as five and one — and a four-year-old learns that *shape*
+  instead of counting. Each number now has several arrangements, picked at
+  random: six can be 5+1, 4+2, 3+3, 3+2+1 or 2+2+2; ten can be 5+5, 5+4+1,
+  4+4+2, 5+3+2 or 4+3+3.
+
+### Notes
+- Rows are capped at five, never more than three, the top row always holds at
+  least two, and at most one row holds a single animal — 5+4+1 ends naturally,
+  4+1+1 reads as scattered. Those constraints are what keep it looking
+  arranged rather than random.
+- `flutter analyze`: 0 issues; 115/115 tests.
+
+---
+
+## [1.22.0] — 2026-08-11
+
+### Changed
+- **The answer cards in Count the Animals are now just the number.** They used
+  to carry a matching pattern of dots — but the animals above and the dots
+  below were both laid out with a centred `Wrap`, so they wrapped into the
+  *same shape*. Comparing the two outlines answered the question without
+  counting anything, which is the entire point of the game.
+
+### Notes
+- The dots were a scaffold for a child who cannot yet read numerals, and
+  removing them makes the game purely about recognising the digit. If that
+  turns out to be too big a step, the better fix is not to bring them back as
+  they were but to lay them out in a fixed pattern — a die face, or a single
+  row — so they still help with counting but no longer mirror the question.
+- `flutter analyze`: 0 issues; 110/110 tests.
+
+---
+
+## [1.21.5] — 2026-08-11
+
+### Fixed
+- **One empty answer put Pollie to sleep and greyed out the microphone.** When
+  a reply came back with no words — which happens now and then, usually a
+  safety filter catching something innocent — the app treated it as a
+  breakdown. A child was then stuck: the mic was disabled, and the only way
+  back was tapping Pollie's face, which no four-year-old will work out. An
+  empty reply is now a hiccup: Pollie stays awake, says "ask me again", and
+  re-opens the microphone by herself.
+
+### Changed
+- The proxy now says *why* a reply was empty (a safety filter, a stopped
+  generation) instead of returning a silent success. That reason goes to the
+  log, so the next occurrence is diagnosable rather than a mystery.
+
+### Notes
+- Reproduced from the reported conversation; the same exchange succeeded on
+  retry, which is what identified it as intermittent and made the app's
+  reaction — not the failure itself — the thing worth fixing.
+- `flutter analyze`: 0 issues; 110/110 tests.
+
+---
+
+## [1.21.4] — 2026-08-11
+
+### Fixed
+- **Pollie could not understand Indonesian, even with the language set to
+  Indonesian.** She *replied* in Indonesian, so the setting looked as though it
+  had worked — but the microphone was still listening in English, which is why
+  speaking English got a response and speaking Indonesian got nothing. The
+  language was applied to the recogniser and then immediately overwritten by
+  the phone's *system* locale a few lines later. The app's setting is now the
+  only thing that decides.
+
+### Changed
+- Matching the language to a recogniser the device actually has is now
+  tolerant: Android reports these as `id_ID` as often as `id-ID`, and sometimes
+  as a bare `id`, so an exact comparison could miss a pack that was installed.
+  A language missing from that list is still attempted rather than abandoned:
+  the list often covers only *downloaded offline* packs, while Google's online
+  recogniser handles far more — and Pollie needs the internet anyway, so **no
+  user has to install a language pack** to speak Indonesian to her.
+
+### Notes
+- `flutter analyze`: 0 issues; 108/108 tests.
+
+---
+
+## [1.21.3] — 2026-08-11
+
+### Fixed
+- **🦁 and 🐯 no longer share a board in "Which Animal?".** Both are big-cat
+  roars, and the two recordings measure as near-identical — 1236 against 1244
+  zero-crossings a second, where a bear or a dog sits far away. With both on
+  screen the round could not be answered by listening, which is the entire
+  game. Neither animal was removed; they simply never appear together, the same
+  rule that keeps 🍃 and 🌿 off one board in Animal Food.
+
+### Notes
+- The first attempt excluded only the *answer's* twin, which still let both
+  cats appear whenever the answer was a third animal. The test caught it, and
+  it was confirmed to fail again with the rule taken out.
+- `flutter analyze`: 0 issues; 105/105 tests.
+
+---
+
 ## [1.21.2] — 2026-08-11
 
 ### Fixed

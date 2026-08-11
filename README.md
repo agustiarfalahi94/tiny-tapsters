@@ -15,19 +15,34 @@ only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
 - **Memory Match** — flip cards to find matching animal pairs. Easy (2 pairs),
   Medium (3 pairs), Big (6 pairs). Stars are awarded based on how few moves it
   takes.
-- **Bubble Pop** — tap floating bubbles to pop them. Pop 8 per round; bubbles
-  get faster each round.
+- **Bubble Pop** — one animal is wanted; catch only that one and leave the
+  rest floating. Easy (catch 3 of 5 bubbles), Medium (6 of 10), Big (10 of 15).
+  Bubbles speed up as the game fills, and popping a wrong one costs a star.
 - **Find It!** — "Find the 🐶!": tap the matching animal in the grid. Find 5 to
   win; fewer wrong taps means more stars. Easy (6), Medium (9), Big (12).
+- **Which Animal?** — a call plays, tap the animal that made it. Replay it as
+  often as you like: re-listening is the skill. Easy (2 choices), Medium (3),
+  Big (5).
 - **Count the Animals!** — count the big animal emojis and tap the number card
-  (digit + dot pattern) that matches. Wrong taps shake and let you try again.
-  Easy (count to 3), Medium (to 5), Big (to 10).
+  that matches. The animals are laid out differently every time, so six is not
+  always the same shape. Wrong taps shake and let you try again. Easy (count
+  to 3), Medium (to 5), Big (to 10).
 - **Pollie 🦜** — a talking companion on the home screen (bottom-right
   button). Pollie sleeps 😴 while offline and smiles 😊 when connected, then
   greets the child. **Talk to him with the 🎤 button** (speech is
   transcribed, answered, and spoken aloud — he listens again automatically
   for a hands-free conversation). Toddler-friendly tap chips plus a text
-  field for grown-ups. Powered by Gemini; needs an API key (see below).
+  field for grown-ups. Powered by Gemini through a proxy we host, so it
+  works out of the box — no key of your own (see below).
+
+Every game but Bubble Pop runs against a countdown — 30 s on Easy, 1 min on
+Medium, 2 min on Big — shown as a shrinking colour bar with no digits. It
+starts on the first tap, not when the screen opens. Bubble Pop has no clock:
+it asks the child to pick the right bubble, and hurrying works against that.
+
+The whole app switches between **English** and **Bahasa Indonesia** with the
+flag button on the home screen, including the spoken game names and Pollie.
+The choice is the one thing saved on the device.
 
 ## Run it
 
@@ -96,7 +111,7 @@ lib/
     jigsaw_game_screen.dart      # picture puzzle
     animal_food_screen.dart      # feed the animals
     memory_game_screen.dart      # matching pairs
-    bubble_pop_screen.dart       # bubble popping
+    bubble_pop_screen.dart       # catch the one animal that is wanted
     find_it_screen.dart          # find the matching animal
     count_game_screen.dart       # count the animals
     animal_sound_screen.dart     # guess the animal by its call
@@ -111,11 +126,17 @@ lib/
     sound_effects.dart           # one-shot SFX (pop, win, lose)
     music_service.dart           # looping background music
     music_route_observer.dart    # keeps the music in step with the screen
+  data/
+    animal_sounds.dart           # emoji → animal call asset
+    asset_credits.dart           # what the credits screen shows
   widgets/
     game_background.dart         # shared gradient background
     round_button.dart            # shared round emoji button
     celebration_overlay.dart     # confetti + stars + buttons
+    game_timer.dart              # countdown, the no-digits bar, TimedGame
+    game_over_overlay.dart       # "Time's up!" — a sibling of the celebration
     pair_drag_game.dart          # shared drag-to-slot engine (jigsaw + food)
+    pollie_bird.dart             # the bobbing bird + "Tap to talk!" bubble
     flip_card.dart               # 3D card flip animation
     confetti.dart                # celebration effect
 assets/

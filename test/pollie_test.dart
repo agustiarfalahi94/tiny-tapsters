@@ -90,6 +90,29 @@ void main() {
     });
   });
 
+  group('choosing the recogniser language', () {
+    test('the app language wins, in whatever form the device spells it', () {
+      // The reported bug: the setting said Indonesian, Pollie answered in
+      // Indonesian, and the microphone was still listening in English —
+      // because the system locale was read *after* the choice and overwrote
+      // it. Nothing the child said in Indonesian could be understood.
+      expect(matchLocale('id-ID', ['en-US', 'id_ID']), 'id_ID');
+      expect(matchLocale('id-ID', ['en_US', 'id-ID']), 'id-ID');
+      expect(matchLocale('en-US', ['en_US', 'id_ID']), 'en_US');
+    });
+
+    test('a bare language code still counts', () {
+      expect(matchLocale('id-ID', ['en-US', 'id']), 'id');
+      expect(matchLocale('id-ID', ['id-Latn-ID']), 'id-Latn-ID');
+    });
+
+    test('null when the device really has nothing for that language', () {
+      // Better to say so in the log than to silently listen in the wrong one.
+      expect(matchLocale('id-ID', ['en-US', 'fr-FR']), isNull);
+      expect(matchLocale('id-ID', const []), isNull);
+    });
+  });
+
   group('joining what the recogniser heard', () {
     test('a dying session keeps its words', () {
       // The reported bug: "do you know about minecraft?" arrived as
@@ -261,6 +284,38 @@ void main() {
       // Leaving Pollie's screen closes the pool; anything still in flight
       // afterwards must fail rather than reopen it.
       expect(await pollie.ping(), PolliePing.unreachable);
+    });
+
+    test('an empty reply is a hiccup, not a breakdown', () async {
+      // A 200 carrying no words used to surface as a generic failure, which
+      // put Pollie to sleep and greyed out the mic — leaving a child with no
+      // way to continue. It is now its own thing, so the screen can stay
+      // awake and simply invite them to ask again.
+      final proxy = await FakeProxy.start();
+      addTearDown(proxy.stop);
+      proxy.chunks = ['{"empty":true,"reason":"SAFETY"}\n'];
+
+      final pollie = PollieService(endpoint: proxy.url);
+      addTearDown(pollie.dispose);
+      await expectLater(
+        pollie.reply(const [ChatMessage(role: 'user', text: 'hi')]).toList(),
+        throwsA(isA<PollieEmptyReplyException>()),
+      );
+    });
+
+    test('words still arrive when the proxy also reports the reason', () async {
+      final proxy = await FakeProxy.start();
+      addTearDown(proxy.stop);
+      proxy.chunks = ['{"text":"Halo!"}\n'];
+
+      final pollie = PollieService(endpoint: proxy.url);
+      addTearDown(pollie.dispose);
+      expect(
+        (await pollie.reply(const [
+          ChatMessage(role: 'user', text: 'hi'),
+        ]).toList()).join(),
+        'Halo!',
+      );
     });
 
     test('a brief pause is told apart from the day being over', () async {

@@ -14,6 +14,44 @@ import '../widgets/game_timer.dart';
 import '../widgets/round_button.dart';
 import 'animal_food_screen.dart';
 
+/// How to split [count] animals across rows, chosen at random from the
+/// arrangements that look natural.
+///
+/// A single wrapping row is deterministic: six animals always came out as five
+/// and one, so a child learns the *shape* of six instead of counting it. Every
+/// count now has several shapes — six can be 5+1, 4+2 or 3+3 — so the picture
+/// changes between rounds and the only way through is to count.
+///
+/// Rows are non-increasing and capped at five, which is what keeps the result
+/// looking deliberate rather than scattered.
+List<int> countRows(int count, math.Random rng) {
+  const maxPerRow = 5;
+  const maxRows = 3;
+  final options = <List<int>>[];
+
+  void build(List<int> rows, int left) {
+    if (left == 0) {
+      // A lone animal on the top row reads as a mistake rather than a
+      // grouping, so the first row always carries at least two.
+      if (rows.first < 2 && count != 1) return;
+      // One row of a single animal is a natural ending (5-4-1); two of them
+      // (4-1-1) look scattered rather than arranged.
+      if (rows.where((r) => r == 1).length > 1) return;
+      options.add([...rows]);
+      return;
+    }
+    if (rows.length == maxRows) return;
+    final ceiling = math.min(rows.isEmpty ? maxPerRow : rows.last, left);
+    for (var size = ceiling; size >= 1; size--) {
+      build([...rows, size], left - size);
+    }
+  }
+
+  build([], count);
+  if (options.isEmpty) return [count];
+  return options[rng.nextInt(options.length)];
+}
+
 /// Count the Animals!: the toddler sees a group of animal emojis and taps the
 /// answer card (big digit + dot pattern) that matches how many animals there
 /// are. 5 rounds per game; fewer wrong taps means more stars.
@@ -49,7 +87,8 @@ class _CountGameScreenState extends State<CountGameScreen>
   late final math.Random _rng = widget.random ?? math.Random();
 
   late int _answer; // how many animals are shown this round
-  late List<String> _animals; // N distinct emojis
+  /// The animals to count, already split into the rows they are shown in.
+  late List<List<String>> _rows;
   late List<int> _values; // the 3 card values, shuffled (includes _answer)
 
   final List<GlobalKey<_CountCardState>> _cardKeys = [
@@ -92,9 +131,18 @@ class _CountGameScreenState extends State<CountGameScreen>
     _advance = null;
     final answer = _rng.nextInt(widget.maxCount) + 1; // 1..maxCount
     final animals = [...kAnimalEmojis]..shuffle(_rng);
+    final shown = animals.take(answer).toList();
+    // Split them into rows before showing, so the arrangement changes from
+    // round to round even when the count repeats.
+    final rows = <List<String>>[];
+    var index = 0;
+    for (final size in countRows(answer, _rng)) {
+      rows.add(shown.sublist(index, index + size));
+      index += size;
+    }
     setState(() {
       _answer = answer;
-      _animals = animals.take(answer).toList();
+      _rows = rows;
       _values = _buildValues(answer);
       _happyIndex = null;
     });
@@ -226,15 +274,22 @@ class _CountGameScreenState extends State<CountGameScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 2,
-                          runSpacing: 2,
+                        // Explicit rows, not a Wrap: a Wrap always folds the
+                        // same way for a given count, and that shape is what
+                        // a child learns to read instead of counting.
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            for (final animal in _animals)
-                              Text(
-                                animal,
-                                style: const TextStyle(fontSize: 40),
+                            for (final row in _rows)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  for (final animal in row)
+                                    Text(
+                                      animal,
+                                      style: const TextStyle(fontSize: 40),
+                                    ),
+                                ],
                               ),
                           ],
                         ),
@@ -369,9 +424,13 @@ class _CountCardState extends State<_CountCard>
                 ),
                 // Scale digit + dots down (never up) so huge system text or
                 // narrow cards can't push the dots past the card bounds.
-                // Breathing room inside the card. Without it the dot pattern
-                // runs flush to the rounded edge, and on Big — ten dots in two
-                // rows — the bottom row sits right on the border.
+                // The card is the digit and nothing else. It used to carry a
+                // matching pattern of dots, which was a scaffold for a child
+                // who cannot yet read numerals — but both the animals above
+                // and the dots below were laid out with a centred `Wrap`, so
+                // they wrapped into the *same shape*. Comparing the two
+                // outlines answered the question without counting anything,
+                // which is the entire point of the game.
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -390,8 +449,6 @@ class _CountCardState extends State<_CountCard>
                             color: Color(0xFF37474F),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        _DotPattern(count: widget.value),
                       ],
                     ),
                   ),
@@ -407,40 +464,3 @@ class _CountCardState extends State<_CountCard>
 
 /// Plain circles laid out 5 per row (up to 2 rows for 10), sized to fit the
 /// card so toddlers can point and count.
-class _DotPattern extends StatelessWidget {
-  const _DotPattern({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const gap = 5.0;
-        final dot = ((constraints.maxWidth - gap * 4) / 5)
-            .clamp(12.0, 18.0)
-            .toDouble();
-        return SizedBox(
-          width: dot * 5 + gap * 4,
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            runAlignment: WrapAlignment.center,
-            spacing: gap,
-            runSpacing: gap,
-            children: [
-              for (var i = 0; i < count; i++)
-                Container(
-                  width: dot,
-                  height: dot,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFFFFB74D),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}

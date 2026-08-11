@@ -191,12 +191,24 @@ class PollieService {
         .transform(const LineSplitter());
     await for (final line in lines) {
       if (line.trim().isEmpty) continue;
+      Map<String, dynamic>? chunk;
       try {
-        final chunk = jsonDecode(line) as Map<String, dynamic>;
-        final text = chunk['text'];
-        if (text is String && text.isNotEmpty) yield text;
+        chunk = jsonDecode(line) as Map<String, dynamic>;
       } catch (_) {
         // One malformed line is not worth failing a whole reply over.
+        continue;
+      }
+      final text = chunk['text'];
+      if (text is String && text.isNotEmpty) {
+        yield text;
+        continue;
+      }
+      // The proxy says the reply carried no words, and why. Usually a safety
+      // filter — they are set as strictly as Gemini allows, which
+      // occasionally catches something innocent.
+      if (chunk['empty'] == true) {
+        debugPrint('Pollie produced nothing: ${chunk['reason']}');
+        throw const PollieEmptyReplyException();
       }
     }
   }
@@ -251,6 +263,18 @@ class PollieService {
       (_) => random.nextInt(16).toRadixString(16),
     ).join();
   }
+}
+
+/// Pollie answered with nothing at all.
+///
+/// Distinct from a failure: the request worked. Treating it as a breakdown is
+/// what put her to sleep and greyed out the microphone, leaving a child with
+/// no way to carry on. She should just ask again.
+class PollieEmptyReplyException implements Exception {
+  const PollieEmptyReplyException();
+
+  @override
+  String toString() => 'empty reply';
 }
 
 /// Pollie cannot answer right now because of a limit.

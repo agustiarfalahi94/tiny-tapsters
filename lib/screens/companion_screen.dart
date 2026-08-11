@@ -22,6 +22,27 @@ enum _PollieStatus { sleeping, awake, listening, thinking, speaking }
 /// (system TTS) — then Pollie listens again automatically, so a toddler can
 /// just keep chatting like in the Gemini app. Toddlers can also tap the big
 /// chips; grown-ups can type.
+/// Finds the device's own name for [wanted] among the recognisers it has.
+///
+/// Android reports these inconsistently — `id_ID` as often as `id-ID`, and
+/// sometimes only a bare `id` — so an exact string comparison misses a
+/// recogniser that is actually installed. Falls back to matching on the
+/// language alone, which is what a child is speaking anyway.
+///
+/// Returns null when the device genuinely has nothing for that language.
+String? matchLocale(String wanted, List<String> available) {
+  String normalise(String id) => id.replaceAll('_', '-').toLowerCase();
+  final target = normalise(wanted);
+  final language = target.split('-').first;
+  for (final id in available) {
+    if (normalise(id) == target) return id;
+  }
+  for (final id in available) {
+    if (normalise(id).split('-').first == language) return id;
+  }
+  return null;
+}
+
 /// Joins what a recogniser session produced onto what earlier sessions did.
 ///
 /// A session ending must not lose its words: the next session assigns to the
@@ -298,16 +319,47 @@ class _CompanionScreenState extends State<CompanionScreen>
       );
       if (!mounted) return;
       setState(() => _speechAvailable = available);
-      if (available) {
-        final lang = (await _speech.systemLocale())?.localeId ?? '';
-        if (lang.startsWith('id') || lang.startsWith('in')) {
-          _localeId = 'id-ID';
-        } else if (lang.startsWith('en')) {
-          _localeId = 'en-US';
-        }
-      }
+      // The *app's* language decides what Pollie listens for, not the phone's.
+      // This used to read the system locale here and overwrite the choice
+      // above, so on an English phone Pollie answered in Indonesian while
+      // still listening in English — the child could not be understood.
+      if (available) await _useAppLocale();
     } catch (_) {
       _speechAvailable = false;
+    }
+  }
+
+  /// Points the recogniser at the chosen language.
+  ///
+  /// Only ever *narrows* to the device's own spelling of that language —
+  /// Android reports `id_ID` as often as `id-ID`. It never falls back to a
+  /// different language: listening in one the child is not speaking is worse
+  /// than trying and failing. No offline pack is required, because the app
+  /// does not force on-device recognition and Pollie needs the internet
+  /// regardless.
+  Future<void> _useAppLocale() async {
+    final wanted = AppLanguageService.instance.current.value.localeId;
+    try {
+      final available = await _speech.locales();
+      final ids = available.map((l) => l.localeId).toList();
+      final match = matchLocale(wanted, ids) ?? '';
+      if (match.isEmpty) {
+        // Not listed is not the same as not supported: this list often covers
+        // only the *downloaded* offline packs, while Google's online
+        // recogniser handles far more. Pollie needs the internet anyway, so
+        // keep the chosen language and let the online recogniser take it.
+        debugPrint(
+          'Pollie: $wanted is not in this device\'s locale list, trying it '
+          'anyway (online recognition usually covers it). '
+          'Listed: ${ids.take(12).join(", ")}',
+        );
+        return;
+      }
+      _localeId = match;
+      debugPrint('Pollie listening in $_localeId');
+    } catch (e) {
+      debugPrint('Pollie could not list speech locales: $e');
+      _localeId = wanted;
     }
   }
 
@@ -680,7 +732,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       final reply = buffer.toString().trim();
       if (reply.isEmpty) {
         _moreComing = false;
-        throw StateError('Pollie said nothing — maybe try again?');
+        throw const PollieEmptyReplyException();
       }
       // Output safety guard: if anything inappropriate slipped through the
       // model filters, the child never sees or hears it.
@@ -722,12 +774,17 @@ class _CompanionScreenState extends State<CompanionScreen>
       // and it also made a temporary hiccup look permanent.
       final brief = e is PollieQuotaException && e.isBrief;
       final quota = e is PollieQuotaException && !e.isBrief;
+      // An empty reply and a short pause are both hiccups, not breakdowns.
+      // Sleeping on them greyed out the mic and stranded the child.
+      final hiccup = brief || e is PollieEmptyReplyException;
       setState(() {
         _bubbles.removeLast();
         _bubbles.add(
           _Bubble(
             role: 'model',
-            text: brief
+            text: e is PollieEmptyReplyException
+                ? strings.pollieSayAgain
+                : brief
                 ? strings.pollieBreath
                 : quota
                 ? strings.pollieOutOfWords(_pollie.quotaResetLabel())
@@ -736,10 +793,18 @@ class _CompanionScreenState extends State<CompanionScreen>
                 : strings.pollieNoKey,
           ),
         );
-        // A pause leaves Pollie awake; only a real failure puts him to sleep.
-        _status = brief ? _PollieStatus.awake : _PollieStatus.sleeping;
+        // A hiccup leaves Pollie awake; only a real failure puts him to
+        // sleep. A sleeping Pollie disables the mic, and a child cannot work
+        // out that they must tap his face to bring it back.
+        _status = hiccup ? _PollieStatus.awake : _PollieStatus.sleeping;
         _busy = false;
       });
+      // Keep the conversation going rather than making the child restart it.
+      if (hiccup && _speechAvailable) {
+        Future<void>.delayed(const Duration(milliseconds: 900), () {
+          if (mounted && _status == _PollieStatus.awake) _startListening();
+        });
+      }
     }
     _scrollToBottom();
   }

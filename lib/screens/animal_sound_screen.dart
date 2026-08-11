@@ -44,6 +44,25 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
     with WidgetsBindingObserver, TimedGame {
   late final math.Random _rng = widget.random ?? math.Random();
 
+  /// Animals a child cannot tell apart by ear, so they never share a board.
+  ///
+  /// A lion's roar and a tiger's roar are both big-cat roars: measured against
+  /// each other the two recordings are near-identical, while a bear or a dog
+  /// sits far away. With both on screen the round stops being answerable by
+  /// listening, which is the whole game. The same rule keeps 🍃 and 🌿 off one
+  /// board in Animal Food.
+  static const _soundAlikes = [
+    ['🦁', '🐯'],
+  ];
+
+  /// Everything that would be unfair to show alongside [animal].
+  static List<String> _confusableWith(String animal) => [
+    for (final group in _soundAlikes)
+      if (group.contains(animal))
+        for (final other in group)
+          if (other != animal) other,
+  ];
+
   /// Easy drops to 3 rounds, for the same reason the other games do: five
   /// rounds inside a 30-second clock is six seconds a question.
   int get _roundsToWin => widget.level == GameLevel.easy ? 3 : 5;
@@ -100,10 +119,22 @@ class _AnimalSoundScreenState extends State<AnimalSoundScreen>
     final target = (unasked..shuffle(_rng)).first;
     _asked.add(target);
     // Distractors come from every *other* animal, so no board shows one twice.
-    final pool = all.where((e) => e != target).toList()..shuffle(_rng);
+    // Two sound-alikes must not share a board *at all* — not merely avoid the
+    // answer. An earlier version excluded only the answer's twin, which still
+    // let both big cats appear together whenever the answer was something
+    // else; the test caught it.
+    final chosen = <String>[target];
+    final candidates = all.where((e) => e != target).toList()..shuffle(_rng);
+    for (final candidate in candidates) {
+      if (chosen.length >= widget.choices) break;
+      final clashes = chosen.any(
+        (picked) => _confusableWith(picked).contains(candidate),
+      );
+      if (!clashes) chosen.add(candidate);
+    }
     setState(() {
       _target = target;
-      _cards = [...pool.take(widget.choices - 1), target]..shuffle(_rng);
+      _cards = chosen..shuffle(_rng);
       _happyIndex = null;
       _busy = false;
     });

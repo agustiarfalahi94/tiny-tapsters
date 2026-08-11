@@ -103,6 +103,7 @@ class AppStrings {
   String pieces(int n) => _pick('$n pieces', '$n kepingan');
   String pairs(int n) => _pick('$n pairs', '$n pasang');
   String bubbles(int n) => _pick('$n bubbles', '$n balon');
+  String catchTimes(int n) => _pick('Catch $n', 'Tangkap $n');
   String choices(int n) => _pick('$n to choose from', '$n pilihan');
   String countTo(int n) => _pick('Count to $n', 'Berhitung sampai $n');
 
@@ -127,10 +128,10 @@ class AppStrings {
 
   String get bubblePop => _pick('Bubble Pop', 'Pecahkan Balon');
   String get bubblePopSubtitle =>
-      _pick('Pop the floating bubbles!', 'Pecahkan balon yang melayang!');
+      _pick('Catch the right animal!', 'Tangkap hewan yang benar!');
   String get bubblePopGoal => _pick(
-    'Pop them all before the time runs out!',
-    'Pecahkan semua sebelum waktunya habis!',
+    'Only pop the animal at the top!',
+    'Pecahkan hewan yang di atas saja!',
   );
 
   String get findIt => _pick('Find It!', 'Cari Hewan Ini!');
@@ -159,7 +160,6 @@ class AppStrings {
       _pick('Play the animal sound', 'Putar suara hewannya');
   String get findThe => _pick('Find the ', 'Cari ');
   String pairsLeft(int n) => _pick('Pairs left: $n', 'Sisa pasangan: $n');
-  String popMore(int n) => _pick('Pop $n more!', 'Pecahkan $n lagi!');
   String jigsawSize(int rows, int cols) =>
       _pick('Jigsaw $rows×$cols', 'Susun $rows×$cols');
 
@@ -216,6 +216,10 @@ class AppStrings {
   String get pollieLost => _pick(
     'Oops, I got lost for a moment! 😅 Can you ask me again?',
     'Aduh, aku bingung sebentar! 😅 Coba tanya lagi ya?',
+  );
+  String get pollieSayAgain => _pick(
+    "Hmm, I didn't think of anything to say! 😊 Ask me again?",
+    'Hmm, aku tidak kepikiran jawabannya! 😊 Tanya lagi ya?',
   );
   String get pollieBreath => _pick(
     'Phew! Let me catch my breath for a moment, then ask me again! 😊',

@@ -92,7 +92,7 @@ void main() {
     expect(id.pieces(9), contains('9'));
     expect(id.countTo(10), contains('10'));
     expect(id.pairsLeft(3), contains('3'));
-    expect(id.popMore(4), contains('4'));
+    expect(id.catchTimes(4), contains('4'));
   });
 
   test('each language carries the locale speech and TTS need', () {
