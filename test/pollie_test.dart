@@ -90,6 +90,44 @@ void main() {
     });
   });
 
+  group('joining what the recogniser heard', () {
+    test('a dying session keeps its words', () {
+      // The reported bug: "do you know about minecraft?" arrived as
+      // "know minecraft", because the session holding "do you" ended without
+      // a final result and the next session overwrote it.
+      expect(
+        appendHeard('do you', 'know about minecraft'),
+        'do you know about minecraft',
+      );
+    });
+
+    test('nothing is added for an empty guess', () {
+      expect(appendHeard('hello there', ''), 'hello there');
+      expect(appendHeard('hello there', '   '), 'hello there');
+      expect(appendHeard('', 'hello'), 'hello');
+    });
+
+    test('a restatement does not stutter', () {
+      // Some recognisers repeat the whole utterance in the next session.
+      expect(appendHeard('do you', 'do you'), 'do you');
+      expect(
+        appendHeard('do you know', 'know about cats'),
+        'do you know about cats',
+      );
+    });
+
+    test('a partial overlap is joined without repeating', () {
+      expect(
+        appendHeard('tell me a', 'a story about dogs'),
+        'tell me a story about dogs',
+      );
+    });
+
+    test('unrelated speech is simply appended', () {
+      expect(appendHeard('hello', 'goodbye'), 'hello goodbye');
+    });
+  });
+
   group('PollieService', () {
     test('an unconfigured endpoint is reported, not thrown', () async {
       final pollie = PollieService(endpoint: '');
