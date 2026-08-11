@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.18.4+41
+version: 1.19.0+42
 
 environment:
   sdk: ^3.11.4
@@ -36,8 +36,18 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   flutter_tts: ^4.2.5
-  speech_to_text: ^7.4.0
+  # Vendored and patched — see packages/PATCH.md. Android's short
+  # "probably finished" silence timer is not settable through the published
+  # package, and it is what cut a child off mid-sentence.
+  speech_to_text:
+    path: packages/speech_to_text
   audioplayers: ^6.7.1
+
+dependency_overrides:
+  # The vendored plugin depends on the published interface; both must be ours
+  # or the new options never reach the platform channel.
+  speech_to_text_platform_interface:
+    path: packages/speech_to_text_platform_interface
 
 dev_dependencies:
   flutter_test:

@@ -26,3 +26,9 @@ linter:
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+
+analyzer:
+  exclude:
+    # Vendored upstream packages, patched but not ours to restyle.
+    # See packages/PATCH.md for exactly what we changed and why.
+    - packages/**

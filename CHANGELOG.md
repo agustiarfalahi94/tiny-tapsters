@@ -5,6 +5,40 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.19.0] — 2026-08-11
+
+### Changed
+- **`speech_to_text` is now vendored and patched** (`packages/`, documented in
+  `packages/PATCH.md`). Android's recogniser has two silence timers: a long
+  one the package exposes as `pauseFor`, and a short "probably finished" one of
+  about half a second that it never sets and gives no way to set. Half a second
+  is shorter than the pause between words, so the session kept ending
+  mid-sentence — every one to two seconds on the test device — and each restart
+  leaves a gap in which nothing is captured. That is what cut a child off, and
+  later what dropped "do you" from "do you know about minecraft?".
+  The patch adds two options carried through to the Android intent extras;
+  the app sets the short timer to 2.5 seconds and a 3-second minimum session.
+
+### Fixed
+- The restart gap is smaller: the redundant `stop()` before restarting is now
+  skipped when the session already ended on its own, and the pause between
+  sessions is 60 ms instead of 120 ms. Every millisecond there is speech nobody
+  captures.
+
+### Notes
+- Roughly fifteen changed lines across three upstream files, each marked
+  `TINY TAPSTERS PATCH`. `analysis_options.yaml` excludes `packages/**` — it is
+  upstream code, and we maintain a patch rather than its style.
+- The first build after vendoring failed with "Conflicting overloads" from a
+  stale Gradle cache; `flutter clean` fixed it. Worth knowing before assuming
+  the patch is wrong.
+- **Not verified on a device.** The phone stopped advertising over wireless
+  debugging before it could be installed. Nothing about a silence timer can be
+  proven by a unit test — this needs a real recogniser and a real voice.
+- `flutter analyze`: 0 issues; 97/97 tests.
+
+---
+
 ## [1.18.4] — 2026-08-11
 
 ### Fixed
