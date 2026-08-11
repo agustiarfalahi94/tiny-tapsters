@@ -201,11 +201,51 @@ Scenarios worth naming, each pinning a reported symptom:
 - a held mic ignores four seconds of silence; releasing keeps the last word
 - no `AnimatedScale`/`Transform` above the 🎤
 
-## Still to do
+## What the device actually said
 
-Device verification on the Xiaomi 15, with speech played from the Mac's
-speakers: `say "in minecraft how do you [[slnc 2000]] create a tnt"` reproduces
-the exact reported bug as a deterministic two-second acoustic gap, and
-`adb shell input swipe X Y X Y 3000` (identical start and end) is a three-second
-press-and-hold. Six consecutive turns per run, because the symptom is explicitly
-"not the first turn".
+Verified on the Xiaomi 15 with speech played from the Mac's speakers, read from
+the `PT|` trace. **The trace changed the diagnosis**, which is the point of
+having built it:
+
+- **`ready` is real and arrives in 24–50 ms.** Warm-up was never the problem on
+  this device, so the front-clipping theory was wrong about the mechanism even
+  though the fix (never invite speech before the mic is hot) is still correct.
+- **The recogniser wipes its own hypothesis at a pause.** This is the real cause
+  of the reported truncation, and it is invisible from the app's code:
+
+  ```
+  +4065  partial  "tell me a story"
+  +5617  partial  ""                       ← no final, no done, no error
+  +6225  partial  " about a big dinosaur"
+  ```
+
+  The app's `_partial = words` assignment overwrote the first half. Banking a
+  wiped hypothesis before it is replaced turned the same phrase on the same
+  phone into `endturn transcript=tell me a story about a big dinosaur`.
+- **`error_no_match` no longer ends a turn** — observed restarting mid-turn and
+  continuing, which is the shipped bug fixed.
+- **A short answer answers fast**: "yes please" → `endturn` 1.1 s after the last
+  word, via the final-plus-quiet fast path.
+- **An idle mic used to cycle forever.** The trace showed `error_speech_timeout`
+  restarting every ~6 s with the give-up clock resetting each time, so the turn
+  ran to the 45 s cap. `_openMs` now measures the turn, not the session.
+
+### What the rig could NOT establish
+
+Stated plainly so nobody reads more into it than it supports:
+
+- **Speaker volume dominates everything.** At 60 % the recogniser transcribed
+  almost nothing and produced `error_no_match`; at 100 % the same phrases came
+  through cleanly. Every measurement above is at 100 %.
+- **`say "in minecraft how do you"` is not transcribable at all**, with or
+  without a pause, alone or in a sentence. It was therefore never a valid probe,
+  and the early runs that "failed" proved nothing about the app. Phrases the
+  recogniser can hear ("tell me a story about a big dinosaur") were used instead.
+- **A single synthesised "yes" never transcribes** — three runs, all
+  `error_no_match`. "yes please" works every time. This is a limit of synthetic
+  speech through a speaker, not evidence about the app: a child's voice carries
+  far more energy. The single-word case remains **unverified on device**.
+
+Useful mechanics: `adb shell input swipe X Y X Y 3000` (identical start and end)
+is a three-second press-and-hold, and `[[slnc 2000]]` inside `say` is a real
+two-second acoustic gap.
