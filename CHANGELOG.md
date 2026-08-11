@@ -29,6 +29,12 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
     sent half a question;
   - `minimumLength` forced every session to run three seconds, so a one-word
     answer waited on a timer with nothing to wait for;
+  - a very short answer had to be repeated because the sound gate waited a
+    fifth of a second before believing anyone was speaking. A clearly-spoken
+    word now registers on the instant;
+  - a repeat that arrived as "No" then "no" was joined into "No no", because
+    the check that removes a restated word was case-sensitive and the
+    recogniser capitalises the first word of every fresh guess;
   - the app said it was listening up to half a second before the microphone was
     actually recording, so the first words of an answer landed in a hole. That
     is why the clipping started on the second or third turn rather than the
@@ -41,6 +47,11 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
   the microphone never re-opened.
 
 ### Added
+- **A repeated yes/no answer counts once.** A very short "no" is often below
+  what the recogniser will commit to, so a child says it again — and once it
+  has heard the second one, Android re-scores the first and hands back "no no".
+  Only an answer word repeated on its own is collapsed; "bye bye" and "night
+  night" are left alone, because there the repetition is the word.
 - **Hold the microphone button to talk.** While a finger is down the mic stays
   open no matter how long the pause — nothing is allowed to decide the child has
   finished. Tapping still works exactly as before. Holding is the reliable path

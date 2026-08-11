@@ -66,22 +66,83 @@ String? matchLocale(String wanted, List<String> available) {
 ///
 /// Skips a restatement, because some recognisers repeat the whole utterance in
 /// the following session and appending both would stutter.
+/// The words a child repeats when a short answer does not seem to land.
+///
+/// Both languages, because the recogniser runs in whichever one is chosen.
+const _answerWords = {
+  'yes',
+  'yeah',
+  'yep',
+  'yup',
+  'no',
+  'nope',
+  'ok',
+  'okay',
+  'ya',
+  'iya',
+  'tidak',
+  'nggak',
+  'enggak',
+  'oke',
+};
+
+/// Collapses "no no" back to "no".
+///
+/// A very short answer is often below what the recogniser will commit to, so
+/// the child says it again — and Google, once it has heard the second one,
+/// re-scores the first and returns **both** as a single guess. The transcript
+/// is not wrong (they did say it twice) but it is not what they meant.
+///
+/// Deliberately narrow: only when the *whole* utterance is one answer word
+/// repeated. Reduplication is meaningful elsewhere — "bye bye", "night night",
+/// "knock knock" — and collapsing those would be worse than the problem.
+String collapseRepeatedAnswer(String text) {
+  final raw = text.trim().split(RegExp(r'\s+'));
+  if (raw.length < 2) return text;
+  final words = _spokenWords(text);
+  if (!_answerWords.contains(words.first)) return text;
+  if (words.any((w) => w != words.first)) return text;
+  return raw.first;
+}
+
 String appendHeard(String banked, String pending) {
   final tail = pending.trim();
   if (tail.isEmpty) return banked;
   if (banked.isEmpty) return tail;
-  if (banked.endsWith(tail)) return banked;
-  // The next session often restarts from a word or two back; drop the overlap
-  // rather than repeat it.
-  final words = tail.split(RegExp(r'\s+'));
-  for (var take = words.length; take > 0; take--) {
-    final overlap = words.take(take).join(' ');
-    if (banked.endsWith(overlap)) {
-      final rest = words.skip(take).join(' ');
+
+  final bankedWords = _spokenWords(banked);
+  final tailWords = _spokenWords(tail);
+  final rawTail = tail.split(RegExp(r'\s+'));
+
+  // The longest run of leading `pending` words that `banked` already ends
+  // with, compared **lowercased and without punctuation**. The recogniser
+  // capitalises the first word of every fresh guess, so a child who repeats
+  // themselves produces "No" then "no" — the same word said once, which a
+  // literal comparison turned into "No no".
+  for (var take = tailWords.length; take > 0; take--) {
+    if (_endsWithRun(bankedWords, tailWords.take(take).toList())) {
+      final rest = rawTail.skip(take).join(' ');
       return rest.isEmpty ? banked : '$banked $rest';
     }
   }
   return '$banked $tail';
+}
+
+/// One entry per whitespace-separated token, lowercased and stripped of
+/// punctuation, so positions still line up with the original text.
+List<String> _spokenWords(String text) => text
+    .trim()
+    .split(RegExp(r'\s+'))
+    .map((w) => w.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), ''))
+    .toList();
+
+bool _endsWithRun(List<String> whole, List<String> run) {
+  if (run.isEmpty || run.length > whole.length) return false;
+  final offset = whole.length - run.length;
+  for (var i = 0; i < run.length; i++) {
+    if (whole[offset + i] != run[i]) return false;
+  }
+  return true;
 }
 
 /// End of a sentence: terminal punctuation, any closing quote or bracket,
@@ -890,7 +951,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     // Banked words plus whatever the live session was still guessing — on a
     // mic tap mid-sentence, `_partial` is the only place the last few words
     // exist.
-    final words = _transcript.trim();
+    final words = collapseRepeatedAnswer(_transcript.trim());
     _heard = '';
     _turn = TurnState.idle;
     if (!mounted) return;

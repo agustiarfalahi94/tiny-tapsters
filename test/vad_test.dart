@@ -50,17 +50,36 @@ void main() {
     expect(gate.heardVoice, isFalse);
   });
 
-  test('speech registers, and one stray frame does not', () {
+  test('speech registers, and one borderline frame does not', () {
     feedAll(gate, 0.0, 4);
 
-    // A single loud frame is a tap, a door, the mic button itself.
-    expect(gate.feed(8.0), isFalse);
+    // A single frame only a little over the floor is a tap, a door, the mic
+    // button itself — it has to persist. (A frame that is *unambiguously*
+    // loud counts at once; see the short-word test above.)
+    expect(gate.feed(4.5), isFalse);
     expect(gate.isVoice, isFalse);
 
     // Two in a row is speech.
-    expect(gate.feed(8.0), isTrue);
+    expect(gate.feed(4.5), isTrue);
     expect(gate.isVoice, isTrue);
     expect(gate.heardVoice, isTrue);
+  });
+
+  test('a single clear word registers without waiting out the debounce', () {
+    // A four-year-old's "no" can be shorter than the 200ms debounce. Being
+    // missed is what makes them repeat themselves, and the repeat is what
+    // produced "no no".
+    feedAll(gate, 0.0, 4);
+    expect(gate.feed(9.0), isTrue, reason: 'one loud frame is enough');
+    expect(gate.heardVoice, isTrue);
+  });
+
+  test('a merely-above-threshold frame still waits for the debounce', () {
+    // Loudness stands in for duration only when it is unambiguous; a quiet
+    // blip still has to persist, or room noise would read as speech.
+    feedAll(gate, 0.0, 4);
+    expect(gate.feed(3.5), isFalse);
+    expect(gate.feed(3.5), isTrue);
   });
 
   test('hysteresis keeps a syllable boundary from reading as silence', () {

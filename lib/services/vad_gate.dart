@@ -25,6 +25,7 @@ class VadGate {
     this.onsetDb = 3.0,
     this.releaseDb = 1.5,
     this.onsetFrames = 2,
+    this.strongOnsetDb = 6.0,
     this.floorAlpha = 0.05,
   });
 
@@ -46,6 +47,19 @@ class VadGate {
   /// Consecutive loud frames needed to declare voice. Rejects a finger tap or
   /// a door, both of which are one frame; no pair of syllables is that short.
   final int onsetFrames;
+
+  /// A level this far over the floor counts as voice from a **single** frame.
+  ///
+  /// The debounce above costs 200 ms, which is longer than a child's "no".
+  /// Reported from real use: a very short answer had to be repeated, and the
+  /// repeat is what produced "no no". A clearly-spoken word is well over the
+  /// floor immediately, so loudness stands in for duration here.
+  ///
+  /// A loud tap now also counts, which is a deliberate trade: the cost is that
+  /// the turn waits on the "I heard you but could not make it out" path rather
+  /// than the "nobody spoke" one — so the child is invited to try again
+  /// instead of being ignored.
+  final double strongOnsetDb;
 
   /// How fast the floor follows a room that is getting noisier. Applied on
   /// silent frames only, so sustained speech cannot drag the floor up under
@@ -115,7 +129,7 @@ class VadGate {
       _loudRun = 0;
     } else if (over >= onsetDb) {
       _loudRun++;
-      if (_loudRun >= onsetFrames) {
+      if (_loudRun >= onsetFrames || over >= strongOnsetDb) {
         _voice = true;
         _everVoice = true;
         return true;
