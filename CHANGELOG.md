@@ -5,6 +5,22 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.21.1] — 2026-08-11
+
+### Fixed
+- **The Indonesian footer ran underneath Pollie's button.** "Dibuat dengan ❤️
+  untuk anak kami" is longer than the English line, which was short enough to
+  miss the bird. It now keeps clear of the corner and wraps if it needs to.
+
+### Notes
+- Verified on the device: the flag switches every card, the tagline, Pollie's
+  bubble and the in-game labels; each game speaks its name (the TTS engine was
+  seen starting and stopping in the log); and the choice **survived a reinstall
+  and restart**, which is what the stored preference was for.
+- `flutter analyze`: 0 issues; 104/104 tests.
+
+---
+
 ## [1.21.0] — 2026-08-11
 
 ### Added
