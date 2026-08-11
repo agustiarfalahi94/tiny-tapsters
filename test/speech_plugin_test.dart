@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:speech_to_text_platform_interface/speech_to_text_platform_interface.dart';
+import 'package:tiny_tapsters/services/speech_sink.dart';
 
 /// Tests for the *vendored patch*, not for the app — see `packages/PATCH.md`.
 ///
@@ -72,6 +73,32 @@ void main() {
       expect(copy.possiblyCompleteSilence, const Duration(milliseconds: 4000));
       expect(copy.minimumLength, const Duration(seconds: 1));
     });
+  });
+
+  test('the app asks the recogniser for the right timers', () async {
+    // The production sink is what actually ships; the turn tests drive a fake
+    // one, so without this nothing would notice pauseFor creeping back in.
+    SpeechToTextPlatform.instance = platform;
+    final sink = PluginSpeechSink();
+    await sink.initialize(onError: (_) {}, onStatus: (_) {});
+    await sink.listen(
+      onResult: (_) {},
+      onSoundLevel: (_) {},
+      localeId: 'en-US',
+    );
+
+    final options = platform.lastOptions!;
+    // pauseFor arms the package's Dart-side timer, which stops the session N ms
+    // after the transcribed text last CHANGED — the mechanism that cut a child
+    // off mid-sentence. The app endpoints on real silence instead.
+    expect(options.pauseFor, isNull);
+    // minimumLength forced every session to run three seconds, so a one-word
+    // answer waited on a timer with nothing to wait for.
+    expect(options.minimumLength, isNull);
+    // Both native timers sit well beyond the app's own 2.2s endpoint, so they
+    // are a safety net rather than a competitor.
+    expect(options.completeSilence!.inMilliseconds, greaterThan(2200));
+    expect(options.possiblyCompleteSilence!.inMilliseconds, greaterThan(2200));
   });
 
   group('the readyForSpeech status', () {
