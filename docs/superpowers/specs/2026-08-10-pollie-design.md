@@ -2,6 +2,15 @@
 
 Branch: `feat/pollie` → v1.10.0
 
+> **Superseded on the model (§2).** The plan to pin `gemini-2.5-flash` with
+> `thinkingConfig: { thinkingBudget: 0 }` did not survive contact: that model
+> is no longer served to new API keys (404) and `thinkingBudget` is rejected
+> outright by every current model. The Worker runs `gemini-flash-lite-latest`,
+> an alias rather than a pin, with no `thinkingConfig`.
+> **`docs/pollie-architecture-and-costs.md` is the authority** on the model,
+> key, rate limits and costs — it records what was measured. The rest of this
+> spec (the speech patch, the proxy, the animation) shipped as written.
+
 Four related problems in one branch, because three of them touch the same two
 files and shipping them separately means three rounds of device testing on the
 one phone that can reproduce the speech bug.

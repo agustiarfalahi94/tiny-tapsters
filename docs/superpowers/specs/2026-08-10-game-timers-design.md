@@ -2,6 +2,14 @@
 
 Branch: `feat/game-timers` → v1.11.0
 
+> **Superseded in part (v1.24.0): Bubble Pop no longer has a timer.** It was
+> reworked into "catch the one animal that is wanted" — 3/6/10 catches among
+> 5/10/15 bubbles, stars from wrong catches — and a countdown pushed the child
+> to grab fast when the game is asking them to choose carefully. Everything
+> below about Bubble Pop's clock, its pop counts (6/8/12), and its
+> `_lost`/`GameOverOverlay` wiring is history. The other six games are as
+> described.
+
 ## Goal
 
 Every game gets a countdown a child can read without numbers. Easy 30 s,
@@ -24,7 +32,9 @@ argument per call site.
 
 Bubble Pop has no level picker today — it runs endless rounds of 8 pops. It
 gains a `LevelsScreen` like the others: Easy 6 pops, Medium 8, Big 12, and the
-round-escalation speed-up is kept within the single timed game.
+round-escalation speed-up is kept within the single timed game. *(Superseded:
+see the note at the top — the levels are now 3/6/10 catches and there is no
+clock.)*
 
 ## Round counts
 
