@@ -47,17 +47,23 @@ class BubblePopScreen extends StatefulWidget {
 
 class _BubblePopScreenState extends State<BubblePopScreen>
     with SingleTickerProviderStateMixin {
+  /// Animals only. The game asks the child to "catch the right animal", and
+  /// the pool used to include ⭐ 🌸 🌈 🍓 — so it could open by asking for a
+  /// rainbow. Twelve faces is enough variety for fifteen bubbles; duplicates
+  /// among the ones to avoid are fine and expected.
   static const _bubbleEmojis = [
     '🐶',
     '🐱',
     '🐸',
     '🐢',
     '🦋',
-    '⭐',
-    '🌸',
-    '🌈',
-    '🍓',
     '🐙',
+    '🐰',
+    '🐭',
+    '🐷',
+    '🐥',
+    '🐝',
+    '🐬',
   ];
   static const _bubbleSize = 90.0;
 
