@@ -5,6 +5,16 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.24.1] — 2026-08-11
+
+### Fixed
+- **Bubble Pop asked for things that are not animals.** The game says "catch
+  the right animal", but the bubble pool included ⭐ 🌸 🌈 🍓 — so it could
+  open by asking a child to catch a rainbow. The pool is animals only now:
+  🐶 🐱 🐸 🐢 🦋 🐙 🐰 🐭 🐷 🐥 🐝 🐬.
+
+---
+
 ## [1.24.0] — 2026-08-11
 
 ### Changed
