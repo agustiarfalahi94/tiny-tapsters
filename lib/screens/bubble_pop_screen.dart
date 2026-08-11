@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
@@ -85,6 +87,10 @@ class _BubblePopScreenState extends State<BubblePopScreen>
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.bubblePop),
+    );
     _float =
         AnimationController(vsync: this, duration: const Duration(seconds: 60))
           ..addStatusListener(_onFloatStatus)
@@ -211,7 +217,7 @@ class _BubblePopScreenState extends State<BubblePopScreen>
                           // Clamped defensively: _roundComplete already stops
                           // _popped from overshooting, but this keeps the
                           // label honest even if that guard ever regresses.
-                          'Pop ${math.max(0, _popsPerRound - _popped)} more!',
+                          strings.popMore(math.max(0, _popsPerRound - _popped)),
                           style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -316,11 +322,11 @@ class _BubblePopScreenState extends State<BubblePopScreen>
           if (_won)
             CelebrationOverlay(
               emoji: '🎈',
-              title: 'Pop-tastic!',
+              title: strings.wonBubbles,
               stars: _stars,
-              primaryLabel: 'Play again 🎈',
+              primaryLabel: strings.playAgainBubbles,
               onPrimary: _reset,
-              secondaryLabel: 'Home 🏠',
+              secondaryLabel: strings.home,
               onSecondary: () => Navigator.of(context).pop(),
             ),
           if (outOfTime)

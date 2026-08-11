@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
 import '../widgets/game_over_overlay.dart';
@@ -103,6 +105,10 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.animalFood),
+    );
     _pairs = _shuffledPairs();
     _gameKey = UniqueKey();
   }
@@ -159,9 +165,9 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
                       // phone the title plus two buttons is wider than the
                       // row, and Spacers cannot give back space they do not
                       // have.
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'Feed the animals!',
+                          strings.feedTheAnimals,
                           textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -247,11 +253,11 @@ class _AnimalFoodGameScreenState extends State<AnimalFoodGameScreen>
           if (_won)
             CelebrationOverlay(
               emoji: '🥕',
-              title: 'Yay! All fed!',
+              title: strings.wonAnimalFood,
               stars: _stars,
-              primaryLabel: 'Play again 🔁',
+              primaryLabel: strings.playAgain,
               onPrimary: _reset,
-              secondaryLabel: 'Levels 🏠',
+              secondaryLabel: strings.levels,
               onSecondary: () => Navigator.of(context).pop(),
             ),
           if (outOfTime)

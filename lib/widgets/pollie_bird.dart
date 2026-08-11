@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/app_language.dart';
+
 /// Pollie 🦜, alive: a slow bob with a little tilt at the top of each rise.
 ///
 /// **Translate and rotate only — never scale.** Scaling text re-rasterises the
@@ -159,8 +161,8 @@ class _TapToTalkBubbleState extends State<TapToTalkBubble> {
                 ),
               ],
             ),
-            child: const Text(
-              'Tap to talk! 💬',
+            child: Text(
+              strings.tapToTalk,
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
           ),

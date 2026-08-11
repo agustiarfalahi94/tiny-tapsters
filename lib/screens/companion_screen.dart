@@ -5,6 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import '../services/app_language.dart';
 import '../services/kid_safety.dart';
 import '../services/pollie_service.dart';
 import '../widgets/game_background.dart';
@@ -78,31 +79,15 @@ class CompanionScreen extends StatefulWidget {
 
 class _CompanionScreenState extends State<CompanionScreen>
     with WidgetsBindingObserver {
-  static const _chips = [
-    'Tell me a story! 🐰',
-    'Sing a song! 🎵',
-    'What does a cow say? 🐮',
-    'How are you? 😊',
-    'Fun fact! 🦕',
-    'I love you! ❤️',
+  /// Rebuilt per read, because the language can change under it.
+  List<String> get _chips => [
+    strings.chipStory,
+    strings.chipSong,
+    strings.chipCow,
+    strings.chipHow,
+    strings.chipFact,
+    strings.chipLove,
   ];
-  static const _idStopWords = [
-    'apa',
-    'kenapa',
-    'bagaimana',
-    'cerita',
-    'nyanyi',
-    'aku',
-    'saya',
-    'kamu',
-    'kenal',
-    'boleh',
-    'tolong',
-  ];
-  static const _greeting = 'Hi kids! Let\'s talk with me 🦜';
-  static const _gentleMessage =
-      "Hmm, that's not a nice thing to say! Let's talk about something fun "
-      'instead 😊';
 
   /// Emoji (and symbol) ranges, stripped before speaking so the TTS only
   /// reads plain text. Includes variation selectors and ZWJ sequences.
@@ -290,6 +275,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// (Indonesian or English), falling back to en-US.
   Future<void> _initSpeechLocale() async {
     try {
+      _localeId = AppLanguageService.instance.current.value.localeId;
       final available = await _speech.initialize(
         onError: _onSpeechError,
         onStatus: (status) {
@@ -346,17 +332,16 @@ class _CompanionScreenState extends State<CompanionScreen>
           _Bubble(
             role: 'model',
             text: awake
-                ? _greeting
+                ? strings.pollieGreeting
                 : result == PolliePing.quota
                 ? 'Pollie is all out of words for today! '
                       "He'll be back ${_pollie.quotaResetLabel()} 😴"
-                : 'Zzz… I can\'t reach the internet yet. '
-                      'Tap me to try waking up again! 😴',
+                : strings.pollieAsleep,
           ),
         );
     });
     if (awake) {
-      _speak('Hi kids! Let\'s talk with me!');
+      _speak(strings.pollieGreetingSpoken);
     }
   }
 
@@ -364,13 +349,10 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// inappropriate.
   void _gentleRedirect() {
     setState(() {
-      _bubbles.add(_Bubble(role: 'model', text: _gentleMessage));
+      _bubbles.add(_Bubble(role: 'model', text: strings.pollieNotNice));
     });
     _scrollToBottom();
-    _speak(
-      "Hmm, that's not a nice thing to say! Let's talk about "
-      'something fun instead.',
-    );
+    _speak(strings.pollieNotNice);
   }
 
   void _scrollToBottom() {
@@ -396,14 +378,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   Future<void> _startListening() async {
     if (_status != _PollieStatus.awake || _busy) return;
     if (!_speechAvailable) {
-      _bubbles.add(
-        _Bubble(
-          role: 'model',
-          text:
-              "I can't hear you! 🎤 Ask a grown-up to allow the "
-              'microphone, then tap the mic again.',
-        ),
-      );
+      _bubbles.add(_Bubble(role: 'model', text: strings.pollieNoMic));
       _scrollToBottom();
       return;
     }
@@ -677,7 +652,13 @@ class _CompanionScreenState extends State<CompanionScreen>
       var spoken = 0;
       var voiceReady = false;
       await _beginSpeaking(thenListen: true, more: true);
-      await for (final chunk in _pollie.reply(_history)) {
+      await for (final chunk in _pollie.reply(
+        _history,
+        language:
+            AppLanguageService.instance.current.value == AppLanguage.indonesian
+            ? 'id'
+            : 'en',
+      )) {
         buffer.write(chunk);
         if (mounted) {
           setState(() => _bubbles.last.text = buffer.toString());
@@ -708,14 +689,11 @@ class _CompanionScreenState extends State<CompanionScreen>
         if (mounted) {
           setState(() {
             _bubbles.removeLast();
-            _bubbles.add(_Bubble(role: 'model', text: _gentleMessage));
+            _bubbles.add(_Bubble(role: 'model', text: strings.pollieNotNice));
             _busy = false;
           });
         }
-        _speak(
-          "Hmm, that's not a nice thing to say! Let's talk about "
-          'something fun instead.',
-        );
+        _speak(strings.pollieNotNice);
         return;
       }
       _history.add(ChatMessage(role: 'model', text: reply));
@@ -750,15 +728,12 @@ class _CompanionScreenState extends State<CompanionScreen>
           _Bubble(
             role: 'model',
             text: brief
-                ? 'Phew! Let me catch my breath for a moment, '
-                      'then ask me again! 😊'
+                ? strings.pollieBreath
                 : quota
-                ? 'Pollie is all out of words for today! '
-                      "He'll be back ${_pollie.quotaResetLabel()} 😴"
+                ? strings.pollieOutOfWords(_pollie.quotaResetLabel())
                 : _pollie.isConfigured
-                ? 'Oops, I got lost for a moment! 😅 '
-                      'Can you ask me again?'
-                : "I can't talk yet — ask a grown-up for my magic key! 🔑",
+                ? strings.pollieLost
+                : strings.pollieNoKey,
           ),
         );
         // A pause leaves Pollie awake; only a real failure puts him to sleep.
@@ -865,9 +840,10 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// Applies the voice for [text]'s language. Called once per reply, before
   /// the first sentence — switching voice mid-reply would cut it off.
   Future<String> _applyVoiceFor(String text) async {
-    // Simple language guess so the TTS voice matches the conversation.
-    final indonesian = _idStopWords.any(text.toLowerCase().contains);
-    final lang = indonesian ? 'id-ID' : 'en-US';
+    // The chosen language decides the voice. This used to guess from stop
+    // words in the reply, which got it wrong whenever Pollie answered briefly
+    // or with a name; now the app already knows.
+    final lang = AppLanguageService.instance.current.value.localeId;
     try {
       await _tts.setLanguage(lang);
       await _applyBestVoice(lang);
@@ -929,18 +905,18 @@ class _CompanionScreenState extends State<CompanionScreen>
   }
 
   String get _statusText {
-    if (_waking) return 'waking up…';
+    if (_waking) return strings.wakingUp;
     switch (_status) {
       case _PollieStatus.sleeping:
-        return 'sleeping… 😴';
+        return strings.sleeping;
       case _PollieStatus.awake:
-        return 'awake! 😊';
+        return strings.awake;
       case _PollieStatus.listening:
-        return 'listening… 👂';
+        return strings.listeningStatus;
       case _PollieStatus.thinking:
-        return 'thinking… 🤔';
+        return strings.thinking;
       case _PollieStatus.speaking:
-        return 'speaking… 🗣️';
+        return strings.speaking;
     }
   }
 
@@ -1081,7 +1057,7 @@ class _CompanionScreenState extends State<CompanionScreen>
                           Expanded(
                             child: Text(
                               _transcript.isEmpty
-                                  ? 'Listening…'
+                                  ? strings.listening
                                   : '$_transcript …',
                               style: const TextStyle(
                                 fontSize: 16,
@@ -1167,7 +1143,7 @@ class _CompanionScreenState extends State<CompanionScreen>
                           textInputAction: TextInputAction.send,
                           style: const TextStyle(fontSize: 17),
                           decoration: InputDecoration(
-                            hintText: 'Say something…',
+                            hintText: strings.saySomething,
                             filled: true,
                             fillColor: Colors.white,
                             contentPadding: const EdgeInsets.symmetric(

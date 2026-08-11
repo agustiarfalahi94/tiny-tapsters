@@ -5,6 +5,46 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.21.0] — 2026-08-11
+
+### Added
+- **Bahasa Indonesia**, switchable with the flag button on the home screen.
+  English stays the default. Every sentence in the app is translated — the
+  games, the level pickers, the win and lose screens, the credits, and all of
+  Pollie's own words.
+- **Each game says its name when it opens**, in the chosen language, so a child
+  who cannot read knows which game they are in. Spoken by the device rather
+  than played from a recording: `flutter_tts` was already here for Pollie and
+  speaks both languages, so it follows the switch for free and adds no assets.
+  It respects the mute button and ducks the music underneath.
+
+### Changed
+- **Pollie replies in the chosen language**, rather than guessing from the
+  child's words. Her voice, the speech recogniser and the proxy's instruction
+  all follow the same setting. The old guess used a list of Indonesian stop
+  words and got it wrong on short replies; that list is gone.
+- **The app now remembers one thing**: the chosen language. A language that
+  reset every launch would be worse than no switch, so this is the setting
+  worth storing. It is one word through a small platform channel, not a
+  package — nothing else is written to the device.
+
+### Notes
+- Names as specified: Find It! → **Cari Hewan Ini!**, Animal Food → **Beri
+  Makan Hewan**, Which Animal? → **Tebak Suara Hewan**. The rest translated to
+  match.
+- Strings are getters on a class, not a map of keys, so a missing translation
+  is a compile error rather than a blank label found by a child. A test also
+  asserts every string differs between the two languages, which catches one
+  left in English.
+- `home:` in `main.dart` is deliberately **not** `const`: a const widget is
+  canonicalised to one instance and Flutter skips rebuilding a subtree whose
+  widget is identical, so with `const` the switch changed nothing on screen.
+- Verified against the live proxy: the same question returns English or
+  Indonesian according to the setting.
+- `flutter analyze`: 0 issues; 104/104 tests.
+
+---
+
 ## [1.20.0] — 2026-08-11
 
 ### Fixed

@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/narrator.dart';
+import '../services/app_language.dart';
 import '../services/sound_effects.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/game_background.dart';
@@ -79,6 +81,10 @@ class _FindItScreenState extends State<FindItScreen>
   @override
   void initState() {
     super.initState();
+    // Tell a non-reader which game they just opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => Narrator.instance.announce(strings.findIt),
+    );
     _cardKeys = List.generate(_cardsPerRound, (_) => GlobalKey());
     _newRound();
   }
@@ -205,8 +211,8 @@ class _FindItScreenState extends State<FindItScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        'Find the ',
+                      Text(
+                        strings.findThe,
                         style: TextStyle(fontSize: 20, color: Colors.black87),
                       ),
                       Text(_target, style: const TextStyle(fontSize: 44)),
@@ -242,11 +248,11 @@ class _FindItScreenState extends State<FindItScreen>
           if (_won)
             CelebrationOverlay(
               emoji: '🔍',
-              title: 'You found them all!',
+              title: strings.wonFindIt,
               stars: _stars,
-              primaryLabel: 'Play again 🔁',
+              primaryLabel: strings.playAgain,
               onPrimary: _reset,
-              secondaryLabel: 'Home 🏠',
+              secondaryLabel: strings.home,
               onSecondary: () => Navigator.of(context).pop(),
             ),
           if (outOfTime)
