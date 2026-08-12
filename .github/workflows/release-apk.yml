@@ -63,7 +63,14 @@ jobs:
         run: flutter build apk --release --dart-define=POLLIE_ENDPOINT=$POLLIE_ENDPOINT
 
       - name: Name the APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/tiny-tapsters-${GITHUB_REF_NAME}.apk"
+        # Slashes in GITHUB_REF_NAME make the destination a directory that does
+        # not exist, so a manual run from any `chore/x` branch failed before it
+        # reached the steps worth testing. Tags have no slash, so a release
+        # asset is still named exactly tiny-tapsters-vX.Y.Z.apk.
+        run: |
+          name="${GITHUB_REF_NAME//\//-}"
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             "build/app/outputs/flutter-apk/tiny-tapsters-${name}.apk"
 
       - name: Upload APK artifact
         # v4 targets Node.js 20, which GitHub deprecated and now force-runs on
