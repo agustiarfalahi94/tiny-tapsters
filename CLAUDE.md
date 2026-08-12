@@ -18,15 +18,40 @@ Read in this order: this file → `AGENTS.md` (same instructions, kept in sync) 
 the spec in `docs/superpowers/specs/` for whatever you are touching →
 `docs/pollie-architecture-and-costs.md` for anything about the AI companion.
 
+## Working agreement (read before touching anything)
+
+These are not style preferences. Each one exists because it was broken, and the
+breakage reached a public release.
+
+1. **Run `./tool/check.sh` before every commit and paste its output.** It runs
+   analyze, format and the tests, then prints the app name, version, package id,
+   remote and game list *read from the files*. A summary can be invented; a
+   pasted run of this cannot.
+2. **Never state a fact about this project from memory.** Not the version, not
+   the game count, not the package id, not the test count. Run the command.
+3. **Cite `file:line`** for any claim about how the code behaves.
+4. **Documentation changes must pass `flutter test test/docs_test.dart`.** It is
+   the arbiter for the app name, package id, version, game count, where the
+   Gemini key lives, and whether the README maps every service and widget.
+5. **Work on a branch off `develop`.** Never commit to `develop` or `main`
+   directly, never tag, never cut a release.
+6. **Say what you changed and what was already there.** Claiming existing work
+   as your own makes it impossible to know what is real.
+7. **If you could not run a command, write "unverified".** Do not fill the gap
+   with something plausible.
+
+A tell worth naming: tables, checkmarks and "✅ Verified" are where invented
+facts hide. Raw terminal output is the only evidence that counts.
+
 ## Quick facts
 
-- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.25.3+56**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
+- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.25.4+57**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
 - **Dependencies**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. Bundled assets: `assets/sfx/*` (pop, win_high, win_low, lose) and `assets/music/*` (main_theme, game_song) — `assets/branding/tiny-tapsters-logo.png` is build-time input for the icon generator and is deliberately not in `pubspec.yaml`.
 - **Audio**: `MusicService` (looping music) is separate from `SoundEffects` (one-shots) on purpose — `pop()` stops its player before every play, so one shared player would let every tap kill the music. Track switching lives in `MusicRouteObserver`, not in each screen's `initState`, because popping a game does not re-run `HomeScreen.initState`. Every player must stay on `AudioContextConfigFocus.mixWithOthers` (set once in `main.dart`) — the default `AudioFocus.gain` is exclusive and makes each sound effect stop the music. **Never hand-encode audio** — run `python3 tool/normalize_audio.py <source-dir>`, which rebuilds every asset at one loudness (−16 dBFS RMS, 44.1 kHz). Hand-rolled `afconvert` calls are how the animal calls shipped at 22 kHz and how the mix ended up 20 dB apart.
 - **Permissions**: `INTERNET` + `RECORD_AUDIO` — both exist only for Pollie's voice chat. **All seven games are fully offline**; Pollie is the sole network feature.
 - **Default branch is `develop`**; release = merge to `main` + annotated tag `vX.Y.Z` (push both).
 - **Features go on a dedicated `feature/<name>` branch** off `develop` — never commit feature work straight to `develop`. Plan in chat first, then execute.
-- **Validation before any commit:** `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**all green, no skips** — the count is deliberately not written down here, it has gone stale five times), `flutter build apk --release` (when native config or deps change).
+- **Validation before any commit:** `./tool/check.sh` (runs all three and prints the project's facts), or by hand: `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**all green, no skips** — the count is deliberately not written down here, it has gone stale five times), `flutter build apk --release` (when native config or deps change).
 - **Never touch/commit**: `android/key.properties`, `android/app/release-keystore.jks`, or any Gemini API key. **The key no longer ships in the app at all** — it lives in the Cloudflare Worker under `worker/` (see its README). The app defaults to the deployed proxy at `https://pollie.inkpebble.workers.dev`; override with `--dart-define=POLLIE_ENDPOINT=...`. A URL is not a secret.
 
 ## Multi-part work
@@ -61,6 +86,7 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
 - `docs/superpowers/specs/` — design specs. Read the relevant one before touching a feature it covers.
 - `worker/` — the Cloudflare Worker holding Pollie's Gemini key. **Read `docs/pollie-architecture-and-costs.md` before answering anything about the key, rate limits, costs, model choice, other providers, charging users, or the install id** — it records what was measured and why, so none of it has to be researched twice. Setup steps in `worker/README.md`; deploying needs the user (interactive login + secret).
 - `packages/` — **vendored, patched** `speech_to_text` and its platform interface. Android's short "probably finished" silence timer (~500 ms) is not settable through the published package and is what cut a child off mid-sentence. Read `packages/PATCH.md` before touching or upgrading them; `analysis_options.yaml` excludes `packages/**`. If the build fails with "Conflicting overloads", run `flutter clean` — it is a stale Gradle cache, not the patch.
+- `tool/check.sh` — the whole validation gate in one command, plus the facts (name, version, package id, games) printed from the files rather than remembered.
 - `tool/` — dependency-free Dart generators: `generate_icon.dart` (crops the badge out of `assets/branding/tiny-tapsters-logo.png` and writes the legacy + adaptive launcher icons; has its own PNG decoder/encoder), `generate_sfx.dart` (pop.wav + wrong.wav), `pixelcheck.dart`. Also `normalize_audio.py` — the one deviation from the dependency-free-Dart rule, because normalising audio needs macOS `afconvert` anyway.
 - `.github/workflows/release-apk.yml` — on `v*` tag push: analyze + test, sign with the real keystore, attach the APK to the GitHub release.
 
