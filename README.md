@@ -159,6 +159,8 @@ assets/
   music/main_theme.m4a           # menus
   music/game_song.m4a            # games
 tool/
+  check.sh                       # analyze + format + tests, and prints the
+                                 #   project's facts read from the files
   generate_icon.dart             # launcher icons, derived from the logo
   generate_sfx.dart              # regenerates pop.wav + wrong.wav
   normalize_audio.py             # rebuilds every audio asset at one loudness
@@ -183,5 +185,6 @@ listed in `pubspec.yaml`, so it never ships inside the APK.
 ## Test
 
 ```sh
-flutter test
+./tool/check.sh     # analyze + format + tests, and prints the project's facts
+flutter test        # just the tests
 ```

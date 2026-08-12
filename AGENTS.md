@@ -12,9 +12,34 @@ Read: this file → `CLAUDE.md` (same instructions, must stay in sync) → the
 relevant spec in `docs/superpowers/specs/` → `docs/pollie-architecture-and-costs.md`
 for the AI companion.
 
+## Working agreement (read before touching anything)
+
+These are not style preferences. Each one exists because it was broken, and the
+breakage reached a public release.
+
+1. **Run `./tool/check.sh` before every commit and paste its output.** It runs
+   analyze, format and the tests, then prints the app name, version, package id,
+   remote and game list *read from the files*. A summary can be invented; a
+   pasted run of this cannot.
+2. **Never state a fact about this project from memory.** Not the version, not
+   the game count, not the package id, not the test count. Run the command.
+3. **Cite `file:line`** for any claim about how the code behaves.
+4. **Documentation changes must pass `flutter test test/docs_test.dart`.** It is
+   the arbiter for the app name, package id, version, game count, where the
+   Gemini key lives, and whether the README maps every service and widget.
+5. **Work on a branch off `develop`.** Never commit to `develop` or `main`
+   directly, never tag, never cut a release.
+6. **Say what you changed and what was already there.** Claiming existing work
+   as your own makes it impossible to know what is real.
+7. **If you could not run a command, write "unverified".** Do not fill the gap
+   with something plausible.
+
+A tell worth naming: tables, checkmarks and "✅ Verified" are where invented
+facts hide. Raw terminal output is the only evidence that counts.
+
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.3+56 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.4+57 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. `google_generative_ai` is gone — Pollie talks to the Worker over plain `HttpClient`.
 **Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The seven games are fully offline; Pollie is the sole network feature.
@@ -28,6 +53,9 @@ Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.
 - Release: merge `develop` → `main` locally → push main → annotated tag `vX.Y.Z` → push tag.
 
 ## Validation (run before finishing any task)
+
+`./tool/check.sh` runs all of this and prints the project's facts. The
+individual commands, if you need them:
 
 ```bash
 flutter analyze                       # must say "No issues found!"
