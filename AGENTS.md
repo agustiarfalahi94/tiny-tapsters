@@ -2,11 +2,10 @@
 
 ## Project
 
-**Our Toddlers' Journey** — Flutter toddler-games app (`com.lilianyoctoria.toddlers_journey`). v1.25.1+20 · Flutter 3.41.6 · **One external package: audioplayers (SFX)** · Zero permissions except `INTERNET` + `RECORD_AUDIO` for Pollie voice chat.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.0+55 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. `google_generative_ai` is gone — Pollie talks to the Worker over plain `HttpClient`.
-
-**Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The six games are fully offline; Pollie is the sole network feature.
+**Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The seven games are fully offline; Pollie is the sole network feature.
 
 ## Git flow
 
