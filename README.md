@@ -1,4 +1,4 @@
-# Tiny Tapsters — Toddler Games
+# Our Toddlers' Journey — Toddler Games
 
 Free toddler games for Android, built with Flutter. No ads, no tracking —
 just big colorful buttons and emoji. **All games work fully offline**; the
@@ -15,14 +15,10 @@ only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
 - **Memory Match** — flip cards to find matching animal pairs. Easy (2 pairs),
   Medium (3 pairs), Big (6 pairs). Stars are awarded based on how few moves it
   takes.
-- **Bubble Pop** — one animal is wanted; catch only that one and leave the
-  rest floating. Easy (catch 3 of 5 bubbles), Medium (6 of 10), Big (10 of 15).
-  Bubbles speed up as the game fills, and popping a wrong one costs a star.
+- **Bubble Pop** — tap floating bubbles to pop them. Pop 8 per round; bubbles
+  get faster each round.
 - **Find It!** — "Find the 🐶!": tap the matching animal in the grid. Find 5 to
   win; fewer wrong taps means more stars. Easy (6), Medium (9), Big (12).
-- **Which Animal?** — a call plays, tap the animal that made it. Replay it as
-  often as you like: re-listening is the skill. Easy (2 choices), Medium (3),
-  Big (5).
 - **Count the Animals!** — count the big animal emojis and tap the number card
   that matches. The animals are laid out differently every time, so six is not
   always the same shape. Wrong taps shake and let you try again. Easy (count
@@ -32,8 +28,7 @@ only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
   greets the child. **Talk to him with the 🎤 button** (speech is
   transcribed, answered, and spoken aloud — he listens again automatically
   for a hands-free conversation). Toddler-friendly tap chips plus a text
-  field for grown-ups. Powered by Gemini through a proxy we host, so it
-  works out of the box — no key of your own (see below).
+  field for grown-ups. Powered by Gemini; needs an API key (see below).
 
 Every game but Bubble Pop runs against a countdown — 30 s on Easy, 1 min on
 Medium, 2 min on Big — shown as a shrinking colour bar with no digits. It
@@ -59,8 +54,8 @@ git-ignored) and minified with R8.
 ## Download the APK
 
 Every release has a ready-to-install APK attached to it:
-<https://github.com/agustiarfalahi94/tiny-tapsters/releases> —
-open a version and grab the `tiny-tapsters-vX.Y.Z.apk` asset.
+<https://github.com/agustiarfalahi94/our-toddlers-journey/releases> —
+open a version and grab the `our-toddlers-journey-vX.Y.Z.apk` asset.
 
 - The APK is built automatically by the `Release APK` GitHub Actions
   workflow (analyze + tests must pass, then it signs with the real
@@ -70,35 +65,23 @@ open a version and grab the `tiny-tapsters-vX.Y.Z.apk` asset.
 - **First install**: Android will ask to allow installs from the browser
   ("unknown sources") — that's normal for sideloaded APKs. Play Protect
   may also show a scan warning; the APK is signed by your own key.
-- **Pollie works out of the box**: the release APK points at the proxy,
-  so the companion is fully functional in downloaded copies without
-  anyone needing an API key of their own.
+- **Pollie works out of the box**: the release APK is built with the
+  Gemini key baked in, so the companion is fully functional in
+  downloaded copies too (the key lives in the APK, as with any
+  sideloaded app).
 
 ## Pollie (Gemini companion)
 
-Pollie talks to a small Cloudflare Worker (`worker/`) that holds the
-Gemini key. It is deployed, and the app points at it by default — so a
-plain `flutter build apk --release` produces an app where Pollie works
-for whoever installs it, with no key of their own.
-
-To point a build at a different proxy:
+To enable Pollie, build with your own free API key from
+<https://aistudio.google.com/apikey>:
 
 ```sh
-flutter build apk --release \
-  --dart-define=POLLIE_ENDPOINT=https://pollie.your-subdomain.workers.dev
+flutter build apk --release --dart-define=GEMINI_API_KEY=your_key_here
 ```
 
-The key used to be compiled into the APK. That was a mistake: a
-`--dart-define` string ends up in `libapp.so` in the clear, and
-`strings libapp.so | grep AIza` recovers it in seconds — the repo being
-private did not help, because the signed APK is attached to releases.
-Everyone also shared one free-tier quota. `worker/README.md` has the
-setup, which takes a free Cloudflare account and about five minutes.
-
-Chat messages and voice input are sent to Google's Gemini and to the
-device's speech services. Without an endpoint, Pollie shows a friendly
-fallback message and the seven games are unaffected — they are all fully
-offline.
+The key is compiled into the APK and never committed to the repository.
+Chat messages and voice input are sent to Google's Gemini and speech
+services. Without a key, Pollie shows a friendly fallback message.
 
 ## Project layout
 
@@ -111,21 +94,18 @@ lib/
     jigsaw_game_screen.dart      # picture puzzle
     animal_food_screen.dart      # feed the animals
     memory_game_screen.dart      # matching pairs
-    bubble_pop_screen.dart       # catch the one animal that is wanted
+    bubble_pop_screen.dart       # bubble popping
     find_it_screen.dart          # find the matching animal
     count_game_screen.dart       # count the animals
-    animal_sound_screen.dart     # guess the animal by its call
-    companion_screen.dart        # Pollie chat (via the worker/ proxy)
-    credits_screen.dart          # sound attribution (CC BY requires it)
+    companion_screen.dart        # Pollie chat (Gemini)
   services/
-    app_language.dart            # English/Bahasa Indonesia + every string
-    narrator.dart                # speaks each game's name when it opens
-  services/
-    pollie_service.dart          # HTTP client for Pollie's proxy (worker/)
+    pollie_service.dart          # Gemini API wrapper
     kid_safety.dart              # local adult-word guard (input + output)
     sound_effects.dart           # one-shot SFX (pop, win, lose)
     music_service.dart           # looping background music
     music_route_observer.dart    # keeps the music in step with the screen
+    app_language.dart            # English/Bahasa Indonesia + every string
+    narrator.dart                # speaks each game's name when it opens
   data/
     animal_sounds.dart           # emoji → animal call asset
     asset_credits.dart           # what the credits screen shows
