@@ -5,6 +5,26 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.25.4] — 2026-08-12
+
+### Added
+- **`tool/check.sh`** — analyze, format and tests in one command, followed by
+  the app name, version, package id, git remote and game list *read from the
+  files*. It exists because asking an assistant to verify does not work: a
+  summary can be invented, a pasted run of this cannot. Exits non-zero on
+  failure, so it also works as a hook or in CI.
+- **A working agreement** at the top of `CLAUDE.md` and `AGENTS.md`: run the
+  gate and paste it, never state a project fact from memory, cite `file:line`,
+  documentation must pass `docs_test.dart`, branch off `develop`, distinguish
+  work you did from work already there, and write "unverified" rather than
+  something plausible.
+
+### Notes
+- Every rule in that agreement was written after the thing it prevents had
+  already reached a public release.
+
+---
+
 ## [1.25.3] — 2026-08-12
 
 ### Fixed
