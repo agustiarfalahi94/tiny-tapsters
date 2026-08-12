@@ -5,6 +5,27 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.25.5] — 2026-08-12
+
+### Fixed
+- **The release workflow was heading for a break.** `actions/upload-artifact@v4`
+  and `softprops/action-gh-release@v2` both target Node.js 20, which GitHub has
+  deprecated and is force-running on Node 24. Moved to v7 and v3 — versions read
+  from the actions' own release APIs, not guessed. A runner update would
+  otherwise have stopped releases building, discovered mid-release.
+- **A manual test build could never run from a branch with a slash in its
+  name.** The workflow advertises `workflow_dispatch` as a manual build, but it
+  interpolated `GITHUB_REF_NAME` straight into a file path, so from
+  `chore/ci-node24` it tried to write into a directory called `chore` and died.
+  Slashes become dashes; tags contain none, so release assets are still named
+  exactly `tiny-tapsters-vX.Y.Z.apk`. Found by dispatching the workflow to test
+  the change above rather than assuming it worked.
+
+### Removed
+- 25 merged branches, and one stale remote branch.
+
+---
+
 ## [1.25.4] — 2026-08-12
 
 ### Added
