@@ -1,8 +1,43 @@
 # Changelog
 
-All notable changes to Our Toddlers' Journey are documented here.
-
+All notable changes to Tiny Tapsters are documented here.
 Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
+
+---
+
+## [1.25.3] — 2026-08-12
+
+### Fixed
+- **The documentation described a different app.** A docs rewrite in v1.25.2
+  renamed Tiny Tapsters to "Our Toddlers' Journey" — the name of the checkout
+  folder, and of an app this one stopped being in v1.6.0 — and with it invented
+  a package id (`com.lilianyoctoria.toddlers_journey`) that does not exist, a
+  version that ran backwards (`1.25.1+20` against a real `1.25.0+55`), six games
+  instead of seven, and a download link to a repository that isn't there. It
+  also undid the v1.24.2 alignment: Bubble Pop went back to its pre-1.24.0
+  rules and **Which Animal?** disappeared from the game list again.
+- **The README told people the Gemini key ships inside the APK.** It has not
+  since v1.10.0 — it is a Cloudflare Worker secret, and the app only knows a
+  URL. This was the most consequential line of the lot, and it was live on a
+  public release page.
+- The released APK reported version 1.25.0 while the tags said v1.25.1 and
+  v1.25.2, because `pubspec.yaml` was never bumped for either.
+
+### Added
+- **`test/docs_test.dart`.** Prose cannot be type-checked, but the facts a
+  reader would act on can: app name, package id, version, game count, that no
+  document claims the key ships in the app, that the README maps every service
+  and widget, that AGENTS.md lists every test file, and that the two agent
+  files agree with each other. None of the above broke a build, so nothing
+  caught it; now something does.
+- A **Start here** section at the top of `CLAUDE.md` and `AGENTS.md`, saying
+  plainly that the folder name is not the app name and in what order to read
+  the documentation.
+- The README now describes **hold-to-talk** and the amber/red microphone,
+  which shipped in v1.25.0 with nowhere for a person to read about them.
+
+### Changed
+- `CLAUDE.md` no longer states a test count. It had gone stale five times.
 
 ---
 
