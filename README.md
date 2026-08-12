@@ -29,10 +29,14 @@ only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
   to 3), Medium (to 5), Big (to 10).
 - **Pollie 🦜** — a talking companion on the home screen (bottom-right
   button). Pollie sleeps 😴 while offline and smiles 😊 when connected, then
-  greets the child. **Talk to him with the 🎤 button** (speech is
-  transcribed, answered, and spoken aloud — he listens again automatically
-  for a hands-free conversation). Toddler-friendly tap chips plus a text
-  field for grown-ups. Powered by Gemini through a proxy we host, so it
+  greets the child. **Tap the 🎤 to talk** — speech is transcribed, answered
+  and spoken aloud, and he listens again by himself for a hands-free
+  conversation. **Or hold the 🎤 down while talking**: while a finger is on
+  the button the microphone stays open no matter how long the pause, which is
+  the reliable way in a noisy room or for a child who thinks mid-sentence.
+  The button is amber while the microphone is warming up and red once it is
+  really recording, so nobody is invited to speak into a mic that is not on
+  yet. Toddler-friendly tap chips plus a text field for grown-ups. Powered by Gemini through a proxy we host, so it
   works out of the box — no key of your own (see below).
 
 Every game but Bubble Pop runs against a countdown — 30 s on Easy, 1 min on
@@ -122,6 +126,10 @@ lib/
     narrator.dart                # speaks each game's name when it opens
   services/
     pollie_service.dart          # HTTP client for Pollie's proxy (worker/)
+    speech_sink.dart             # the recogniser, behind a seam tests can fake
+    vad_gate.dart                # decides from the sound level when a child
+                                 #   has stopped talking (not the recogniser)
+    tts_service.dart             # the app's ONE text-to-speech engine
     kid_safety.dart              # local adult-word guard (input + output)
     sound_effects.dart           # one-shot SFX (pop, win, lose)
     music_service.dart           # looping background music

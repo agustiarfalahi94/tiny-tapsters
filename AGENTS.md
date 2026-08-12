@@ -1,8 +1,20 @@
 # AGENTS.md — Instructions for AI Coding Agents (Zed)
 
+## Start here
+
+**The app is called Tiny Tapsters.** The checkout directory is
+`our-toddlers-journey`, and the CHANGELOG records a rename *from* "Our Toddlers'
+Journey" in v1.6.0. Neither is the current name — do not infer project facts
+from the directory. `test/docs_test.dart` enforces this and the other
+load-bearing facts; run it if you are unsure whether a document is current.
+
+Read: this file → `CLAUDE.md` (same instructions, must stay in sync) → the
+relevant spec in `docs/superpowers/specs/` → `docs/pollie-architecture-and-costs.md`
+for the AI companion.
+
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.0+55 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.3+56 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. `google_generative_ai` is gone — Pollie talks to the Worker over plain `HttpClient`.
 **Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The seven games are fully offline; Pollie is the sole network feature.
@@ -43,6 +55,8 @@ flutter build apk --release           # when native config or deps changed
 - `worker/` — the Cloudflare Worker holding the Gemini key. **Read `docs/pollie-architecture-and-costs.md` before answering anything about the key, rate limits, costs, model choice, other providers, charging users, or the install id** — it records what was measured and why, so none of it has to be researched twice. `worker/README.md` has the account setup.
 - `lib/screens/companion_screen.dart` — Pollie. Two things here are easy to break: a listening **turn** is the app's, not the recogniser's (sessions are banked and the mic re-armed until the child is quiet for 4s, with a 12s absolute give-up and a 45s turn cap — so never go back to ending the turn on the first final result); and `flutter_tts` reports voice quality as a **string**, so score voices with `voiceScore`/`pickBestVoice` and never cast `quality` to a number. Android's short "possibly finished" endpointing *is* configurable, but only through the vendored patch in `packages/` — and it is advisory, which is why the banking model exists on top of it.
 - `lib/services/kid_safety.dart` — local adult-word guard (input + output).
+- `lib/services/tts_service.dart` — **the app's only `FlutterTts`**. The plugin uses a static `MethodChannel` whose handler every constructor re-points, so a second instance silently steals `speak.onComplete` and Pollie's mic never re-opens. Go through `TtsService.instance.acquire()`; a test fails the build if a second one appears.
+- `lib/services/speech_sink.dart` + `vad_gate.dart` — Pollie decides a child has finished from **acoustic silence**, not from the recogniser. **Read `docs/superpowers/specs/2026-08-11-pollie-microphone-design.md` before touching any listening timer** — five separate mechanisms used to end turns early, including `pauseFor` (which times the transcript *changing*, not silence) and Android reporting every speech error as permanent.
 - `lib/services/sound_effects.dart` — one-shot SFX (pop, win, lose); regenerate `pop.wav` with `dart run tool/generate_sfx.dart`.
 - `lib/services/music_service.dart` + `music_route_observer.dart` — looping background music. Kept separate from `SoundEffects` on purpose: `pop()` stops its player before every play, so one shared player would let every tap kill the music. Track switching lives in the observer, not each screen's `initState`, because popping a game does not re-run `HomeScreen.initState`. Every player must stay on `AudioContextConfigFocus.mixWithOthers` (set once in `main.dart`) — the default `AudioFocus.gain` is exclusive and makes each sound effect stop the music. **Never hand-encode audio** — run `python3 tool/normalize_audio.py <source-dir>`, which rebuilds every asset at one loudness (−16 dBFS RMS, 44.1 kHz). Hand-rolled `afconvert` calls are how the animal calls shipped at 22 kHz and how the mix ended up 20 dB apart.
 - `lib/widgets/game_timer.dart` — `GameLevel` (30s/1m/2m), `GameTimerController`, the `GameTimerBar` a non-reader can follow, and the `TimedGame` mixin. Six of the seven games use it; the clock starts on first interaction, pauses on background, and stops the instant a game is won. **Bubble Pop deliberately does not** — it asks the child to pick the right bubble, and a countdown rewards hurrying over choosing. `GameLevel` still reaches it, for the difficulty numbers only.
@@ -54,6 +68,13 @@ flutter build apk --release           # when native config or deps changed
 - `docs/superpowers/specs/` — design specs; read the relevant one before touching a feature it covers.
 - `tool/generate_icon.dart` — pure-Dart launcher-icon generator (no Flutter engine, no packages); derives all mipmap PNGs + adaptive icon resources from `assets/branding/tiny-tapsters-logo.png`. Contains its own PNG decoder and encoder. Re-run with `dart run tool/generate_icon.dart` after changing the logo. The master artwork is build-time only — never add it to `pubspec.yaml`.
 - `.github/workflows/release-apk.yml` — on `v*` tag push: analyze + test, sign with the real keystore, attach the APK to the GitHub release.
+- `test/docs_test.dart` — the load-bearing facts in README/CLAUDE.md/AGENTS.md: app name, package id, version, game count, that no document claims the Gemini key ships in the APK, and that the README maps every service and widget. Added after a docs rewrite renamed the app to the checkout directory and was published.
+- `test/pollie_turn_test.dart` — the whole listening turn machine against a fake recogniser: the ready gate, silence endpointing, a recogniser wiping its own guess mid-sentence, hold-to-talk, and that the mic always comes back.
+- `test/vad_test.dart` — the sound gate (floor calibration, hysteresis, short words) as pure numbers.
+- `test/tts_ownership_test.dart` — one engine, newest owner wins, and a source scan for a second `FlutterTts`.
+- `test/speech_plugin_test.dart` — the vendored patch itself: option marshalling and the `readyForSpeech` status, driven through `SpeechToTextPlatform.instance`.
+- `test/count_rows_test.dart` — the random row layouts in Count the Animals.
+- `test/language_test.dart` — every string translated, and the locale ids speech and TTS need.
 - `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety + quota tests, the count-game flow (seeded RNG), and Bubble Pop's target rules (wrong animals rejected, mistakes cost stars, no overshoot past the last catch). The Bubble Pop tests read the live header rather than a hard-coded label — an earlier version asserted on `'Pop 0 more!'` and kept passing after that label was replaced.
 - `test/timer_test.dart` — level durations, start/pause/resume/reset, expiry firing once, loss-not-win on timeout, Easy's reduced round count.
 - `test/audio_test.dart` — music track switching, mute, ducking, per-screen attenuation, lifecycle pause/resume, route→track mapping, the home mute button, and that `wrong.wav` is generated and bundled. Uses a `FakeMusicSink`; anything touching the real `MusicService.instance` must never be awaited in a test, because the audio plugin is not registered and never answers.
