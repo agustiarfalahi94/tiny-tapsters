@@ -66,7 +66,9 @@ jobs:
         run: cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/tiny-tapsters-${GITHUB_REF_NAME}.apk"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        # v4 targets Node.js 20, which GitHub deprecated and now force-runs on
+        # Node 24; a runner update would eventually stop releases building.
+        uses: actions/upload-artifact@v7
         with:
           name: tiny-tapsters-apk
           path: build/app/outputs/flutter-apk/tiny-tapsters-*.apk
@@ -74,6 +76,6 @@ jobs:
 
       - name: Attach APK to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: build/app/outputs/flutter-apk/tiny-tapsters-*.apk
