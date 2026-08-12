@@ -63,10 +63,19 @@ jobs:
         run: flutter build apk --release --dart-define=POLLIE_ENDPOINT=$POLLIE_ENDPOINT
 
       - name: Name the APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/tiny-tapsters-${GITHUB_REF_NAME}.apk"
+        # Slashes in GITHUB_REF_NAME make the destination a directory that does
+        # not exist, so a manual run from any `chore/x` branch failed before it
+        # reached the steps worth testing. Tags have no slash, so a release
+        # asset is still named exactly tiny-tapsters-vX.Y.Z.apk.
+        run: |
+          name="${GITHUB_REF_NAME//\//-}"
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             "build/app/outputs/flutter-apk/tiny-tapsters-${name}.apk"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        # v4 targets Node.js 20, which GitHub deprecated and now force-runs on
+        # Node 24; a runner update would eventually stop releases building.
+        uses: actions/upload-artifact@v7
         with:
           name: tiny-tapsters-apk
           path: build/app/outputs/flutter-apk/tiny-tapsters-*.apk
@@ -74,6 +83,6 @@ jobs:
 
       - name: Attach APK to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: build/app/outputs/flutter-apk/tiny-tapsters-*.apk
