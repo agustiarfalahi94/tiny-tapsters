@@ -2,12 +2,14 @@
 
 ## Start here
 
-**The app is called Tiny Tapsters.** The checkout directory is
-`our-toddlers-journey` and the CHANGELOG records a rename *from* "Our Toddlers'
-Journey" in v1.6.0 — neither is the current name. Do not infer facts about this
-project from the folder it sits in; read the code. A documentation rewrite once
-did exactly that and published a README claiming the Gemini key ships inside
-the APK, which has not been true since v1.10.0.
+**The app is called Tiny Tapsters** — and now everything says so: the checkout
+directory `tiny-tapsters`, `pubspec.yaml`, the launcher label, the package id
+and the git remote. The CHANGELOG still records the earlier name it was renamed
+*from* in v1.6.0; that is history, not an alternative. Do not infer facts about
+this project from its surroundings — read the code. A documentation rewrite
+once took the app's name from the folder it sat in and, in the same pass,
+published a README claiming the Gemini key ships inside the APK, which has not
+been true since v1.10.0.
 
 `test/docs_test.dart` now enforces the facts below — app name, package id,
 version, game count, where the key lives, and that the README maps every
@@ -45,7 +47,7 @@ facts hide. Raw terminal output is the only evidence that counts.
 
 ## Quick facts
 
-- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.25.5+58**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
+- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.25.6+59**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
 - **Dependencies**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. Bundled assets: `assets/sfx/*` (pop, win_high, win_low, lose) and `assets/music/*` (main_theme, game_song) — `assets/branding/tiny-tapsters-logo.png` is build-time input for the icon generator and is deliberately not in `pubspec.yaml`.
 - **Audio**: `MusicService` (looping music) is separate from `SoundEffects` (one-shots) on purpose — `pop()` stops its player before every play, so one shared player would let every tap kill the music. Track switching lives in `MusicRouteObserver`, not in each screen's `initState`, because popping a game does not re-run `HomeScreen.initState`. Every player must stay on `AudioContextConfigFocus.mixWithOthers` (set once in `main.dart`) — the default `AudioFocus.gain` is exclusive and makes each sound effect stop the music. **Never hand-encode audio** — run `python3 tool/normalize_audio.py <source-dir>`, which rebuilds every asset at one loudness (−16 dBFS RMS, 44.1 kHz). Hand-rolled `afconvert` calls are how the animal calls shipped at 22 kHz and how the mix ended up 20 dB apart.
 - **Permissions**: `INTERNET` + `RECORD_AUDIO` — both exist only for Pollie's voice chat. **All seven games are fully offline**; Pollie is the sole network feature.

@@ -5,12 +5,17 @@ import 'package:flutter_test/flutter_test.dart';
 /// Guards the facts the documentation asserts about the app.
 ///
 /// **Why this file exists.** Documentation was once rewritten from the *folder
-/// name* rather than from the code: the app was renamed to "Our Toddlers'
-/// Journey", given a package id that does not exist, a version that went
-/// backwards, six games instead of seven, and — the dangerous one — a README
-/// telling readers the Gemini key ships inside the APK, which stopped being
-/// true when it moved to the Cloudflare Worker. None of it broke a build, so
-/// nothing caught it, and it was published.
+/// name* rather than from the code: the app was given back the name it had
+/// been renamed away from, a package id that does not exist, a version that
+/// went backwards, six games instead of seven, and — the dangerous one — a
+/// README telling readers the Gemini key ships inside the APK, which stopped
+/// being true when it moved to the Cloudflare Worker. None of it broke a
+/// build, so nothing caught it, and it was published.
+///
+/// The checkout directory has since been renamed to `tiny-tapsters`, so that
+/// particular trap is gone. These assertions are not: the failure mode was
+/// writing documentation from something other than the code, and the folder
+/// was only the most convenient wrong source.
 ///
 /// Prose cannot be type-checked, but the handful of load-bearing facts inside
 /// it can. Anything asserted here is a fact a reader would act on.
@@ -29,7 +34,6 @@ void main() {
   ).firstMatch(pubspec)!.group(1)!.trim();
 
   test('the app is called what the code calls it', () {
-    // `our-toddlers-journey` is the checkout directory, not the product.
     expect(field('name'), 'tiny_tapsters');
     for (final entry in docs.entries) {
       expect(
@@ -37,10 +41,10 @@ void main() {
         contains('Tiny Tapsters'),
         reason: '${entry.key} should name the app',
       );
-      // The CHANGELOG records the rename from "Our Toddlers' Journey" in
-      // v1.19.0 and must keep saying so; that history, plus the checkout
-      // directory still being named after it, is exactly what misled a later
-      // rewrite into renaming the app back.
+      // The CHANGELOG records the v1.6.0 rename and must keep saying so, which
+      // means it is the one document allowed to spell the old name out. Every
+      // other document naming it is a document describing the app as it is
+      // not.
       if (entry.key == 'CHANGELOG.md') continue;
       expect(
         entry.value.toLowerCase(),

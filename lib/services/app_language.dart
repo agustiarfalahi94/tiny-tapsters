@@ -88,8 +88,6 @@ class AppStrings {
   // --- home ---------------------------------------------------------------
   String get appTagline =>
       _pick('Fun games for little learners', 'Permainan seru untuk si kecil');
-  String get madeWithLove =>
-      _pick('Made with ❤️ for our toddler', 'Dibuat dengan ❤️ untuk anak kami');
   String get talkToPollie => _pick('Talk to Pollie', 'Ngobrol dengan Pollie');
   String get tapToTalk => _pick('Tap to talk! 💬', 'Tekan untuk ngobrol! 💬');
   String get pickALevel => _pick('Pick a level!', 'Pilih tingkatan!');
