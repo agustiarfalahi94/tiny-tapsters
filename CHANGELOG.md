@@ -5,6 +5,33 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.25.6] — 2026-08-13
+
+### Removed
+- **The home screen footer.** "Made with ❤️ for our toddler" was the last
+  first-person-plural line in the app — written from the parents' point of
+  view, the same reason the app stopped being named after a journey in v1.6.0.
+  The `ListView` above it already carries 12px of bottom padding, so nothing
+  needed re-spacing. Gone from `AppStrings`, from `HomeScreen` and from the
+  translation-coverage test together; a getter left behind would have been an
+  untranslated string waiting to be reused.
+
+### Changed
+- **The checkout directory is now `tiny-tapsters`.** It was the last place the
+  pre-v1.6.0 name survived, and it had already cost one documentation rewrite,
+  which read the app's name off the folder and published a README claiming the
+  Gemini key ships in the APK. Nothing in the build referenced the path: the
+  package id, `pubspec.yaml`, the launcher label and the git remote were all
+  Tiny Tapsters already. `CLAUDE.md`, `AGENTS.md` and `test/docs_test.dart` no
+  longer warn about a trap that no longer exists.
+
+### Fixed
+- **`test/docs_test.dart` dated the rename to v1.19.0** in a comment. It was
+  v1.6.0 — the version this file records it under. The assertions were right;
+  only the explanation was wrong.
+
+---
+
 ## [1.25.5] — 2026-08-12
 
 ### Fixed

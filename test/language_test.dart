@@ -27,7 +27,6 @@ void main() {
     // whole surface: every getter must differ between the two languages.
     final pairs = <String, List<String>>{
       'appTagline': [en.appTagline, id.appTagline],
-      'madeWithLove': [en.madeWithLove, id.madeWithLove],
       'talkToPollie': [en.talkToPollie, id.talkToPollie],
       'tapToTalk': [en.tapToTalk, id.tapToTalk],
       'pickALevel': [en.pickALevel, id.pickALevel],

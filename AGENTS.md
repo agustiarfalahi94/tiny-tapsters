@@ -2,11 +2,13 @@
 
 ## Start here
 
-**The app is called Tiny Tapsters.** The checkout directory is
-`our-toddlers-journey`, and the CHANGELOG records a rename *from* "Our Toddlers'
-Journey" in v1.6.0. Neither is the current name — do not infer project facts
-from the directory. `test/docs_test.dart` enforces this and the other
-load-bearing facts; run it if you are unsure whether a document is current.
+**The app is called Tiny Tapsters** — and now everything says so: the checkout
+directory `tiny-tapsters`, `pubspec.yaml`, the launcher label, the package id
+and the git remote. The CHANGELOG still records the earlier name it was renamed
+*from* in v1.6.0; that is history, not an alternative. Do not infer project
+facts from the surroundings — read the code. `test/docs_test.dart` enforces
+this and the other load-bearing facts; run it if you are unsure whether a
+document is current.
 
 Read: this file → `CLAUDE.md` (same instructions, must stay in sync) → the
 relevant spec in `docs/superpowers/specs/` → `docs/pollie-architecture-and-costs.md`
@@ -39,7 +41,7 @@ facts hide. Raw terminal output is the only evidence that counts.
 
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.5+58 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.6+59 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*` and `assets/music/*`) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. `google_generative_ai` is gone — Pollie talks to the Worker over plain `HttpClient`.
 **Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The seven games are fully offline; Pollie is the sole network feature.
