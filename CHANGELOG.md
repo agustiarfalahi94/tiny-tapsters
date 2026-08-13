@@ -8,6 +8,30 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 ## [Unreleased]
 
 ### Fixed
+- **Pollie was stuck on whatever text-to-speech engine Android handed her.**
+  The app has scored voices carefully since v1.10.0 — quality, exact locale,
+  neural `network_required` voices, eSpeak pushed to last — but `getVoices()`
+  only ever returns the voices of the *bound* engine, and nothing chose an
+  engine. So the scoring was picking the best of whatever set it was given,
+  and on a device defaulting to a basic engine that is a robot voice with no
+  sign anything is wrong.
+
+  Two halves to the fix. `AndroidManifest.xml` now declares
+  `android.intent.action.TTS_SERVICE` in `<queries>` — required by
+  `flutter_tts` for anything targeting Android 11+, and without it package
+  visibility hides every engine, so `getEngines()` comes back empty and there
+  is nothing to choose from. And `TtsService.acquire()` now moves to Google's
+  engine when it is installed and not already the default: once per launch,
+  before anything else is configured, because switching rebuilds the platform
+  engine and drops language, voice, pitch and rate with it. An unknown engine
+  is left alone — the rule voice selection already followed. Engine trouble is
+  caught and logged; Pollie sounding thin beats Pollie going silent.
+- **A device could not tell you why Pollie sounded thin.** Voice selection
+  bailed silently when the best candidate had no quality rating, and logged
+  only the winner otherwise, so "no good voice exists here" and "we never
+  looked" were indistinguishable. It now dumps the whole shortlist and says
+  which branch it took, under a greppable `TTS|` prefix. Read it from a
+  `--profile` build — `debugPrint` does not reach logcat in release.
 - **The docs named the wrong source and the wrong licence for the animal
   calls.** `CLAUDE.md` and `AGENTS.md` both said "CC0, public-domain or CC BY"
   from "Wikimedia Commons and the Internet Archive". Fourteen of the fifteen

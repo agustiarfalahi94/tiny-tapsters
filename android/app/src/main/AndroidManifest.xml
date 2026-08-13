@@ -49,5 +49,13 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Without this, Android 11+ package visibility hides every
+             text-to-speech engine from the app: getEngines() comes back empty
+             and setEngine() has nothing to choose from, so Pollie is stuck on
+             whatever the framework binds by default. flutter_tts's README
+             requires it for any app targeting Android 11 or later. -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
     </queries>
 </manifest>
