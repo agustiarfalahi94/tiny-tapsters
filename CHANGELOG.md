@@ -5,6 +5,50 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **The docs named the wrong source and the wrong licence for the animal
+  calls.** `CLAUDE.md` and `AGENTS.md` both said "CC0, public-domain or CC BY"
+  from "Wikimedia Commons and the Internet Archive". Fourteen of the fifteen
+  are Pixabay Content License and one is CC0 from Commons
+  (`lib/data/asset_credits.dart`); **nothing bundled is CC BY**, and the
+  Internet Archive sourcing was replaced in v1.17.0 when eight calls were
+  re-recorded. `asset_credits.dart`'s own doc comment repeated the CC BY claim
+  and named it as the reason `CreditsScreen` exists.
+- **`wrong.wav` was missing from `ASSET_CREDITS.md`.** The same omission
+  v1.25.7 fixed in `CLAUDE.md` and the README, in the one file that is
+  specifically the list of what ships.
+- **`worker/README.md` documented the bug the Worker had already fixed.** It
+  said both endpoints return `429 {"error":"quota"}`; the Worker returns
+  `{"error":"rate"}` for a per-minute cap and reserves `quota` for Google's
+  per-*day* limit (`worker/src/index.ts:287-305`) — precisely so a child is not
+  told to come back tomorrow when the answer is thirty seconds away.
+- **The Pollie spec told readers its microphone section was current.** Its
+  header said "the speech patch, the proxy, the animation shipped as written",
+  but v1.25.0 replaced the endpointing wholesale — `pauseFor` and
+  `minimumLength` are now deliberately `null` (`speech_sink.dart:113-114`). It
+  now points at `2026-08-11-pollie-microphone-design.md` as the authority, and
+  its `packages/speech_to_text/PATCH.md` path is corrected to
+  `packages/PATCH.md`.
+- **The timers spec prescribed an animation golden rule 4 forbids** — "the bar
+  pulses (scale 1.0 ↔ 1.06)". The bar pulses its opacity in place and always
+  has (`game_timer.dart:200,266`).
+- **The "Which Animal?" spec still required every call to be in
+  `kAnimalEmojis`, and CC0-only with no credits screen.** All three were
+  reversed in v1.17.0. Marked superseded rather than rewritten.
+- `lose.mp3` in the timers spec is `lose.m4a`.
+
+### Added
+- **Find It! and Which Animal? are now tested for the Easy round count**, not
+  just Count the Animals (`test/timer_test.dart`). All three drop Easy to 3
+  rounds so the 30-second clock is winnable; only one of the three had the
+  behaviour under test, and `docs_test.dart` guarded the *sentence* for two of
+  them. Find It!'s progress dots gained the `round-dot-N` keys Count's already
+  had.
+
+---
+
 ## [1.25.7] — 2026-08-13
 
 ### Fixed
