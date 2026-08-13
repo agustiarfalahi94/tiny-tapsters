@@ -172,6 +172,76 @@ void main() {
     },
   );
 
+  test('no document promises a round count Easy never asks for', () {
+    // Find It! and Count the Animals both drop Easy to three rounds: five
+    // questions inside a 30-second clock is six seconds each, which a
+    // four-year-old will not make. Prose that states one flat number is
+    // describing Medium and Big, and a reader applies it to the game in front
+    // of them. `test/timer_test.dart` covers the behaviour; this covers the
+    // sentence about it.
+    final rule = RegExp(
+      r'_roundsToWin =>\s*widget\.level == GameLevel\.easy \? (\d+) : (\d+)',
+    );
+
+    /// The `- **Name** — …` bullet for one game, up to the next bullet.
+    String readmeBullet(String name) => RegExp(
+      '^- \\*\\*$name\\*\\*.*?(?=^- \\*\\*)',
+      multiLine: true,
+      dotAll: true,
+    ).firstMatch(docs['README.md']!)!.group(0)!;
+
+    /// The `///` block introducing the class — the first thing anyone reads.
+    String classDoc(String source) => RegExp(
+      r'(^/// .*\n)+(?=class )',
+      multiLine: true,
+    ).firstMatch(source)!.group(0)!;
+
+    for (final (screen, readmeName) in [
+      ('find_it_screen', 'Find It!'),
+      ('count_game_screen', 'Count the Animals!'),
+    ]) {
+      final source = File('lib/screens/$screen.dart').readAsStringSync();
+      final match = rule.firstMatch(source);
+      expect(
+        match,
+        isNotNull,
+        reason:
+            '$screen no longer varies its round count by level. Update this '
+            'test and the sentences it guards together.',
+      );
+      final easy = match!.group(1)!;
+      final rest = match.group(2)!;
+      expect(
+        easy,
+        isNot(rest),
+        reason: 'if every level asks the same, this test has nothing to guard',
+      );
+
+      final prose = {
+        '$screen.dart': classDoc(source),
+        'README.md ($readmeName)': readmeBullet(readmeName),
+      };
+      // A number next to "win" or "rounds" is a promise about how long a game
+      // is. Making it must mean saying Easy is shorter.
+      final promise = RegExp('\\b$rest\\b[^.]*\\b(win|rounds)\\b');
+      // Deliberately the exact phrase, not just "contains $easy": the Count
+      // the Animals! blurb already says "Easy (count to 3)" about how high it
+      // counts, which is a different 3 and let a missing round count through.
+      final correction = RegExp('\\b$easy on Easy\\b');
+      for (final entry in prose.entries) {
+        if (!promise.hasMatch(entry.value)) continue;
+        expect(
+          entry.value,
+          matches(correction),
+          reason:
+              '${entry.key} promises $rest rounds without saying "$easy on '
+              'Easy" ($screen.dart sets it). A reader who opens Easy is told '
+              'the wrong game length.',
+        );
+      }
+    }
+  });
+
   test('the two agent files agree with each other', () {
     // They are the same instructions for two tools. Drift between them is how
     // one agent ends up working from facts the other has already corrected.
