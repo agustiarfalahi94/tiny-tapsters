@@ -14,7 +14,8 @@ import '../widgets/round_button.dart';
 
 /// Find It!: the game shows "Find the 🐶!" and a grid of animals; the toddler
 /// taps the matching one. Wrong taps just wobble the card. Find 5 animals to
-/// win; fewer wrong taps means more stars.
+/// win — 3 on Easy, which has only 30 seconds; fewer wrong taps means more
+/// stars.
 class FindItScreen extends StatefulWidget {
   const FindItScreen({super.key, required this.level, this.cardsPerRound = 6});
 

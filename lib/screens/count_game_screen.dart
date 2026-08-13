@@ -54,7 +54,8 @@ List<int> countRows(int count, math.Random rng) {
 
 /// Count the Animals!: the toddler sees a group of animal emojis and taps the
 /// answer card (big digit + dot pattern) that matches how many animals there
-/// are. 5 rounds per game; fewer wrong taps means more stars.
+/// are. 5 rounds per game — 3 on Easy, which has only 30 seconds; fewer wrong
+/// taps means more stars.
 class CountGameScreen extends StatefulWidget {
   const CountGameScreen({
     super.key,

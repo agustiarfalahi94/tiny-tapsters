@@ -5,6 +5,70 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
+## [1.25.7] — 2026-08-13
+
+### Fixed
+- **The docs promised a game length Easy never asks for.** Find It! and Count
+  the Animals! both drop Easy to 3 rounds so the 30-second clock is winnable
+  (`find_it_screen.dart`, `count_game_screen.dart`), but four places stated a
+  flat 5: both README blurbs and both class doc comments — the latter sitting
+  four lines above the getter that contradicted them. `test/timer_test.dart`
+  had covered the behaviour since it was written; nothing covered the sentence
+  about it.
+- **`wrong.wav` was missing from every asset list.** `CLAUDE.md` named four
+  files in `assets/sfx/` and the README's layout block named three, while
+  `pubspec.yaml` bundles five. `CLAUDE.md` contradicted itself, since its
+  `tool/` section already said `generate_sfx.dart` writes pop *and* wrong.
+  `AGENTS.md` said the generator regenerates only `pop.wav`.
+- **Both agent files left the 15 animal calls out of "bundled assets".**
+  `AGENTS.md` put it strongest — "bundled audio only: `assets/sfx/*` and
+  `assets/music/*`" — which omits the largest asset group in the app and the
+  entire basis of one of the seven games.
+- **The two agent files disagreed on a number.** `CLAUDE.md` said four
+  mechanisms ended Pollie's listening turns early; the spec says five, under a
+  heading reading "The five mechanisms". `CLAUDE.md` appears to have picked up
+  the "Four symptoms" from the line above it.
+- **The README's project layout listed `services/` twice**, splitting one
+  directory into two in the map newcomers read to find their way around.
+
+### Added
+- **`test/docs_test.dart` now guards the round count.** It reads the
+  `_roundsToWin` rule out of both game screens and requires any prose
+  promising the full count to say "3 on Easy" — checking the README blurb and
+  the class doc comment for each. The first version checked only that the Easy
+  number appeared somewhere in the blurb, which Count the Animals! satisfied
+  by accident with "Easy (count to 3)" — a different 3, about how high it
+  counts. Each of the four sentences was mutated and confirmed to fail.
+
+---
+
+## [1.25.6] — 2026-08-13
+
+### Removed
+- **The home screen footer.** "Made with ❤️ for our toddler" was the last
+  first-person-plural line in the app — written from the parents' point of
+  view, the same reason the app stopped being named after a journey in v1.6.0.
+  The `ListView` above it already carries 12px of bottom padding, so nothing
+  needed re-spacing. Gone from `AppStrings`, from `HomeScreen` and from the
+  translation-coverage test together; a getter left behind would have been an
+  untranslated string waiting to be reused.
+
+### Changed
+- **The checkout directory is now `tiny-tapsters`.** It was the last place the
+  pre-v1.6.0 name survived, and it had already cost one documentation rewrite,
+  which read the app's name off the folder and published a README claiming the
+  Gemini key ships in the APK. Nothing in the build referenced the path: the
+  package id, `pubspec.yaml`, the launcher label and the git remote were all
+  Tiny Tapsters already. `CLAUDE.md`, `AGENTS.md` and `test/docs_test.dart` no
+  longer warn about a trap that no longer exists.
+
+### Fixed
+- **`test/docs_test.dart` dated the rename to v1.19.0** in a comment. It was
+  v1.6.0 — the version this file records it under. The assertions were right;
+  only the explanation was wrong.
+
+---
+
 ## [1.25.5] — 2026-08-12
 
 ### Fixed

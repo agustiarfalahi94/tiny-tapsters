@@ -19,14 +19,16 @@ only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
   rest floating. Easy (catch 3 of 5 bubbles), Medium (6 of 10), Big (10 of 15).
   Bubbles speed up as the game fills, and popping a wrong one costs a star.
 - **Find It!** — "Find the 🐶!": tap the matching animal in the grid. Find 5 to
-  win; fewer wrong taps means more stars. Easy (6), Medium (9), Big (12).
+  win — 3 on Easy, because 30 seconds is not five questions; fewer wrong taps
+  means more stars. Easy (6 cards), Medium (9), Big (12).
 - **Which Animal?** — a call plays, tap the animal that made it. Replay it as
   often as you like: re-listening is the skill. Easy (2 choices), Medium (3),
   Big (5).
 - **Count the Animals!** — count the big animal emojis and tap the number card
   that matches. The animals are laid out differently every time, so six is not
-  always the same shape. Wrong taps shake and let you try again. Easy (count
-  to 3), Medium (to 5), Big (to 10).
+  always the same shape. Wrong taps shake and let you try again. 5 rounds to
+  win — 3 on Easy, for the same reason. Easy (count to 3), Medium (to 5),
+  Big (to 10).
 - **Pollie 🦜** — a talking companion on the home screen (bottom-right
   button). Pollie sleeps 😴 while offline and smiles 😊 when connected, then
   greets the child. **Tap the 🎤 to talk** — speech is transcribed, answered
@@ -124,14 +126,13 @@ lib/
   services/
     app_language.dart            # English/Bahasa Indonesia + every string
     narrator.dart                # speaks each game's name when it opens
-  services/
     pollie_service.dart          # HTTP client for Pollie's proxy (worker/)
     speech_sink.dart             # the recogniser, behind a seam tests can fake
     vad_gate.dart                # decides from the sound level when a child
                                  #   has stopped talking (not the recogniser)
     tts_service.dart             # the app's ONE text-to-speech engine
     kid_safety.dart              # local adult-word guard (input + output)
-    sound_effects.dart           # one-shot SFX (pop, win, lose)
+    sound_effects.dart           # one-shot SFX (pop, wrong, win, lose)
     music_service.dart           # looping background music
     music_route_observer.dart    # keeps the music in step with the screen
   data/

@@ -5,12 +5,17 @@ import 'package:flutter_test/flutter_test.dart';
 /// Guards the facts the documentation asserts about the app.
 ///
 /// **Why this file exists.** Documentation was once rewritten from the *folder
-/// name* rather than from the code: the app was renamed to "Our Toddlers'
-/// Journey", given a package id that does not exist, a version that went
-/// backwards, six games instead of seven, and — the dangerous one — a README
-/// telling readers the Gemini key ships inside the APK, which stopped being
-/// true when it moved to the Cloudflare Worker. None of it broke a build, so
-/// nothing caught it, and it was published.
+/// name* rather than from the code: the app was given back the name it had
+/// been renamed away from, a package id that does not exist, a version that
+/// went backwards, six games instead of seven, and — the dangerous one — a
+/// README telling readers the Gemini key ships inside the APK, which stopped
+/// being true when it moved to the Cloudflare Worker. None of it broke a
+/// build, so nothing caught it, and it was published.
+///
+/// The checkout directory has since been renamed to `tiny-tapsters`, so that
+/// particular trap is gone. These assertions are not: the failure mode was
+/// writing documentation from something other than the code, and the folder
+/// was only the most convenient wrong source.
 ///
 /// Prose cannot be type-checked, but the handful of load-bearing facts inside
 /// it can. Anything asserted here is a fact a reader would act on.
@@ -29,7 +34,6 @@ void main() {
   ).firstMatch(pubspec)!.group(1)!.trim();
 
   test('the app is called what the code calls it', () {
-    // `our-toddlers-journey` is the checkout directory, not the product.
     expect(field('name'), 'tiny_tapsters');
     for (final entry in docs.entries) {
       expect(
@@ -37,10 +41,10 @@ void main() {
         contains('Tiny Tapsters'),
         reason: '${entry.key} should name the app',
       );
-      // The CHANGELOG records the rename from "Our Toddlers' Journey" in
-      // v1.19.0 and must keep saying so; that history, plus the checkout
-      // directory still being named after it, is exactly what misled a later
-      // rewrite into renaming the app back.
+      // The CHANGELOG records the v1.6.0 rename and must keep saying so, which
+      // means it is the one document allowed to spell the old name out. Every
+      // other document naming it is a document describing the app as it is
+      // not.
       if (entry.key == 'CHANGELOG.md') continue;
       expect(
         entry.value.toLowerCase(),
@@ -167,6 +171,76 @@ void main() {
       expect(missing, isEmpty, reason: 'undocumented test files: $missing');
     },
   );
+
+  test('no document promises a round count Easy never asks for', () {
+    // Find It! and Count the Animals both drop Easy to three rounds: five
+    // questions inside a 30-second clock is six seconds each, which a
+    // four-year-old will not make. Prose that states one flat number is
+    // describing Medium and Big, and a reader applies it to the game in front
+    // of them. `test/timer_test.dart` covers the behaviour; this covers the
+    // sentence about it.
+    final rule = RegExp(
+      r'_roundsToWin =>\s*widget\.level == GameLevel\.easy \? (\d+) : (\d+)',
+    );
+
+    /// The `- **Name** — …` bullet for one game, up to the next bullet.
+    String readmeBullet(String name) => RegExp(
+      '^- \\*\\*$name\\*\\*.*?(?=^- \\*\\*)',
+      multiLine: true,
+      dotAll: true,
+    ).firstMatch(docs['README.md']!)!.group(0)!;
+
+    /// The `///` block introducing the class — the first thing anyone reads.
+    String classDoc(String source) => RegExp(
+      r'(^/// .*\n)+(?=class )',
+      multiLine: true,
+    ).firstMatch(source)!.group(0)!;
+
+    for (final (screen, readmeName) in [
+      ('find_it_screen', 'Find It!'),
+      ('count_game_screen', 'Count the Animals!'),
+    ]) {
+      final source = File('lib/screens/$screen.dart').readAsStringSync();
+      final match = rule.firstMatch(source);
+      expect(
+        match,
+        isNotNull,
+        reason:
+            '$screen no longer varies its round count by level. Update this '
+            'test and the sentences it guards together.',
+      );
+      final easy = match!.group(1)!;
+      final rest = match.group(2)!;
+      expect(
+        easy,
+        isNot(rest),
+        reason: 'if every level asks the same, this test has nothing to guard',
+      );
+
+      final prose = {
+        '$screen.dart': classDoc(source),
+        'README.md ($readmeName)': readmeBullet(readmeName),
+      };
+      // A number next to "win" or "rounds" is a promise about how long a game
+      // is. Making it must mean saying Easy is shorter.
+      final promise = RegExp('\\b$rest\\b[^.]*\\b(win|rounds)\\b');
+      // Deliberately the exact phrase, not just "contains $easy": the Count
+      // the Animals! blurb already says "Easy (count to 3)" about how high it
+      // counts, which is a different 3 and let a missing round count through.
+      final correction = RegExp('\\b$easy on Easy\\b');
+      for (final entry in prose.entries) {
+        if (!promise.hasMatch(entry.value)) continue;
+        expect(
+          entry.value,
+          matches(correction),
+          reason:
+              '${entry.key} promises $rest rounds without saying "$easy on '
+              'Easy" ($screen.dart sets it). A reader who opens Easy is told '
+              'the wrong game length.',
+        );
+      }
+    }
+  });
 
   test('the two agent files agree with each other', () {
     // They are the same instructions for two tools. Drift between them is how
