@@ -5,7 +5,7 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ---
 
-## [Unreleased]
+## [1.25.7] — 2026-08-13
 
 ### Fixed
 - **The docs promised a game length Easy never asks for.** Find It! and Count
