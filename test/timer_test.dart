@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tiny_tapsters/screens/animal_sound_screen.dart';
 import 'package:tiny_tapsters/screens/count_game_screen.dart';
 import 'package:tiny_tapsters/screens/find_it_screen.dart';
 import 'package:tiny_tapsters/widgets/celebration_overlay.dart';
@@ -142,28 +143,53 @@ void main() {
     expect(find.byType(GameOverOverlay), findsNothing);
   });
 
-  testWidgets('Easy asks for fewer rounds so the 30s clock is winnable', (
-    tester,
-  ) async {
-    // Five rounds inside 30 seconds is six seconds a question. Easy is three.
-    for (final (level, dots) in [
-      (GameLevel.easy, 3),
-      (GameLevel.medium, 5),
-      (GameLevel.big, 5),
-    ]) {
-      await tester.pumpWidget(
-        MaterialApp(
-          key: ValueKey(level),
-          home: CountGameScreen(maxCount: 3, level: level),
+  // Three games drop Easy to 3 rounds, and each renders one progress dot per
+  // round — so the dots are what a test can read the rule off. Only Count was
+  // covered here, which left the other two rules as sentences with nothing
+  // under them. The dot keys differ by screen; they are not worth churning
+  // production code to unify.
+  for (final (name, dotKey, build)
+      in <(String, String, Widget Function(GameLevel))>[
+        (
+          'Count the Animals!',
+          'round-dot',
+          (level) => CountGameScreen(maxCount: 3, level: level),
         ),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(
-        find.byKey(ValueKey('round-dot-${dots - 1}')),
-        findsOneWidget,
-        reason: '$level should show $dots rounds',
-      );
-      expect(find.byKey(ValueKey('round-dot-$dots')), findsNothing);
-    }
-  });
+        ('Find It!', 'round-dot', (level) => FindItScreen(level: level)),
+        (
+          'Which Animal?',
+          'sound-dot',
+          (level) => AnimalSoundScreen(
+            choices: level == GameLevel.easy ? 2 : 3,
+            level: level,
+          ),
+        ),
+      ]) {
+    testWidgets('$name: Easy asks for fewer rounds so the 30s clock is '
+        'winnable', (tester) async {
+      // The dots live in a header row that 800x600 can squeeze out of the
+      // layout entirely, taking the only on-screen statement of the count.
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      // Five rounds inside 30 seconds is six seconds a question. Easy is three.
+      for (final (level, dots) in [
+        (GameLevel.easy, 3),
+        (GameLevel.medium, 5),
+        (GameLevel.big, 5),
+      ]) {
+        await tester.pumpWidget(
+          MaterialApp(key: ValueKey(level), home: build(level)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(
+          find.byKey(ValueKey('$dotKey-${dots - 1}')),
+          findsOneWidget,
+          reason: '$level should show $dots rounds',
+        );
+        expect(find.byKey(ValueKey('$dotKey-$dots')), findsNothing);
+      }
+    });
+  }
 }

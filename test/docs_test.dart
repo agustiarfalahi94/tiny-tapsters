@@ -173,7 +173,9 @@ void main() {
   );
 
   test('no document promises a round count Easy never asks for', () {
-    // Find It! and Count the Animals both drop Easy to three rounds: five
+    // Find It!, Count the Animals and Which Animal? all drop Easy to three
+    // rounds — Which Animal? states no round count today, and this is what
+    // keeps it that way or makes it say "3 on Easy" too. Five
     // questions inside a 30-second clock is six seconds each, which a
     // four-year-old will not make. Prose that states one flat number is
     // describing Medium and Big, and a reader applies it to the game in front
@@ -184,8 +186,11 @@ void main() {
     );
 
     /// The `- **Name** — …` bullet for one game, up to the next bullet.
+    ///
+    /// The name is escaped: "Which Animal?" would otherwise make the `l`
+    /// optional and match nothing.
     String readmeBullet(String name) => RegExp(
-      '^- \\*\\*$name\\*\\*.*?(?=^- \\*\\*)',
+      '^- \\*\\*${RegExp.escape(name)}\\*\\*.*?(?=^- \\*\\*)',
       multiLine: true,
       dotAll: true,
     ).firstMatch(docs['README.md']!)!.group(0)!;
@@ -199,6 +204,7 @@ void main() {
     for (final (screen, readmeName) in [
       ('find_it_screen', 'Find It!'),
       ('count_game_screen', 'Count the Animals!'),
+      ('animal_sound_screen', 'Which Animal?'),
     ]) {
       final source = File('lib/screens/$screen.dart').readAsStringSync();
       final match = rule.firstMatch(source);
