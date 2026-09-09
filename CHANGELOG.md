@@ -7,6 +7,11 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ## [Unreleased]
 
+### Changed
+- Added an Architecture & Security section to the README documenting
+  Pollie's Gemini proxy, Cloudflare secrets, local safety filtering, rate
+  limiting and release CI/CD.
+
 ### Fixed
 - **Pollie was stuck on whatever text-to-speech engine Android handed her.**
   The app has scored voices carefully since v1.10.0 — quality, exact locale,
