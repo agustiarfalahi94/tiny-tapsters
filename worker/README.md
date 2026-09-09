@@ -97,8 +97,17 @@ so the rate limiter can tell two installs apart.
 | `/ping` | One cheap generation. Proves Gemini answers *and* that quota remains — this is what turns Pollie's face from 😴 to 😊, so it cannot just report that the Worker is up. |
 | `/chat` | Takes `{ messages: [{ role, text }] }`, streams the reply back as newline-delimited JSON, one `{"text": "..."}` per line. |
 
-Over the rate limit, both return `429 {"error":"quota"}`, which the app already
-shows as Pollie being out of words for the day.
+Over a limit both return `429`, and the body says *which* limit was hit:
+
+| Body | Meaning | `Retry-After` |
+|---|---|---|
+| `{"error":"rate"}` | a per-minute cap — ours, or Google's | `30` |
+| `{"error":"quota"}` | Google's response named a per-*day* limit | `3600` |
+
+Only the second is Pollie being out of words for the day. Reporting every 429
+that way told a child to come back tomorrow when the answer was thirty seconds
+away, which is why `rateLimited()` reads Google's error body before deciding
+(`src/index.ts:287-305`).
 
 ## Notes
 

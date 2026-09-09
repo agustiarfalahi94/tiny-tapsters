@@ -8,8 +8,20 @@ Branch: `feat/pollie` → v1.10.0
 > outright by every current model. The Worker runs `gemini-flash-lite-latest`,
 > an alias rather than a pin, with no `thinkingConfig`.
 > **`docs/pollie-architecture-and-costs.md` is the authority** on the model,
-> key, rate limits and costs — it records what was measured. The rest of this
-> spec (the speech patch, the proxy, the animation) shipped as written.
+> key, rate limits and costs — it records what was measured.
+>
+> **Superseded on the microphone (§1), v1.25.0.** §1 shipped as written and was
+> then replaced. The listening values it names below are gone: `pauseFor` and
+> `minimumLength` are both deliberately `null` now
+> (`speech_sink.dart:113-114`), because `pauseFor` times the *transcript
+> changing* rather than silence and `minimumLength: 3s` held every session open
+> for a one-word answer. Endpointing moved into the app
+> (`lib/services/vad_gate.dart`), which measures acoustic silence.
+> **`2026-08-11-pollie-microphone-design.md` is the authority** on anything to
+> do with listening, turns or timers — read it before touching them.
+>
+> §3 (the proxy) and §4 (the animation) shipped as written, except that the
+> Worker's rate limit is now 120/minute, not 30 (`worker/wrangler.toml:22`).
 
 Four related problems in one branch, because three of them touch the same two
 files and shipping them separately means three rounds of device testing on the
@@ -52,14 +64,14 @@ the Dart options class:
   in the `previous*` comparison that decides whether the intent needs rebuilding
   — otherwise a changed value is silently ignored.
 
-`packages/speech_to_text/PATCH.md` records the upstream version, the exact
-diff, and why, so a future upgrade is a mechanical re-apply rather than an
-archaeology exercise.
+`packages/PATCH.md` records the upstream version, the exact diff, and why, so a
+future upgrade is a mechanical re-apply rather than an archaeology exercise.
 
 Values used by the app: `possiblyCompleteSilence: 2500ms`,
 `pauseFor: 4000ms`, `minimumLength: 3000ms`. Long enough for a toddler to
 think mid-sentence, short enough that the turn still ends on its own if the
-mic button is never tapped.
+mic button is never tapped. *(Superseded in v1.25.0 — `pauseFor` and
+`minimumLength` are now `null`; see the note at the top.)*
 
 ### Fix, part B: a turn stops being one recognizer session
 

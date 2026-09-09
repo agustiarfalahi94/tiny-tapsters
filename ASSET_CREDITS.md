@@ -13,7 +13,9 @@ Verified 2026-08-10.
 commissioned for this app by the author (generated with Suno). Normalised and
 re-encoded to mono AAC by `tool/normalize_audio.py`.
 
-`assets/sfx/pop.wav` — synthesised by `tool/generate_sfx.dart` in this repo.
+`assets/sfx/pop.wav` and `assets/sfx/wrong.wav` — synthesised by
+`tool/generate_sfx.dart` in this repo. With the five above, that is every file
+in `assets/sfx/` and `assets/music/` — seven.
 
 ## Animal calls
 

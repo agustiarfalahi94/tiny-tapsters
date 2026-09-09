@@ -106,6 +106,52 @@ device's speech services. Without an endpoint, Pollie shows a friendly
 fallback message and the seven games are unaffected — they are all fully
 offline.
 
+## Architecture & Security
+
+Tiny Tapsters is offline-first. The seven games, language preference, local
+safety filter and text-to-speech fallback run on the device. Pollie is the
+only network feature.
+
+### Pollie and Gemini
+
+The app calls a Cloudflare Worker, not Gemini directly:
+
+```text
+Flutter app → Pollie Worker → Gemini API
+```
+
+The Worker owns the Gemini model, system prompt and safety settings. The
+`GEMINI_API_KEY` is stored as a Cloudflare secret and is never committed,
+compiled into the APK or exposed to clients. The app sends only an opaque,
+random `X-Install-Id`; it is used for abuse control and does not identify the
+child.
+
+The Worker validates request shape, applies Cloudflare rate limiting, caps the
+conversation history, and returns explicit `429` responses with `Retry-After`.
+Input and output are also checked by the app's local `KidSafety` guard. If the
+network or Worker is unavailable, Pollie falls back gracefully and all games
+remain usable offline.
+
+### Configuration and secrets
+
+`POLLIE_ENDPOINT` is a public deployment URL, so it may be supplied through
+`--dart-define` or a GitHub Actions repository variable. It is not a secret.
+The Gemini key belongs only in Cloudflare Worker secrets (`wrangler secret
+put GEMINI_API_KEY`) or a local, git-ignored `.dev.vars` file. Release signing
+files and Firebase configuration are restored in CI from GitHub Actions
+secrets; they are not tracked in the repository.
+
+### CI/CD
+
+Pull requests run Flutter analysis, formatting and tests. Tagged releases
+build the signed APK and publish it to GitHub Releases. The workflow restores
+private build inputs only for the job that needs them, and release artifacts
+are never built from a Gemini key embedded in application code. Worker tests
+and type checks run separately before deployment.
+
+See [`worker/README.md`](worker/README.md) for the proxy setup and deployment
+runbook.
+
 ## Project layout
 
 ```
