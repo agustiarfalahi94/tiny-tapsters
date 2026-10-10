@@ -133,7 +133,11 @@ class PluginSpeechSink implements SpeechSink {
   }
 
   @override
-  Future<void> stop() => _speech.stop();
+  Future<void> stop() {
+    // Revoke queued starts, but retain the active native owner's final result.
+    _consentEpoch++;
+    return _speech.stop();
+  }
 
   @override
   Future<void> cancel() {

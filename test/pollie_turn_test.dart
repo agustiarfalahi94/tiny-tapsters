@@ -417,6 +417,63 @@ void main() {
   });
 
   group('text input and voice generations', () {
+    for (final finish in ['hold release tail', 'tap finish']) {
+      testWidgets('pending native start cannot outlive $finish', (
+        tester,
+      ) async {
+        final native = NativeSpeechChannel()..install();
+        final wrapper = SpeechToText.withMethodChannel();
+        final cancelled = Completer<void>();
+        try {
+          await openPollie(tester, sink: PluginSpeechSink(speech: wrapper));
+          await tapMic(tester);
+          await native.emit(native.owner, 'notifyStatus', 'listening');
+          await native.emit(native.owner, 'notifyStatus', 'readyForSpeech');
+          await tester.pump();
+          native.cancellation = cancelled;
+          await tester.tap(find.byType(TextField));
+          await tester.pump();
+          expect(native.calls, contains('cancel'));
+
+          if (finish == 'hold release tail') {
+            final gesture = await tester.startGesture(
+              tester.getCenter(find.text('🎤')),
+            );
+            await tester.pump(const Duration(milliseconds: 300));
+            expect(native.listens, hasLength(1));
+            await gesture.up();
+            await tester.pump(const Duration(milliseconds: 349));
+            expect(micColour(tester), const Color(0xFFFFB300));
+            await tester.pump(const Duration(milliseconds: 1));
+          } else {
+            await tapMic(tester);
+            expect(native.listens, hasLength(1));
+            await tapMic(tester);
+          }
+          expect(native.calls.where((call) => call == 'stop'), hasLength(2));
+          expect(micColour(tester), Colors.white);
+          expect(pollie.sent, isEmpty);
+
+          cancelled.complete();
+          await tester.pump();
+          await tester.pump();
+          expect(native.listens, hasLength(1));
+          expect(wrapper.isListening, isFalse);
+          expect(micColour(tester), Colors.white);
+          await beyondRestarts(tester);
+          expect(native.listens, hasLength(1));
+          expect(pollie.sent, isEmpty);
+        } finally {
+          if (!cancelled.isCompleted) cancelled.complete();
+          await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+          await tester.pump();
+          await wrapper.cancel();
+          await beyondRestarts(tester);
+          native.uninstall();
+        }
+      });
+    }
+
     testWidgets('native same-turn rearming retains banked speech and tap stop', (
       tester,
     ) async {
@@ -1157,7 +1214,6 @@ void main() {
           await tester.pump(Duration(milliseconds: pressMs));
           speech.emitReady();
           await tester.pump();
-          await silence(tester, 400);
           speech.emitPartial('wait');
 
           await gesture.cancel();

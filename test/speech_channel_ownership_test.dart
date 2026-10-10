@@ -111,14 +111,17 @@ void main() {
     expect(speech.isListening, isTrue);
   });
 
-  test('normal stop still delivers its terminal native result', () async {
-    await listen();
-    final owner = native.owner;
-    await native.emit(owner, 'textRecognition', result('partial', 0));
-    await speech.stop();
-    await native.emit(owner, 'textRecognition', result('terminal words', 2));
-    expect(words, ['partial', 'terminal words']);
-  });
+  test(
+    'production sink normal stop still delivers its terminal native result',
+    () async {
+      await listen();
+      final owner = native.owner;
+      await native.emit(owner, 'textRecognition', result('partial', 0));
+      await PluginSpeechSink(speech: speech).stop();
+      await native.emit(owner, 'textRecognition', result('terminal words', 2));
+      expect(words, ['partial', 'terminal words']);
+    },
+  );
 
   test(
     'reopening the production sink replaces singleton status callbacks',
@@ -205,6 +208,46 @@ void main() {
       await secondCancellation;
       await starting;
       expect(native.listens, hasLength(1));
+    },
+  );
+
+  test(
+    'stop invalidates a listen waiting for cancellation acknowledgement',
+    () async {
+      final sink = PluginSpeechSink(speech: speech);
+      await listen();
+      final cancelled = Completer<void>();
+      native.cancellation = cancelled;
+      final cancelling = sink.cancel();
+      final starting = sink.listen(
+        onResult: (_) {},
+        onSoundLevel: (_) {},
+        localeId: 'en-US',
+      );
+      try {
+        await Future<void>.delayed(Duration.zero);
+        expect(native.listens, hasLength(1));
+        await sink.stop();
+        cancelled.complete();
+        await cancelling;
+        await starting;
+        expect(native.listens, hasLength(1));
+
+        await sink.listen(
+          onResult: (_) {},
+          onSoundLevel: (_) {},
+          localeId: 'en-US',
+        );
+        expect(
+          native.listens,
+          hasLength(2),
+          reason: 'a fresh start remains allowed',
+        );
+      } finally {
+        if (!cancelled.isCompleted) cancelled.complete();
+        await cancelling;
+        await starting;
+      }
     },
   );
 

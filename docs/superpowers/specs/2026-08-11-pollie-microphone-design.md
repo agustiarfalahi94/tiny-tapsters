@@ -16,7 +16,9 @@ Branch: `feature/pollie-mic-v2` → v1.25.0
 > carry originating recognizer/task ownership through the channel and are
 > rejected before Dart speech state changes; current app consent is not event
 > provenance. Normal stop retains terminal results; privacy cancellation retires
-> before successor startup. See `packages/PATCH.md` for the paired native patch.
+> before successor startup. Stop also revokes any listen still queued behind
+> cancellation, independently of native terminal-result ownership.
+> See `packages/PATCH.md` for the paired native patch.
 > All acoustic, hold-tail, retry, and watchdog timings below
 > remain unchanged. See `docs/pollie-architecture-and-costs.md` for current
 > behavior and `test/pollie_turn_test.dart` for privacy regression coverage.

@@ -190,7 +190,9 @@ also acknowledged cancellation before its queued native operation executed.
   A new listen cancels the previous Dart session-cap timer, including native
   done/rearm paths that did not call stop, so no overwritten timer is orphaned.
   The app sink waits for native cancellation before a new listen; another
-  revoke invalidates a listen still waiting for retirement. Reopening Pollie
+  cancel or normal stop invalidates a listen still waiting for retirement.
+  Stop changes pending-start authorization only; it preserves an already-started
+  native owner's terminal-result eligibility. Reopening Pollie
   rebinds the singleton's status/error listeners to the current screen.
 
 ### Compatibility and verification limits

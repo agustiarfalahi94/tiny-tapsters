@@ -68,7 +68,9 @@ even before the hold threshold; it is not pointer-up. Native callback origin is
 separate from app consent: keep the owned listener/task and channel session ID
 checks in `packages/PATCH.md`, before Dart wrapper state changes. Cancellation
 retires the recognizer before a successor starts; normal stop permits its final
-result. Preserve voice VAD, hold tails, and TTS watchdog behavior.
+result. Stop must also revoke a listen still waiting for cancellation to finish;
+queued-start authorization is separate from native terminal-result ownership.
+Preserve voice VAD, hold tails, and TTS watchdog behavior.
 
 ## Multi-part work
 

@@ -58,6 +58,11 @@ the originating task and queued audio callbacks. Privacy cancellation waits for
 retirement, whereas normal stop still permits terminal results. See
 `../packages/PATCH.md` for the paired vendor contract and verification limits.
 
+Normal stop also invalidates a queued listen waiting for cancellation to finish.
+Ending a held turn after its release tail, or tapping to finish, cannot leave
+that pending start authorized. This sink authorization check does not retire
+an already-started native owner or discard its terminal result.
+
 Initialization and deferred restart/retry callbacks recheck current voice
 consent, foreground state, and generation. Paused, hidden, or detached lifecycle
 states revoke voice, and returning to foreground requires another mic press.

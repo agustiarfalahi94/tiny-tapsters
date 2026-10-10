@@ -7,7 +7,7 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ## [Unreleased]
 
-## [1.25.9] — 2026-10-10
+## [1.25.9] — 2026-10-11
 
 ### Fixed
 - Opening Pollie, typed questions, and suggestion chips no longer initialize
@@ -29,6 +29,9 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
   Apple routes callbacks by their originating task. Old stop/listen
   acknowledgements cannot arm a successor's timers, and idle speech errors no
   longer clear the busy state of a pending reply.
+- Finishing a held or tapped turn invalidates a queued speech start still
+  waiting for cancellation to finish, so its acknowledgement cannot reopen the
+  microphone after the turn ends. Normal stop preserves native terminal results.
 
 ### Changed
 - Corrected the Worker module map in agent instructions and the proxy runbook
