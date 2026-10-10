@@ -71,6 +71,35 @@ describe('Pollie Gemini resilience', () => {
     return calls.filter((call) => call.url.pathname === '/v1beta/models');
   }
 
+  it('retains known alternatives when refreshing a retired model fails', async () => {
+    let retired = false;
+    upstream(({ url, init }) => {
+      if (init.method !== 'POST') return retired ? json({}, 503)
+        : catalog(['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']);
+      if (url.pathname.includes(ALIAS) || (retired && url.pathname.includes('3.5-flash-lite'))) return json({}, 404);
+      return json(reply());
+    });
+    expect(await (await request()).json()).toEqual({ ok: true });
+    retired = true;
+    expect(await (await request()).json()).toEqual({ ok: true });
+    expect(models().at(-1)).toBe('gemini-3.1-flash-lite');
+    expect(generations()).toHaveLength(5);
+  });
+
+  it('coalesces concurrent refreshes for the same retired cache entry', async () => {
+    let retired = false;
+    upstream(({ url, init }) => {
+      if (init.method !== 'POST') return catalog([retired ? 'gemini-3.9-flash-lite' : 'gemini-3.5-flash-lite']);
+      if (url.pathname.includes(ALIAS) || (retired && url.pathname.includes('3.5-flash-lite'))) return json({}, 404);
+      return json(reply());
+    });
+    await (await request()).json();
+    retired = true;
+    const results = await Promise.all(Array.from({ length: 12 }, async () => (await request()).json()));
+    expect(results.every(result => (result as { ok: boolean }).ok === true)).toBe(true);
+    expect(lists()).toHaveLength(2);
+  });
+
   it('refreshes a retired cached model and finds its replacement within three attempts', async () => {
     let retired = false;
     upstream(({ url, init }) => {

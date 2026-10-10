@@ -43,7 +43,8 @@ export async function callGemini(
   let response = await generate(preferred);
   if (!canFallback(response)) return response;
 
-  let alternatives = await availableModels(env.GEMINI_API_KEY, deadline);
+  let discovery = await availableModels(env.GEMINI_API_KEY, deadline);
+  let alternatives = discovery.models;
   const tried = new Set([preferred]);
   let refreshed = false;
   for (let attempt = 1; attempt < 3; attempt++) {
@@ -57,7 +58,9 @@ export async function callGemini(
     if (!canFallback(response)) break;
     if (response.status === 404 && !refreshed && attempt < 2) {
       refreshed = true;
-      alternatives = await availableModels(env.GEMINI_API_KEY, deadline, true);
+      const update = await availableModels(env.GEMINI_API_KEY, deadline, discovery.catalog);
+      alternatives = [...new Set([...update.models, ...alternatives])];
+      discovery = update;
     }
   }
   return response;
@@ -67,11 +70,11 @@ function canFallback(response: Response): boolean {
   return response.status === 404 || response.status === 503;
 }
 
-async function availableModels(apiKey: string, requestDeadline: number, refresh = false): Promise<string[]> {
+async function availableModels(apiKey: string, requestDeadline: number, refresh?: CatalogEntry): Promise<{ models: string[]; catalog?: CatalogEntry }> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(apiKey));
   const cacheKey = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
   const now = Date.now();
-  if (refresh) catalogCache.delete(cacheKey);
+  if (refresh && catalogCache.get(cacheKey) === refresh) catalogCache.delete(cacheKey);
   for (const [key, entry] of catalogCache) {
     if (entry.expiresAt <= now) catalogCache.delete(key);
   }
@@ -87,10 +90,10 @@ async function availableModels(apiKey: string, requestDeadline: number, refresh 
     catalogCache.set(cacheKey, entry);
   }
   try {
-    return await entry.models;
+    return { models: await entry.models, catalog: entry };
   } catch {
     if (catalogCache.get(cacheKey) === entry) catalogCache.delete(cacheKey);
-    return [];
+    return { models: [] };
   }
 }
 
