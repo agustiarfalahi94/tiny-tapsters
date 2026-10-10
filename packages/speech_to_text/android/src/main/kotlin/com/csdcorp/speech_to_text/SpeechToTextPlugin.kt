@@ -119,8 +119,10 @@ public class SpeechToTextPlugin :
     private var noBluetoothOpt: Boolean = false // user-defined option
     private var bluetoothDisabled = true // final bluetooth state (combines user-defined option and permissions)
     private var resultSent: Boolean = false
-    private var lastOnDevice: Boolean = false
     private var speechRecognizer: SpeechRecognizer? = null
+    // TINY TAPSTERS PATCH — each native recognizer owns an immutable channel ID.
+    private class RecognizerSession(val id: Long?)
+    private var recognizerSession: RecognizerSession? = null
     private var recognizerIntent: Intent? = null
     private var bluetoothAdapter: android.bluetooth.BluetoothAdapter? = null
     private var pairedDevices: Set<android.bluetooth.BluetoothDevice>? = null
@@ -155,6 +157,7 @@ public class SpeechToTextPlugin :
     }
 
     override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
+        retireRecognizer()
         this.pluginContext = null;
         channel?.setMethodCallHandler(null)
         channel = null
@@ -232,10 +235,19 @@ public class SpeechToTextPlugin :
                     val completeSilence =
                         call.argument<Int?>("completeSilence")
                     startListening(result, localeId, partialResults, listenModeIndex, onDevice,
-                        pauseFor, possiblyCompleteSilence, minimumLength, completeSilence )
+                        pauseFor, possiblyCompleteSilence, minimumLength, completeSilence,
+                        call.argument<Number>("sessionId")?.toLong())
                 }
-                "stop" -> stopListening(result)
-                "cancel" -> cancelListening(result)
+                "stop", "cancel" -> {
+                    if (call.arguments != null &&
+                        call.argument<Number>("sessionId")?.toLong() != recognizerSession?.id) {
+                        result.success(false)
+                    } else if (call.method == "stop") {
+                        stopListening(result)
+                    } else {
+                        cancelListening(result)
+                    }
+                }
                 "locales" -> locales(result)
                 else -> result.notImplemented()
             }
@@ -299,15 +311,20 @@ public class SpeechToTextPlugin :
                                listenModeIndex: Int, onDevice: Boolean, pauseFor: Int?,
                                possiblyCompleteSilence: Int? = null,
                                minimumLength: Int? = null,
-                               completeSilence: Int? = null) {
+                               completeSilence: Int? = null,
+                               sessionId: Long? = null) {
         if (sdkVersionTooLow() || isNotInitialized() || isListening()) {
             result.success(false)
             return
         }
         var listenMode = enumValues<ListenMode>()[listenModeIndex]
 
+        retireRecognizer()
+        val owner = RecognizerSession(sessionId)
+        recognizerSession = owner
         resultSent = false
-        createRecognizer(onDevice, listenMode, pauseFor)
+        lastFinalTime = 0
+        createRecognizer(onDevice, listenMode, pauseFor, owner)
         minRms = 1000.0F
         maxRms = -100.0F
         debugLog("Start listening")
@@ -315,11 +332,7 @@ public class SpeechToTextPlugin :
         optionallyStartBluetooth()
         setupRecognizerIntent(languageTag, partialResults, listenMode, onDevice, pauseFor,
             possiblyCompleteSilence, minimumLength, completeSilence )
-        handler.post {
-            run {
-                speechRecognizer?.startListening(recognizerIntent)
-            }
-        }
+        speechRecognizer?.startListening(recognizerIntent)
         speechStartTime = System.currentTimeMillis()
         notifyListening(isRecording = true)
         result.success(true)
@@ -350,11 +363,7 @@ public class SpeechToTextPlugin :
             return
         }
         debugLog("Stop listening")
-        handler.post {
-            run {
-                speechRecognizer?.stopListening()
-            }
-        }
+        speechRecognizer?.stopListening()
         if ( !recognizerStops ) {
             destroyRecognizer()
         }
@@ -364,20 +373,11 @@ public class SpeechToTextPlugin :
     }
 
     private fun cancelListening(result: Result) {
-        if (sdkVersionTooLow() || isNotInitialized() || isNotListening()) {
-            result.success(false)
-            return
-        }
         debugLog("Cancel listening")
-        handler.post {
-            run {
-                speechRecognizer?.cancel()
-            }
-        }
-        if ( !recognizerStops ) {
-            destroyRecognizer()
-        }
         notifyListening(isRecording = false)
+        // Cancel is a retirement barrier, including a recognizer that already
+        // reported done. Invalidate before cancel/destroy can call its listener.
+        retireRecognizer()
         result.success(true)
         debugLog("Cancel listening done")
     }
@@ -430,7 +430,7 @@ public class SpeechToTextPlugin :
             false -> SpeechToTextStatus.notListening.name
         }
         debugLog("Notify status:" + status)
-        channel?.invokeMethod(SpeechToTextCallbackMethods.notifyStatus.name, status)
+        invokeOwned(SpeechToTextCallbackMethods.notifyStatus, status)
         if ( !isRecording ) {
             if (timer != null) {
                 timer?.cancel()
@@ -442,8 +442,7 @@ public class SpeechToTextPlugin :
             }
             debugLog("Notify status:" + doneStatus )
             optionallyStopBluetooth();
-            channel?.invokeMethod(SpeechToTextCallbackMethods.notifyStatus.name,
-                doneStatus )
+            invokeOwned(SpeechToTextCallbackMethods.notifyStatus, doneStatus)
         }
     }
 
@@ -491,8 +490,7 @@ public class SpeechToTextPlugin :
             val jsonResult = speechResult.toString()
             debugLog("Calling results callback")
             resultSent = true
-            channel?.invokeMethod(SpeechToTextCallbackMethods.textRecognition.name,
-                    jsonResult)
+            invokeOwned(SpeechToTextCallbackMethods.textRecognition, jsonResult)
         } else {
             debugLog("Results null or empty")
         }
@@ -619,52 +617,16 @@ public class SpeechToTextPlugin :
         return list.firstOrNull()?.serviceInfo?.let { ComponentName(it.packageName, it.name) }
     }
 
-    private fun createRecognizer(onDevice: Boolean, listenMode: ListenMode, pauseFor: Int?) {
-        if ( null != speechRecognizer && onDevice == lastOnDevice ) {
-            return
-        }
-        lastOnDevice = onDevice
-        speechRecognizer?.destroy()
-        speechRecognizer = null
-        handler.post {
-            run {
-                debugLog("Creating recognizer")
-                if (intentLookup) {
-                    speechRecognizer = createSpeechRecognizer(
-                        pluginContext,
-                        pluginContext?.findComponentName()
-                    ).apply {
-                        debugLog("Setting listener after intent lookup")
-                        setRecognitionListener(this@SpeechToTextPlugin)
-                    }
-                } else {
-                        var supportsLocal = false
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && onDevice) {
-                        supportsLocal = SpeechRecognizer.isOnDeviceRecognitionAvailable(pluginContext!!)
-                        if (supportsLocal ) {
-                            speechRecognizer = createOnDeviceSpeechRecognizer(pluginContext!!).apply {
-                                debugLog("Setting on device listener")
-                                setRecognitionListener(this@SpeechToTextPlugin)
-                            }
-                        }
-                    }
-                    if ( null == speechRecognizer) {
-                            speechRecognizer = createSpeechRecognizer(pluginContext).apply {
-                                debugLog("Setting default listener")
-                                setRecognitionListener(this@SpeechToTextPlugin)
-                        }
-                    }
-                }
-                if (null == speechRecognizer) {
-                    Log.e(logTag, "Speech recognizer null")
-                    activeResult?.error(
-                        SpeechToTextErrors.recognizerNotAvailable.name,
-                        "Speech recognizer null", ""
-                    )
-                    activeResult = null
-                }
-            }
-        }
+    private fun createRecognizer(onDevice: Boolean, listenMode: ListenMode, pauseFor: Int?,
+                                 owner: RecognizerSession) {
+        debugLog("Creating recognizer")
+        speechRecognizer = when {
+            intentLookup -> createSpeechRecognizer(pluginContext, pluginContext?.findComponentName())
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && onDevice &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(pluginContext!!) ->
+                createOnDeviceSpeechRecognizer(pluginContext!!)
+            else -> createSpeechRecognizer(pluginContext)
+        }.apply { setRecognitionListener(ownedListener(owner)) }
         debugLog("before setup intent")
         setupRecognizerIntent(defaultLanguageTag, true, listenMode, false, pauseFor )
         debugLog("after setup intent")
@@ -741,14 +703,54 @@ public class SpeechToTextPlugin :
     }
 
     private fun destroyRecognizer() {
-
+        val owner = recognizerSession
         handler.postDelayed( {
-                run {
+                if (recognizerSession === owner) {
                     debugLog("Recognizer destroy")
-                    speechRecognizer?.destroy();
-                    speechRecognizer = null;
+                    retireRecognizer()
                 }
         }, 50 )
+    }
+
+    // TINY TAPSTERS PATCH — callbacks must capture origin at listener creation,
+    // not read whichever session happens to be current when delivered.
+    private fun ownedListener(owner: RecognizerSession): RecognitionListener =
+        object : RecognitionListener {
+            private fun deliver(block: () -> Unit) {
+                if (recognizerSession === owner) block()
+            }
+            override fun onReadyForSpeech(params: Bundle?) = deliver { this@SpeechToTextPlugin.onReadyForSpeech(params) }
+            override fun onBeginningOfSpeech() = deliver { this@SpeechToTextPlugin.onBeginningOfSpeech() }
+            override fun onRmsChanged(level: Float) = deliver { this@SpeechToTextPlugin.onRmsChanged(level) }
+            override fun onBufferReceived(buffer: ByteArray?) = deliver { this@SpeechToTextPlugin.onBufferReceived(buffer) }
+            override fun onEndOfSpeech() = deliver { this@SpeechToTextPlugin.onEndOfSpeech() }
+            override fun onError(error: Int) = deliver { this@SpeechToTextPlugin.onError(error) }
+            override fun onResults(results: Bundle?) = deliver { this@SpeechToTextPlugin.onResults(results) }
+            override fun onPartialResults(results: Bundle?) = deliver { this@SpeechToTextPlugin.onPartialResults(results) }
+            override fun onEvent(type: Int, params: Bundle?) = deliver { this@SpeechToTextPlugin.onEvent(type, params) }
+        }
+
+    private fun retireRecognizer() {
+        recognizerSession = null
+        timer?.cancel()
+        timer = null
+        val retired = speechRecognizer
+        speechRecognizer = null
+        listening = false
+        optionallyStopBluetooth()
+        retired?.cancel()
+        retired?.destroy()
+    }
+
+    private fun invokeOwned(method: SpeechToTextCallbackMethods, payload: Any,
+                            owner: RecognizerSession? = recognizerSession) {
+        if (owner == null) return
+        handler.post {
+            if (recognizerSession !== owner) return@post
+            val arguments = if (owner.id == null) payload else
+                mapOf("sessionId" to owner.id, "payload" to payload)
+            channel?.invokeMethod(method.name, arguments)
+        }
     }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray): Boolean {
         when (requestCode) {
@@ -776,6 +778,7 @@ public class SpeechToTextPlugin :
     }
 
     override fun onEndOfSpeech() {
+        val owner = recognizerSession
         // TINY TAPSTERS PATCH — this timer is a fourth, undocumented
         // endpointer. With pauseFor null it would fall to a hard 1s cut,
         // which is shorter than the pause between a child's words and worse
@@ -783,9 +786,9 @@ public class SpeechToTextPlugin :
         (previousCompleteSilence ?: previousPauseFor ?: 1000).also {
             timerTask = object : TimerTask() {
                 override fun run() {
-                    timer = null
                     handler.post {
-                        run {
+                        if (recognizerSession === owner) {
+                            timer = null
                             notifyListening(isRecording = false)
                         }
                     }
@@ -837,11 +840,7 @@ public class SpeechToTextPlugin :
         val speechError = JSONObject()
         speechError.put("errorMsg", errorMsg)
         speechError.put("permanent", true)
-        handler.post {
-            run {
-                channel?.invokeMethod(SpeechToTextCallbackMethods.notifyError.name, speechError.toString())
-            }
-        }
+        invokeOwned(SpeechToTextCallbackMethods.notifyError, speechError.toString())
     }
 
     override fun onRmsChanged(rmsdB: Float) {
@@ -852,11 +851,7 @@ public class SpeechToTextPlugin :
             maxRms = rmsdB
         }
         debugLog("rmsDB $minRms / $maxRms")
-        handler.post {
-            run {
-                channel?.invokeMethod(SpeechToTextCallbackMethods.soundLevelChange.name, rmsdB)
-            }
-        }
+        invokeOwned(SpeechToTextCallbackMethods.soundLevelChange, rmsdB.toDouble())
     }
 
     // TINY TAPSTERS PATCH — the only signal that AudioRecord is actually
@@ -867,12 +862,7 @@ public class SpeechToTextPlugin :
     // already abandoned, which would otherwise re-open their gate on a dead mic.
     override fun onReadyForSpeech(p0: Bundle?) {
         if (!listening) return
-        handler.post {
-            run {
-                channel?.invokeMethod(SpeechToTextCallbackMethods.notifyStatus.name,
-                        SpeechToTextStatus.readyForSpeech.name)
-            }
-        }
+        invokeOwned(SpeechToTextCallbackMethods.notifyStatus, SpeechToTextStatus.readyForSpeech.name)
     }
     override fun onBufferReceived(p0: ByteArray?) {}
     override fun onEvent(p0: Int, p1: Bundle?) {}

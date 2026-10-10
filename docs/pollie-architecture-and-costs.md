@@ -48,6 +48,16 @@ finishes is canceled. A hold still down when permission arrives keeps the
 existing hold-to-talk endpointing and release tail. Denial leaves text usable;
 another mic press may retry.
 
+Pointer cancellation is distinct from release: it always revokes consent and
+discards the turn, including a short gesture canceled before permission finishes.
+Native callback origin is not the current app voice generation. Each native
+recognizer/task retains its channel ownership ID; the channel discards retired
+ready/done/error/result/level events before they mutate Dart speech state.
+Android destroys the retired recognizer before successor startup; Apple checks
+the originating task and queued audio callbacks. Privacy cancellation waits for
+retirement, whereas normal stop still permits terminal results. See
+`../packages/PATCH.md` for the paired vendor contract and verification limits.
+
 Initialization and deferred restart/retry callbacks recheck current voice
 consent, foreground state, and generation. Paused, hidden, or detached lifecycle
 states revoke voice, and returning to foreground requires another mic press.
@@ -56,7 +66,8 @@ permission dialog can temporarily take focus. Voice conversations retain
 bounded hands-free continuation, acoustic VAD, transcript banking, and the TTS
 watchdog. Text reply completion, failures, and watchdog expiry never enable voice.
 
-See `lib/screens/companion_screen.dart`, `test/pollie_turn_test.dart`, and the
+See `lib/screens/companion_screen.dart`, `test/pollie_turn_test.dart`,
+`test/speech_channel_ownership_test.dart`, and the
 privacy addendum in `superpowers/specs/2026-08-11-pollie-microphone-design.md`.
 
 ## The key is still one key

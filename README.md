@@ -43,6 +43,9 @@ Current source version: **v1.25.9+62** (`com.inkpebble.tiny_tapsters`).
   yet. Opening Pollie, typing, and suggestion chips never request microphone
   permission or start recognition. Focusing or editing the text field cancels
   voice listening and pending restarts; backgrounding also ends voice mode.
+  A canceled pointer gesture discards voice input at any press duration; a
+  genuine quick release still enables a tap turn. Retired native recognizer
+  callbacks cannot change a later voice session (see `packages/PATCH.md`).
   Press the mic again to enable voice. Toddler-friendly tap chips plus a text
   field for grown-ups. Powered by Gemini through a proxy we host, so it
   works out of the box — no key of your own (see below).

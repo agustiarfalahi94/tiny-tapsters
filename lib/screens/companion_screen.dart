@@ -492,7 +492,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     _vadTicker?.cancel();
     _speakWatchdog?.cancel();
     try {
-      _speech.stop();
+      _speech.cancel();
       _tts?.stop();
     } catch (_) {}
     _tts?.release();
@@ -550,6 +550,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     _holdTimer?.cancel();
     _heldLongEnough = false;
     if (_turnActive) _endTurn(send: false);
+    unawaited(_speech.cancel());
   }
 
   void _scheduleListening(Duration delay, int generation) {
@@ -1072,7 +1073,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   };
 
   void _onSpeechError(SpeechRecognitionError error) {
-    if (!_voiceIsCurrent(_voiceGeneration)) return;
+    if (!_turnActive || !_voiceIsCurrent(_voiceGeneration)) return;
     final name = error.errorMsg.toLowerCase().trim();
 
     // `error.permanent` is deliberately ignored. The Android plugin hardcodes
@@ -1098,15 +1099,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       _bubbles.add(_Bubble(role: 'model', text: strings.pollieDidntCatch));
       _scrollToBottom();
     }
-    if (_turnActive) {
-      _endTurn(send: true);
-      return;
-    }
-    setState(() {
-      _status = _PollieStatus.awake;
-      _busy = false;
-      _partial = '';
-    });
+    _endTurn(send: true);
   }
 
   Future<void> _send(String raw) async {
@@ -1598,6 +1591,8 @@ class _CompanionScreenState extends State<CompanionScreen>
     });
   }
 
+  void _onMicCancel() => _disableVoice();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1755,7 +1750,7 @@ class _CompanionScreenState extends State<CompanionScreen>
                         onPointerUp: (_) => _onMicUp(),
                         // A finger dragged off the button must not strand a
                         // hot microphone.
-                        onPointerCancel: (_) => _onMicUp(),
+                        onPointerCancel: (_) => _onMicCancel(),
                         child: Semantics(
                           button: true,
                           label: strings.talkToPollie,

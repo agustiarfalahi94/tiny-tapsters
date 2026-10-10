@@ -53,7 +53,12 @@ backgrounding revokes voice, and resume does not restore it. Keep text editable
 while recognition is active. Initialization and every deferred start must
 recheck consent, foreground state, and the voice generation. A quick release
 during permission initialization becomes a tap turn; a released hold cannot
-start later. Preserve voice VAD, hold tails, and TTS watchdog behavior.
+start later. Pointer cancellation always revokes consent and discards the turn,
+even before the hold threshold; it is not pointer-up. Native callback origin is
+separate from app consent: keep the owned listener/task and channel session ID
+checks in `packages/PATCH.md`, before Dart wrapper state changes. Cancellation
+retires the recognizer before a successor starts; normal stop permits its final
+result. Preserve voice VAD, hold tails, and TTS watchdog behavior.
 
 ## Git flow
 
@@ -114,6 +119,7 @@ flutter build apk --release           # when native config or deps changed
 - `test/tts_ownership_test.dart` — one engine, newest owner wins, and a source scan for a second `FlutterTts`.
 - `test/tts_engine_test.dart` — which Android TTS engine gets bound: prefer Google's when installed, leave an unknown default alone, choose once, and never let engine trouble stop Pollie speaking.
 - `test/speech_plugin_test.dart` — the vendored patch itself: option marshalling and the `readyForSpeech` status, driven through `SpeechToTextPlatform.instance`.
+- `test/speech_channel_ownership_test.dart` — real method-channel ownership filtering before wrapper state changes, retired callback/acknowledgement races, cancellation barriers, terminal stop results and native payload compatibility.
 - `test/count_rows_test.dart` — the random row layouts in Count the Animals.
 - `test/language_test.dart` — every string translated, and the locale ids speech and TTS need.
 - `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety + quota tests, the count-game flow (seeded RNG), and Bubble Pop's target rules (wrong animals rejected, mistakes cost stars, no overshoot past the last catch). The Bubble Pop tests read the live header rather than a hard-coded label — an earlier version asserted on `'Pop 0 more!'` and kept passing after that label was replaced.

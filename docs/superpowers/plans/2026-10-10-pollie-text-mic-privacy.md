@@ -19,6 +19,7 @@ Opening Pollie or typing must not request mic permission/start listening. Typing
 - Version: `1.25.9+62`; tag: `v1.25.9`; package: `com.inkpebble.tiny_tapsters`.
 - Preserve the existing acoustic VAD, transcript banking, hold-to-talk behavior and shared TtsService ownership.
 - No Gemini backend change, new permission, analytics, secret in source, or device installation/uninstallation.
+- Review amendment: permit scoped changes to the existing vendored speech integration and adapter to retain immutable recognizer/task ownership, retire a canceled recognizer before a successor starts, and reject stale events before they mutate Dart wrapper state. Keep supported native targets compatible; no new dependency, voice feature or timer changes.
 - Reuse the existing isolated working clone; preserve untracked `graphify-out/`.
 - Run `./tool/check.sh` before every commit and retain the actual output.
 - Implementer, read-only reviewer and validation tester are separate roles.
@@ -37,6 +38,7 @@ Opening Pollie or typing must not request mic permission/start listening. Typing
 **Files:**
 - Modify: `lib/screens/companion_screen.dart`.
 - Test: `test/pollie_turn_test.dart`; adjust existing related widget tests only where expectations intentionally change.
+- Review amendment files: existing `lib/services/speech_sink.dart`, vendored speech Dart/platform channel/native listener files, behavioral adapter/plugin tests, and `packages/PATCH.md` as required for recognizer/task ownership. No unrelated vendor refresh.
 - Modify: `pubspec.yaml`, `pubspec.lock` if regenerated, `README.md`, `CHANGELOG.md`, `AGENTS.md`, `CLAUDE.md`, `docs/pollie-architecture-and-costs.md`, and current Pollie design documentation where the old startup/listening description conflicts with this fix.
 
 **Interfaces:**
@@ -63,6 +65,7 @@ Use the existing fake TTS completion API after reading its definition. Add tests
 
 - [ ] **Step 2: Implement the minimum state/guard changes.** Remove eager `_initSpeechLocale()` from `initState`; lazy-initialize from the explicit mic handler. Gate `_startListening` and all deferred starts by current voice consent and foreground state, including rechecks after asynchronous initialization. A generation token may invalidate a callback from a prior voice session. Text focus/edit/submission and suggestion chips disable voice mode and cancel recognition/restart intent; keep typing usable while recognition is active. Do not restructure the existing turn machine or replace its VAD timers.
 - [ ] **Step 3: Verify focused tests are green.** Run `flutter test --no-pub test/pollie_turn_test.dart --reporter expanded` and affected widget tests. Fix regressions, including held/tapped mic behavior, without weakening privacy assertions.
+- [ ] **Review amendment:** Distinguish pointer cancel from pointer up at every press duration. Reproduce and isolate late ready/done/error/result events from retired speech sessions through the real adapter boundary. Native origin identities must survive queued delivery and be rejected before wrapper state changes; do not manufacture provenance only in fakes. Preserve all existing VAD, hold and TTS behavior and test same-turn rearming. Compile the amended native Android integration in a release build; report any unverified Apple/device-specific behavior honestly.
 - [ ] **Step 4: Update version and relevant current docs.** Set `version: 1.25.9+62`; document the text/voice privacy behavior and permission timing in README, changelog and Pollie operational/design docs. Update AGENTS and CLAUDE version and guidance consistently. Historical release/design records remain historical; add a supersession note rather than rewriting them as newly implemented features. Inventory Markdown and explain any intentionally unchanged files in the report.
 - [ ] **Step 5: Run the gate, self-review and commit.** Run `dart format lib/ test/`, then `./tool/check.sh`. Only on success stage exact changed paths and commit `fix(pollie): keep text conversations microphone-free`. Write the actual RED/GREEN/gate output and changed-file inventory to the task report. No push, tag, release, child agents or device actions by implementer.
 

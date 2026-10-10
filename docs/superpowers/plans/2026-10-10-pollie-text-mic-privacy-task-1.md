@@ -23,7 +23,7 @@ the approved parent plan, `2026-08-11-pollie-microphone-design.md`, and
 - No subagents, push, tag, deployment, or device actions. Parent owns release.
 - Preserve `graphify-out/` and the existing parent plan; include both this newly
   written Task 1 plan and the approved parent plan in the implementation commit.
-- No UI redesign or dependency/native changes. Text remains editable during
+- No UI redesign or dependency changes. Text remains editable during
   recognition; disable only during an outstanding network request.
 - `onChanged` observes user edits, not controller clearing. Focus listener and
   tap handling cover entering a still-empty or already-focused text field.
@@ -63,3 +63,28 @@ the approved parent plan, `2026-08-11-pollie-microphone-design.md`, and
 - [x] Write `.superpowers/sdd/2026-10-10-pollie-text-mic-privacy/task-1-report.md`
   with `apply_patch`. Stage exact paths and commit only after the gate passes:
   `fix(pollie): keep text conversations microphone-free`.
+
+## Fix round 1 (base de3e3a987d7d945a5f5c348dd685f9dae836815d)
+
+The parent amendment permits the existing vendored speech boundary to carry
+native origin identity. App voice generations only authorize deferred starts;
+they cannot attribute an untagged recognizer callback.
+
+- [x] P1 RED: cancel before/after the hold threshold while permission is pending,
+  plus discard an active canceled turn. Keep genuine quick pointer-up and held
+  release-tail tests. Give pointer cancel its own consent-revoking handler.
+- [x] P2 RED: idle errors must not clear pending reply busy state. Through the
+  actual method channel and production sink, replay retired ready/done/errors,
+  results and levels after a successor starts. Capture IDs from listen requests.
+- [x] Add a listen ownership ID to the existing native channel. Native Android
+  listeners capture their own ID; retire/destroy the previous recognizer before
+  successor creation. Queued callbacks and silence timers retain that ID. Apple
+  delegates use the originating task identity and capture its ID at enqueue.
+  The channel rejects mismatched IDs before any Dart wrapper state mutation.
+- [x] Revoke channel ownership immediately on privacy cancellation, serialize
+  cancellation before the next listen, and retain normal stop/final/VAD rearming.
+- [x] Focused GREEN, compatibility/voice coverage, full gate, direct Java 17
+  Gradle release compilation. Report Apple/device verification limits.
+- [x] Update current privacy docs, changelog and packages/PATCH.md; retain the
+  parent's amendment. Append actual RED/GREEN/gate/build output to the report.
+- [x] Self-review and commit exact paths locally; no external/device actions.

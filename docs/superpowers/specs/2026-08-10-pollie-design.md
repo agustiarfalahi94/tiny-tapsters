@@ -8,8 +8,10 @@ Branch: `feat/pollie` → v1.10.0
 > Text focus/edit/submission, chips, and backgrounding cancel voice and delayed
 > starts. Permission initialization is lazy on the mic press; a quick released
 > tap can proceed after permission, while a released hold cannot start later.
-> The microphone spec's privacy addendum and
-> `docs/pollie-architecture-and-costs.md` describe current behavior. The original
+> The microphone spec's privacy addendum and `packages/PATCH.md` also cover
+> canceled gestures and native callback ownership;
+> retired speech events must not affect a later explicit voice session.
+> `docs/pollie-architecture-and-costs.md` describes current behavior. The original
 > release/design details below remain historical.
 
 > **Superseded on the model (§2).** The plan to pin `gemini-2.5-flash` with

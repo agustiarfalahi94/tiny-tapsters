@@ -1,8 +1,8 @@
 # Vendored packages, and exactly what was changed
 
 Two packages are copied in here rather than pulled from pub, because the app
-needs an Android setting neither exposes. Everything else is upstream and
-untouched.
+needs Android silence settings and native callback ownership neither exposes.
+Unrelated upstream code and dependency versions remain unchanged.
 
 | Package | Upstream version |
 |---|---|
@@ -12,10 +12,11 @@ untouched.
 `example/`, `test/` and `.dart_tool/` were dropped; nothing else was removed.
 Every change is marked in the source with `TINY TAPSTERS PATCH`.
 
-There are two patches, applied at different times for different reasons.
+There are three patches, applied at different times for different reasons.
 Patch 1 made the recogniser stop ending sessions mid-sentence. Patch 2 took
 endpointing away from the package entirely and gave the app a signal it never
 had: when the microphone is actually recording.
+Patch 3 isolates retired native recognizers/tasks from a later voice session.
 
 ---
 
@@ -59,8 +60,8 @@ The package simply never sets them.
 - They also join the `previous*` comparison that decides whether the intent
   needs rebuilding — without that, a changed value is silently ignored.
 
-iOS, macOS and web are untouched; the options are Android-only and default to
-null, so behaviour elsewhere is exactly upstream.
+Patch 1 leaves iOS, macOS and web untouched; its options are Android-only and
+default to null. Patch 3 later changes callback ownership on Android and Apple.
 
 ---
 
@@ -128,7 +129,8 @@ timeout.
 - `SpeechToTextStatus.readyForSpeech` appended to the enum (transported by
   `.name`, so ordinals do not matter).
 - `onReadyForSpeech` implemented, guarded by `if (!listening) return` so a stale
-  callback from an abandoned session cannot re-open the caller's gate.
+  callback while idle cannot re-open the caller's gate. This did not identify
+  its originating session once another listen began; Patch 3 supersedes it.
 - `completeSilence` threaded through `onMethodCall` → `startListening` →
   `setupRecognizerIntent`, including the `previous*` rebuild comparison.
 - The long-silence extra now reads `completeSilence ?: pauseFor`, so an
@@ -141,7 +143,9 @@ timeout.
 
 ## What Patch 2 deliberately does NOT do
 
-Recorded so the next person does not re-investigate:
+These decisions describe Patch 2. Patch 3 later changes recognizer ownership
+and the native start/stop/cancel thread ordering. Recorded so the next person
+does not re-investigate:
 
 - **`EXTRA_SEGMENTED_SESSION`** (continuous/long-form recognition, API 31+).
   It would remove restart gaps entirely rather than making them rare, but OEM
@@ -156,10 +160,62 @@ Recorded so the next person does not re-investigate:
 - **`speechThresholdRms`** (rewrites `ERROR_NO_MATCH` to `ERROR_SPEECH_TIMEOUT`
   below RMS 9). Both strings hit the same "quiet error" branch in the app.
 
+## Patch 3 — native callback ownership (v1.25.9)
+
+An app generation authorizes a voice start, but cannot identify an untagged
+native event. The process-wide Dart listeners previously let a canceled
+recognizer's ready/done/error/result/level event mutate its successor. Android
+also acknowledged cancellation before its queued native operation executed.
+
+- The method-channel implementation assigns a monotonically increasing
+  `sessionId` to each listen request. Android and Apple return recognition
+  events as `{sessionId, payload}`. The channel checks the ID before invoking
+  **any** Dart speech callback, including sound levels and results. Cancel
+  revokes that ID immediately; stop retains it for terminal results.
+- Android creates a fresh recognizer with an immutable owned listener for each
+  session. It invalidates, cancels and destroys the previous recognizer on the
+  main thread before successor creation. Listener callbacks, queued channel
+  delivery, the native silence timer and the SDK-29 delayed destruction all
+  retain/check the originating owner; none can operate on a successor.
+  Cancel retires even a recognizer that already reported not-listening and only
+  acknowledges after cleanup. Normal stop still leaves final results eligible.
+- Apple serializes listen/stop/cancel on the main queue and checks the actual
+  originating `SFSpeechRecognitionTask` before processing delegate callbacks.
+  A stopped task remains eligible for its terminal result until retirement.
+  Audio-tap and queued channel deliveries capture immutable ownership. Cancel
+  invalidates the task, closes audio, and acknowledges without waiting for a
+  cancellation sound. A successor cancels the retained stopped task first.
+- Dart request generations guard acknowledgements, not event attribution:
+  a delayed stop/listen response cannot arm a successor's final/session timer.
+  A new listen cancels the previous Dart session-cap timer, including native
+  done/rearm paths that did not call stop, so no overwritten timer is orphaned.
+  The app sink waits for native cancellation before a new listen; another
+  revoke invalidates a listen still waiting for retirement. Reopening Pollie
+  rebinds the singleton's status/error listeners to the current screen.
+
+### Compatibility and verification limits
+
+Android/iOS/macOS are a **paired channel/native upgrade**. Those Dart targets
+reject raw, unowned recognition callbacks rather than inventing their origin.
+The patched native code retains raw payloads for callers without `sessionId`;
+do not mix the new Dart fork with an unpatched Android/Apple binary. Windows raw
+channel callbacks remain accepted; web uses its separate platform implementation
+and is unchanged. No public speech options, permissions, dependencies, backend,
+VAD/hold/watchdog values, or shared TTS ownership changed.
+
+`test/speech_channel_ownership_test.dart` drives the real channel and Dart wrapper;
+`test/pollie_turn_test.dart` also drives the production sink and real screen.
+Tests capture IDs from outbound native requests, not fake app generations.
+They cover stale events, cancellation/acknowledgement races, normal final
+delivery and platform payload compatibility. Android release compilation is
+required. Apple syntax parsing is not framework compilation or runtime testing;
+Apple and physical-device/OEM acoustics/recognizer startup latency remain
+unverified until tested independently. Fresh recognizer creation may affect
+rearm latency even though the app's timing constants remain unchanged.
+
 ## Upgrading
 
-The two patches are about forty lines across four files. To move to a newer
-upstream:
+To move to a newer upstream:
 
 1. Copy the new version over the top, minus `example/`, `test/`, `.dart_tool/`.
 2. Search the old copy for `TINY TAPSTERS PATCH` and re-apply each block.
@@ -173,9 +229,15 @@ upstream:
    unit-testable, and those tests fail loudly if any of the above regresses.
    Then still test on a real phone: the intent extras themselves cannot be
    verified off-device.
+7. Preserve the Patch 3 request/event envelope and filtering **before** wrapper
+   state mutation; port Android owned listeners/retirement and Apple originating
+   task checks together. Do not stamp callbacks with a mutable current ID.
+8. Run `flutter test test/speech_channel_ownership_test.dart test/pollie_turn_test.dart`,
+   the full gate and native Android compilation; validate Apple framework builds
+   and device rearming before claiming those targets verified.
 
-Check first whether upstream has added these options — if so, drop the fork and
-go back to pub.
+Check whether upstream now supplies both the silence options and native-origin
+isolation before replacing the fork; options alone do not supersede Patch 3.
 
 ## Analysis
 

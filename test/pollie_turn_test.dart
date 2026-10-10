@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:speech_to_text/speech_to_text.dart' show SpeechToText;
 import 'package:tiny_tapsters/screens/companion_screen.dart';
 import 'package:tiny_tapsters/services/pollie_service.dart';
 import 'package:tiny_tapsters/services/speech_sink.dart';
@@ -9,6 +10,7 @@ import 'package:tiny_tapsters/services/tts_service.dart';
 import 'package:tiny_tapsters/services/vad_gate.dart';
 
 import 'tts_ownership_test.dart' show FakeTts;
+import 'support/speech_channel.dart';
 
 /// Every acoustic situation a child can put the microphone in.
 ///
@@ -28,7 +30,7 @@ void main() {
   });
 
   /// Opens Pollie, awake and able to listen.
-  Future<void> openPollie(WidgetTester tester) async {
+  Future<void> openPollie(WidgetTester tester, {SpeechSink? sink}) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -36,7 +38,7 @@ void main() {
       MaterialApp(
         home: CompanionScreen(
           pollie: pollie,
-          speech: speech,
+          speech: sink ?? speech,
           ttsService: TtsService.withSink(tts),
         ),
       ),
@@ -323,7 +325,8 @@ void main() {
       'background',
       'dispose',
       'held release',
-      'pointer cancel',
+      'short pointer cancel',
+      'held pointer cancel',
     ]) {
       testWidgets('delayed permission after $cancellation cannot start voice', (
         tester,
@@ -338,12 +341,12 @@ void main() {
           Duration(
             milliseconds:
                 cancellation == 'held release' ||
-                    cancellation == 'pointer cancel'
+                    cancellation == 'held pointer cancel'
                 ? 300
                 : 60,
           ),
         );
-        if (cancellation == 'pointer cancel') {
+        if (cancellation.endsWith('pointer cancel')) {
           await gesture.cancel();
         } else {
           await gesture.up();
@@ -414,6 +417,153 @@ void main() {
   });
 
   group('text input and voice generations', () {
+    testWidgets('native same-turn rearming retains banked speech and tap stop', (
+      tester,
+    ) async {
+      final native = NativeSpeechChannel()..install();
+      final wrapper = SpeechToText.withMethodChannel();
+      try {
+        await openPollie(tester, sink: PluginSpeechSink(speech: wrapper));
+        await tapMic(tester);
+        final first = native.owner;
+        await native.emit(first, 'notifyStatus', 'listening');
+        await native.emit(first, 'notifyStatus', 'readyForSpeech');
+        await native.emit(
+          first,
+          'textRecognition',
+          '{"resultType":0,"alternates":[{"recognizedWords":"a cat","recognizedPhrases":null,"confidence":0.9}]}',
+        );
+        await native.emit(first, 'notifyStatus', 'doneNoResult');
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.pump();
+        expect(native.listens, hasLength(2));
+        final second = native.owner;
+        await native.emit(second, 'notifyStatus', 'listening');
+        await native.emit(second, 'notifyStatus', 'readyForSpeech');
+        await native.emit(
+          second,
+          'textRecognition',
+          '{"resultType":0,"alternates":[{"recognizedWords":"and a dog","recognizedPhrases":null,"confidence":0.9}]}',
+        );
+        await tester.pump();
+        expect(micColour(tester), const Color(0xFFFF5252));
+        await tapMic(tester);
+        await tester.pump();
+        expect(pollie.sent, ['a cat and a dog']);
+      } finally {
+        final beforeDispose = native.listens.length;
+        await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+        await tester.pump();
+        await wrapper.cancel();
+        await beyondRestarts(tester);
+        expect(native.listens, hasLength(beforeDispose));
+        native.uninstall();
+      }
+    });
+
+    for (final event in [
+      'ready',
+      'done',
+      'quiet error',
+      'fatal error',
+      'result',
+    ]) {
+      testWidgets('retired native $event cannot change a fresh voice turn', (
+        tester,
+      ) async {
+        final native = NativeSpeechChannel()..install();
+        final wrapper = SpeechToText.withMethodChannel();
+        final sink = PluginSpeechSink(speech: wrapper);
+        try {
+          await openPollie(tester, sink: sink);
+          await tapMic(tester);
+          final retired = native.owner;
+          await native.emit(retired, 'notifyStatus', 'listening');
+          await native.emit(retired, 'notifyStatus', 'readyForSpeech');
+          await tester.pump();
+          await tester.tap(find.byType(TextField));
+          await tester.pump();
+          await tapMic(tester);
+          final successor = native.owner;
+          await native.emit(successor, 'notifyStatus', 'listening');
+          await tester.pump();
+          expect(micColour(tester), const Color(0xFFFFB300));
+          final before = native.listens.length;
+
+          if (event == 'ready' || event == 'done') {
+            await native.emit(
+              retired,
+              'notifyStatus',
+              event == 'ready' ? 'readyForSpeech' : 'doneNoResult',
+            );
+          } else if (event.endsWith('error')) {
+            await native.emit(
+              retired,
+              'notifyError',
+              '{"errorMsg":"${event == 'quiet error' ? 'error_no_match' : 'error_permission'}","permanent":true}',
+            );
+          } else {
+            await native.emit(
+              retired,
+              'textRecognition',
+              '{"resultType":2,"alternates":[{"recognizedWords":"old words","recognizedPhrases":null,"confidence":0.9}]}',
+            );
+          }
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(micColour(tester), const Color(0xFFFFB300));
+          expect(native.listens, hasLength(before));
+          expect(wrapper.isListening, isTrue);
+          expect(pollie.sent, isEmpty);
+          expect(find.textContaining("didn't catch"), findsNothing);
+          await native.emit(successor, 'notifyStatus', 'readyForSpeech');
+          await tester.pump();
+          expect(micColour(tester), const Color(0xFFFF5252));
+          await tester.tap(find.byType(TextField));
+          await tester.pump();
+          await beyondRestarts(tester);
+        } finally {
+          await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+          await wrapper.cancel();
+          await beyondRestarts(tester);
+          native.uninstall();
+        }
+      });
+    }
+
+    testWidgets(
+      'an idle speech error cannot clear a pending reply busy state',
+      (tester) async {
+        final reply = StreamController<String>();
+        pollie.replyStream = reply.stream;
+        await openPollie(tester);
+        await voiceReply(tester);
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).enabled,
+          isFalse,
+        );
+        final before = speech.listenCalls;
+
+        speech.emitError('error_permission', permanent: true);
+        await tester.pump();
+
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).enabled,
+          isFalse,
+        );
+        expect(find.text('🗣️'), findsOneWidget);
+        expect(find.textContaining("didn't catch"), findsNothing);
+        expect(pollie.sent, hasLength(1));
+        expect(speech.listenCalls, before);
+        reply.add('Hi there!');
+        await reply.close();
+        await tester.pump();
+        await finishTts(tester);
+        await tester.tap(find.byType(TextField));
+        await beyondRestarts(tester);
+      },
+    );
+
     testWidgets(
       'an incoming user edit cancels voice without a focus transition',
       (tester) async {
@@ -996,24 +1146,32 @@ void main() {
       expect(pollie.sent, hasLength(1));
     });
 
-    testWidgets('a finger dragged off the button does not strand the mic', (
-      tester,
-    ) async {
-      await openPollie(tester);
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.text('🎤')),
+    for (final pressMs in [60, 300]) {
+      testWidgets(
+        'pointer cancellation at ${pressMs}ms discards an active turn',
+        (tester) async {
+          await openPollie(tester);
+          final gesture = await tester.startGesture(
+            tester.getCenter(find.text('🎤')),
+          );
+          await tester.pump(Duration(milliseconds: pressMs));
+          speech.emitReady();
+          await tester.pump();
+          await silence(tester, 400);
+          speech.emitPartial('wait');
+
+          await gesture.cancel();
+          await tester.pump(const Duration(milliseconds: 400));
+
+          expect(pollie.sent, isEmpty);
+          expect(speech.isListening, isFalse);
+          expect(micColour(tester), Colors.white);
+          final before = speech.listenCalls;
+          await beyondRestarts(tester);
+          expect(speech.listenCalls, before);
+        },
       );
-      await tester.pump(const Duration(milliseconds: 300));
-      speech.emitReady();
-      await tester.pump();
-      await silence(tester, 400);
-      speech.emitPartial('wait');
-
-      await gesture.cancel();
-      await tester.pump(const Duration(milliseconds: 400));
-
-      expect(pollie.sent, hasLength(1), reason: 'cancel is a release');
-    });
+    }
 
     testWidgets('releasing before the mic was ever ready still closes it', (
       tester,
@@ -1207,6 +1365,11 @@ class FakeSpeech implements SpeechSink {
     stopCalls++;
     _listening = false;
   }
+
+  @override
+  Future<void> cancel() async {
+    _listening = false;
+  }
 }
 
 /// Pollie's brain, without a network.
@@ -1221,6 +1384,7 @@ class FakePollie extends PollieService {
   final sent = <String>[];
   List<String> replyChunks = const ['Hi there!'];
   Object? replyError;
+  Stream<String>? replyStream;
 
   @override
   bool get isConfigured => true;
@@ -1235,6 +1399,7 @@ class FakePollie extends PollieService {
   Stream<String> reply(List<ChatMessage> history, {String language = 'en'}) {
     sent.add(history.lastWhere((m) => m.role == 'user').text);
     if (replyError != null) return Stream.error(replyError!);
+    if (replyStream != null) return replyStream!;
     return Stream.fromIterable(replyChunks);
   }
 

@@ -20,6 +20,15 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
   released tap can start a tap turn; a released hold, text input, or background
   cannot start stale voice. Explicit voice retains hands-free continuation,
   hold release tails, acoustic VAD, and the TTS watchdog.
+- Pointer cancellation now revokes consent and discards the turn, including a
+  short canceled gesture whose permission prompt is still pending. Genuine
+  pointer-up retains tap behavior and the held-release recording tail.
+- Retired speech ready/done/error/result/level events carry native ownership
+  through the existing vendored channel and are rejected before Dart state
+  changes. Android retires the old recognizer before creating its successor;
+  Apple routes callbacks by their originating task. Old stop/listen
+  acknowledgements cannot arm a successor's timers, and idle speech errors no
+  longer clear the busy state of a pending reply.
 
 ### Changed
 - Corrected the Worker module map in agent instructions and the proxy runbook
