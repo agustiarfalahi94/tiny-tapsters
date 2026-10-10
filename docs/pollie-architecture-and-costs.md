@@ -1,7 +1,9 @@
 # Pollie: architecture, limits, costs and the decisions behind them
 
-Written 2026-08-11. This exists so the same questions do not have to be
-re-researched. Prices and model names age; the reasoning does not.
+Written 2026-08-11; model operations updated 2026-10-10 for v1.25.8.
+The latency, quota, and cost measurements below are historical August 2026
+observations, not current provider guarantees or price quotes. Check Google's
+current pricing and project quotas before making a cost decision.
 
 ## How it works, and what it replaced
 
@@ -96,18 +98,29 @@ provider — but it is a word list, not a substitute.
 
 `gemini-flash-lite-latest`, an **alias, not a pin**.
 
+Since v1.25.8 a missing, overloaded, or timed-out alias (`404`/`503`) triggers discovery
+of compatible stable text-generation Flash-Lite models. Up to two alternatives
+are tried, newest numeric version first, with a one-hour catalog cache. Quota,
+key, and invalid-request errors remain visible, and retries stop before any
+stream is forwarded. Safety settings are unchanged; thinking parts are not
+spoken. See [Worker operations](../worker/README.md#model-updates-and-recovery).
+
 An earlier version pinned `gemini-2.5-flash` with
 `thinkingConfig: { thinkingBudget: 0 }`. Both halves were wrong: that model is
-no longer served to new API keys (404), and `thinkingBudget` is rejected as an
-invalid argument by every current model. Everything failed until this was
+refused the key used at the time (404), and that request's `thinkingBudget`
+configuration was rejected. These were measured failures, not universal rules
+about all Gemini models. Everything failed until this was
 found — which took the Worker being changed to report Google's actual error
 instead of a bare "unreachable".
 
 Measured on a real key: lite answers in ~600 ms, full flash in ~1800 ms.
 
-Retirement matters. `gemini-2.5-flash-lite` retires 16 October 2026; the
-successor is roughly 2.5× the input and 4× the output price. The alias follows
-automatically, so the price changes without any code change.
+The alias can change its underlying model and price without a code update.
+Do not rely on an old retirement date or price multiplier; consult Google's
+[model list](https://ai.google.dev/gemini-api/docs/models) and
+[deprecation schedule](https://ai.google.dev/gemini-api/docs/deprecations).
+Weekly live ping/chat checks run in GitHub Actions. Aliases and fallback reduce
+model maintenance but cannot repair provider API changes or expired keys.
 
 ## Charging users, if it ever comes to that
 

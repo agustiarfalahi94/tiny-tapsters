@@ -109,13 +109,50 @@ that way told a child to come back tomorrow when the answer was thirty seconds
 away, which is why `rateLimited()` reads Google's error body before deciding
 (`src/index.ts:287-305`).
 
-## Notes
+## Model updates and recovery
+
+`GEMINI_MODEL` is an optional Worker variable; the default is
+`gemini-flash-lite-latest`. Google updates this
+[alias](https://ai.google.dev/gemini-api/docs/models#latest) server-side, and it
+may move to stable, preview, or experimental versions. Pollie keeps its prompt,
+strict safety settings, and short output limit on every model attempt.
+
+On `404`, `503`, or a timeout before headers, the Worker discovers compatible stable text-generation
+Flash-Lite models from Google's Models API. It tries at most two distinct
+alternatives, newest numeric version first, with a one-hour catalog cache.
+Preview, full Flash, image, audio, and live models are excluded from fallback.
+Discovery shares in-flight lookups; a fallback `404` refreshes the catalog once
+within the same retry budget. Catalog membership does not guarantee access; generation attempts remain
+bounded. Quota, invalid-key, and bad-request responses do not rotate models.
+Streaming is only retried before any response is forwarded to the app.
+The budget is 12 seconds per header attempt, five seconds total for catalog
+discovery, and 35 seconds overall. A timeout may still consume provider quota;
+the three-attempt cap also covers these failures.
+
+Requests omit deprecated sampling parameters. Thought parts are excluded from
+text and spoken output. API changes, quota exhaustion, and credentials still
+need operator attention: no automatic selector can guarantee compatibility with
+every future API revision. Review Google's
+[migration guide](https://ai.google.dev/gemini-api/docs/generate-content/latest-model)
+and [deprecations](https://ai.google.dev/gemini-api/docs/deprecations).
+
+Run `npm test` and `npm run typecheck` before `npm run deploy`. The weekly
+**Gemini health** GitHub workflow validates live `/ping` and streamed `/chat`
+using a synthetic greeting, or run `node tool/gemini_health.mjs`. It needs no
+Gemini secret in GitHub and spends two generation requests per run. Action
+failures use your GitHub notification settings.
+
+For rollback, set `GEMINI_MODEL` to a known working Flash-Lite version and
+redeploy, or use `npx wrangler rollback` to restore the previous deployment.
+Worker deployment and publishing an APK are separate steps.
+
+## Historical notes
 
 - The model is `gemini-flash-lite-latest`. An earlier version pinned
   `gemini-2.5-flash` with `thinkingConfig: { thinkingBudget: 0 }`; both halves
-  were wrong. 2.5-flash is no longer served to new API keys at all, and
-  `thinkingBudget` is rejected as an invalid argument by every current model.
-  Measured against a real key, lite answers in about 600 ms and full flash in
+  failed for the key/configuration tested at the time. Model availability and
+  thinking controls vary by model; do not treat that observation as a rule
+  for every current model. In August 2026, lite answered in about 600 ms and full flash in
   about 1800 ms — and Pollie says two short sentences to a four-year-old.
 - An alias, not a version pin, because the pin is exactly what broke: models
   are retired faster than a toddler app gets rebuilt.

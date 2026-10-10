@@ -4,6 +4,8 @@ Free toddler games for Android, built with Flutter. No ads, no tracking —
 just big colorful buttons and emoji. **All games work fully offline**; the
 only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
 
+Current source version: **v1.25.8+61** (`com.inkpebble.tiny_tapsters`).
+
 ## Games
 
 - **Jigsaw Puzzle** — a real picture puzzle: the picture is sliced into pieces
@@ -138,7 +140,7 @@ remain usable offline.
 `--dart-define` or a GitHub Actions repository variable. It is not a secret.
 The Gemini key belongs only in Cloudflare Worker secrets (`wrangler secret
 put GEMINI_API_KEY`) or a local, git-ignored `.dev.vars` file. Release signing
-files and Firebase configuration are restored in CI from GitHub Actions
+files are restored in CI from GitHub Actions
 secrets; they are not tracked in the repository.
 
 ### CI/CD
@@ -151,6 +153,20 @@ and type checks run separately before deployment.
 
 See [`worker/README.md`](worker/README.md) for the proxy setup and deployment
 runbook.
+
+### Gemini updates and availability
+
+Pollie follows `gemini-flash-lite-latest` in the Worker. Missing, overloaded, or timed-out
+models trigger bounded discovery of compatible stable Flash-Lite models, with
+up to three generation attempts. Safety settings and the local `KidSafety`
+guard apply as before. Deprecated sampling parameters are omitted and thinking
+parts are never spoken. Existing APKs benefit when the Worker is deployed.
+
+The weekly **Gemini health** workflow checks a live greeting and ping, and may
+be run manually. Worker tests and type checks now run in PR/release verification.
+Google may change price, access, or API requirements; aliases and fallback
+reduce maintenance but cannot fix key or quota errors automatically. See
+[model operations](worker/README.md#model-updates-and-recovery).
 
 ## Project layout
 

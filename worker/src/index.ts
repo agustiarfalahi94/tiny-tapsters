@@ -7,8 +7,11 @@
  * prompt can all change without shipping a release.
  */
 
+import { callGemini } from './gemini';
+
 export interface Env {
   GEMINI_API_KEY: string;
+  GEMINI_MODEL?: string;
   POLLIE_RATE_LIMIT: RateLimit;
 }
 
@@ -20,23 +23,6 @@ interface ChatMessage {
   role: 'user' | 'model';
   text: string;
 }
-
-/**
- * The "lite" alias, deliberately.
- *
- * An earlier version pinned `gemini-2.5-flash` with `thinkingConfig:
- * { thinkingBudget: 0 }` to stop the model reasoning before every "hello".
- * Both halves of that turned out to be wrong: 2.5-flash is no longer served to
- * new API keys at all (404), and `thinkingBudget` is rejected as an invalid
- * argument by every current model. Measured against this key, the lite alias
- * answers in roughly 600ms and full flash in about 1800ms — and Pollie says
- * two short sentences to a four-year-old, which is exactly what lite is for.
- *
- * An alias rather than a version pin, because the pin is what broke: models
- * are retired faster than a toddler app gets rebuilt. Changing it is a deploy,
- * not an app release.
- */
-const MODEL = 'gemini-flash-lite-latest';
 
 const SYSTEM_PROMPT = `You are Pollie, a warm, friendly companion who talks to a young child.
 Rules:
@@ -68,10 +54,7 @@ const SAFETY_SETTINGS = [
 ].map((category) => ({ category, threshold: 'BLOCK_LOW_AND_ABOVE' }));
 
 const GENERATION_CONFIG = {
-  temperature: 0.9,
-  // Generous for two short sentences, and small enough that the stream ends
-  // promptly. No thinkingConfig: current models reject it outright, and lite
-  // does not stop to reason before a greeting anyway.
+  // Keep replies short; omit model-specific sampling and thinking parameters.
   maxOutputTokens: 200,
 };
 
@@ -110,16 +93,20 @@ export default {
 async function ping(env: Env): Promise<Response> {
   const response = await callGemini(env, 'generateContent', {
     contents: [{ role: 'user', parts: [{ text: 'Reply with just the word: OK' }] }],
-    generationConfig: { ...GENERATION_CONFIG, temperature: 0, maxOutputTokens: 20 },
+    generationConfig: { ...GENERATION_CONFIG, maxOutputTokens: 20 },
     safetySettings: SAFETY_SETTINGS,
   });
 
   if (response.status === 429) return rateLimited(response);
   if (!response.ok) return upstreamError(response);
 
-  const body = (await response.json()) as GeminiResponse;
-  const text = textOf(body);
-  return json({ ok: text.trim().length > 0 });
+  try {
+    const body = (await response.json()) as GeminiResponse;
+    const text = textOf(body);
+    return json({ ok: text.trim().length > 0 });
+  } catch {
+    return json({ error: 'unreachable' }, 502);
+  }
 }
 
 /** Streams the reply back as newline-delimited JSON: one `{"text": "..."}` per line. */
@@ -235,7 +222,7 @@ function toNdjson(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> 
 
 interface GeminiResponse {
   candidates?: {
-    content?: { parts?: { text?: string }[] };
+    content?: { parts?: { text?: string; thought?: boolean }[] };
     finishReason?: string;
   }[];
   promptFeedback?: { blockReason?: string };
@@ -243,6 +230,7 @@ interface GeminiResponse {
 
 function textOf(body: GeminiResponse): string {
   return (body.candidates?.[0]?.content?.parts ?? [])
+    .filter((part) => part.thought !== true)
     .map((part) => part.text ?? '')
     .join('');
 }
@@ -250,35 +238,6 @@ function textOf(body: GeminiResponse): string {
 /** The last 20 turns. A toddler chat never needs more, and the request stays small. */
 function trimHistory(messages: ChatMessage[]): ChatMessage[] {
   return messages.length <= 20 ? messages : messages.slice(-20);
-}
-
-/**
- * Calls Gemini, retrying once when the failure looks temporary.
- *
- * A model that is briefly overloaded (503) or a transient 500 used to surface
- * to the child as "Oops, I got lost" and end the conversation. One quick retry
- * turns most of those into a normal answer.
- */
-async function callGemini(
-  env: Env,
-  method: string,
-  body: unknown,
-): Promise<Response> {
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:${method}`;
-  const init = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': env.GEMINI_API_KEY,
-    },
-    body: JSON.stringify(body),
-  };
-
-  const first = await fetch(url, init);
-  if (first.status < 500) return first;
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  return fetch(url, init);
 }
 
 /**

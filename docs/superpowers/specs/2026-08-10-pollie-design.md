@@ -5,8 +5,10 @@ Branch: `feat/pollie` → v1.10.0
 > **Superseded on the model (§2).** The plan to pin `gemini-2.5-flash` with
 > `thinkingConfig: { thinkingBudget: 0 }` did not survive contact: that model
 > is no longer served to new API keys (404) and `thinkingBudget` is rejected
-> outright by every current model. The Worker runs `gemini-flash-lite-latest`,
-> an alias rather than a pin, with no `thinkingConfig`.
+> by the configuration tested at the time. The Worker runs `gemini-flash-lite-latest`,
+> an alias rather than a pin, with no `thinkingConfig`. Since v1.25.8 it also
+> discovers stable Flash-Lite fallback models on `404`/`503`, omits deprecated
+> sampling parameters, and excludes thought parts from spoken output.
 > **`docs/pollie-architecture-and-costs.md` is the authority** on the model,
 > key, rate limits and costs — it records what was measured.
 >
