@@ -1,6 +1,7 @@
 # Pollie: architecture, limits, costs and the decisions behind them
 
 Written 2026-08-11; model operations updated 2026-10-10 for v1.25.8.
+Microphone privacy updated 2026-10-10 for v1.25.9+62.
 The latency, quota, and cost measurements below are historical August 2026
 observations, not current provider guarantees or price quotes. Check Google's
 current pricing and project quotas before making a cost decision.
@@ -30,6 +31,33 @@ server and no traffic passed through it.
 The app ships only a URL, which is not a secret. The model, system prompt and
 safety settings live server-side, so changing any of them is a deploy rather
 than a release everyone has to install.
+
+## Text and voice consent
+
+Opening Pollie, typing, and selecting suggestion chips never initialize speech
+recognition, request mic permission, or listen. Replies can still use the shared
+TTS engine. Text focus, user edits, submission, and chips revoke voice mode and
+cancel active recognition and pending starts. The field stays editable while
+recognition is active; controller clearing after a voice request is not a user
+edit and does not revoke voice.
+
+Only an explicit mic press enables voice and lazily initializes speech/locale
+selection. Permission may take longer than the gesture: a quick released tap
+opens a tap turn once granted; a deliberate hold released before initialization
+finishes is canceled. A hold still down when permission arrives keeps the
+existing hold-to-talk endpointing and release tail. Denial leaves text usable;
+another mic press may retry.
+
+Initialization and deferred restart/retry callbacks recheck current voice
+consent, foreground state, and generation. Paused, hidden, or detached lifecycle
+states revoke voice, and returning to foreground requires another mic press.
+Inactive alone does not revoke a pending permission request, because the system
+permission dialog can temporarily take focus. Voice conversations retain
+bounded hands-free continuation, acoustic VAD, transcript banking, and the TTS
+watchdog. Text reply completion, failures, and watchdog expiry never enable voice.
+
+See `lib/screens/companion_screen.dart`, `test/pollie_turn_test.dart`, and the
+privacy addendum in `superpowers/specs/2026-08-11-pollie-microphone-design.md`.
 
 ## The key is still one key
 

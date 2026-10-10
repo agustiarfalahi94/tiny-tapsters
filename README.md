@@ -4,7 +4,7 @@ Free toddler games for Android, built with Flutter. No ads, no tracking —
 just big colorful buttons and emoji. **All games work fully offline**; the
 only online feature is the optional **Pollie 🦜 companion** (Google Gemini).
 
-Current source version: **v1.25.8+61** (`com.inkpebble.tiny_tapsters`).
+Current source version: **v1.25.9+62** (`com.inkpebble.tiny_tapsters`).
 
 ## Games
 
@@ -40,7 +40,11 @@ Current source version: **v1.25.8+61** (`com.inkpebble.tiny_tapsters`).
   the reliable way in a noisy room or for a child who thinks mid-sentence.
   The button is amber while the microphone is warming up and red once it is
   really recording, so nobody is invited to speak into a mic that is not on
-  yet. Toddler-friendly tap chips plus a text field for grown-ups. Powered by Gemini through a proxy we host, so it
+  yet. Opening Pollie, typing, and suggestion chips never request microphone
+  permission or start recognition. Focusing or editing the text field cancels
+  voice listening and pending restarts; backgrounding also ends voice mode.
+  Press the mic again to enable voice. Toddler-friendly tap chips plus a text
+  field for grown-ups. Powered by Gemini through a proxy we host, so it
   works out of the box — no key of your own (see below).
 
 Every game but Bubble Pop runs against a countdown — 30 s on Easy, 1 min on
@@ -103,8 +107,13 @@ private did not help, because the signed APK is attached to releases.
 Everyone also shared one free-tier quota. `worker/README.md` has the
 setup, which takes a free Cloudflare account and about five minutes.
 
-Chat messages and voice input are sent to Google's Gemini and to the
-device's speech services. Without an endpoint, Pollie shows a friendly
+Chat messages reach Gemini through the Worker. Only explicitly enabled voice
+input uses the device's speech recognition services. Replies may still be
+spoken aloud in text mode; speaking a reply does not enable the microphone.
+Permission is requested on the first mic press. If permission arrives after a
+quick release, that press starts a tap turn; a released hold, typing, or
+backgrounding cancels the pending start. Denial leaves text usable, and another
+explicit mic press can retry. Without an endpoint, Pollie shows a friendly
 fallback message and the seven games are unaffected — they are all fully
 offline.
 

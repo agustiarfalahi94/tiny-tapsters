@@ -7,11 +7,27 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ## [Unreleased]
 
+## [1.25.9] — 2026-10-10
+
+### Fixed
+- Opening Pollie, typed questions, and suggestion chips no longer initialize
+  speech recognition or request microphone permission. Spoken text replies,
+  empty replies, brief quota recovery, and the TTS watchdog keep the mic off.
+- Focusing or editing the text field cancels active recognition and deferred
+  voice restarts. The field remains usable while Pollie listens. Backgrounding
+  revokes voice mode, so returning to the app requires a new mic press.
+- Permission initialization is lazy and guarded after it completes. A quick
+  released tap can start a tap turn; a released hold, text input, or background
+  cannot start stale voice. Explicit voice retains hands-free continuation,
+  hold release tails, acoustic VAD, and the TTS watchdog.
+
 ### Changed
 - Corrected the Worker module map in agent instructions and the proxy runbook
   after model selection moved to `worker/src/gemini.ts`; replaced a stale
-  rate-limit line reference with its function name. Documentation only: the
-  published app remains v1.25.8+61.
+  rate-limit line reference with its function name. This documentation correction
+  was already present before the microphone fix.
+- Source version is `1.25.9+62`; current Pollie privacy and permission guidance
+  is consistent across the README, architecture notes, and agent instructions.
 
 ## [1.25.8] — 2026-10-10
 

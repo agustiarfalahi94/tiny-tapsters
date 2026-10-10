@@ -41,10 +41,19 @@ facts hide. Raw terminal output is the only evidence that counts.
 
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.8+61 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*`, `assets/music/*` and the 15 `assets/animal_sounds/*` calls "Which Animal?" is built on) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.9+62 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*`, `assets/music/*` and the 15 `assets/animal_sounds/*` calls "Which Animal?" is built on) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. `google_generative_ai` is gone — Pollie talks to the Worker over plain `HttpClient`.
-**Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The seven games are fully offline; Pollie is the sole network feature.
+**Permissions**: `INTERNET` for Pollie's text and voice chat; `RECORD_AUDIO` only for explicitly enabled voice. The seven games are fully offline; Pollie is the sole network feature.
+
+**Pollie privacy (v1.25.9)**: Opening, typing, and suggestion chips never
+initialize speech or request mic permission. Only a mic press enables voice.
+Text focus/edit/submission and chips cancel recognition and pending restarts;
+backgrounding revokes voice, and resume does not restore it. Keep text editable
+while recognition is active. Initialization and every deferred start must
+recheck consent, foreground state, and the voice generation. A quick release
+during permission initialization becomes a tap turn; a released hold cannot
+start later. Preserve voice VAD, hold tails, and TTS watchdog behavior.
 
 ## Git flow
 
@@ -69,7 +78,7 @@ flutter build apk --release           # when native config or deps changed
 ## Constraints
 
 - Do NOT commit `android/key.properties` or `android/app/release-keystore.jks` (keystore secrets, git-ignored).
-- Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature. Permissions: INTERNET + RECORD_AUDIO (voice chat).
+- Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature. Permissions: INTERNET (Pollie text/voice) + RECORD_AUDIO (explicit voice only).
 - Never commit a Gemini API key. **It no longer ships in the app at all** — it is a Cloudflare Worker secret (`worker/`, see its README). The app defaults to the deployed proxy at `https://pollie.inkpebble.workers.dev`; override with `--dart-define=POLLIE_ENDPOINT=...`. A URL is not a secret.
 - All games must be playable without reading: big emoji, no required text.
 - Keep CHANGELOG.md + README.md in sync with real changes, and CLAUDE.md consistent with this file.
