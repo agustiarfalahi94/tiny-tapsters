@@ -14,7 +14,7 @@ Branch: `feat/game-timers` → v1.11.0
 
 Every game gets a countdown a child can read without numbers. Easy 30 s,
 Medium 60 s, Big 120 s, one clock for the whole game. Running out is a real
-loss: a lose overlay, `lose.mp3`, and Try again / Home.
+loss: a lose overlay, `lose.m4a`, and Try again / Home.
 
 Depends on `feat/audio` for `SoundEffects.lose()`.
 
@@ -76,8 +76,10 @@ controller.
 - A full-width rounded bar that shrinks left to right.
 - Green above 50 %, amber 20–50 %, red below 20 %. Colour is the primary
   signal, since the target user cannot read a clock.
-- Under 10 s remaining the bar pulses (scale 1.0 ↔ 1.06) and an ⏰ appears
-  beside it.
+- Under 10 s remaining the bar pulses and an ⏰ appears beside it. *(Built
+  differently, and deliberately: the fill pulses its **opacity** in place
+  rather than the bar scaling — `game_timer.dart:200,266`. Scaling anything
+  next to an emoji is golden rule 4. Do not restore the scale.)*
 - No digits. A number would be noise to a toddler and the parent can see the
   bar.
 

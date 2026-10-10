@@ -12,6 +12,9 @@ abstract interface class TtsSink {
   Future<void> setSpeechRate(double rate);
   Future<void> setVoice(Map<String, String> voice);
   Future<dynamic> getVoices();
+  Future<dynamic> getEngines();
+  Future<dynamic> getDefaultEngine();
+  Future<void> setEngine(String engine);
   Future<void> speak(String text);
   Future<void> stop();
 
@@ -52,6 +55,48 @@ class TtsService {
   final TtsSink _sink;
   TtsSession? _current;
 
+  /// The one engine-selection pass. Installed engines cannot change while the
+  /// app is running, and switching costs a rebuilt platform engine, so this
+  /// runs once and every later acquisition awaits the same result.
+  Future<void>? _engineChosen;
+
+  /// Google's is the only Android engine we can name that reliably ships
+  /// neural voices — the `network_required` ones `voiceScore` already ranks
+  /// highest. Everything else is a gamble, and the rule voice selection
+  /// follows applies here too: never trade a working default for something we
+  /// know nothing about.
+  static const _preferredEngine = 'com.google.android.tts';
+
+  /// Moves to [_preferredEngine] when it is installed and not already in use.
+  ///
+  /// **Why this is needed at all.** `pickBestVoice` can only rank what
+  /// `getVoices` returns, and that is the voices of the *bound* engine. On a
+  /// device whose default is a basic engine, careful scoring picks the best of
+  /// a bad set and Pollie sounds like a robot with no sign anything is wrong.
+  ///
+  /// This depends on `android.intent.action.TTS_SERVICE` being declared in the
+  /// manifest's `<queries>`: without it Android 11+ package visibility hides
+  /// every engine from `getEngines`, and the list comes back empty.
+  Future<void> _ensureEngine() {
+    return _engineChosen ??= () async {
+      try {
+        final raw = await _sink.getEngines();
+        final engines = raw is List
+            ? raw.whereType<String>().toList()
+            : <String>[];
+        final current = (await _sink.getDefaultEngine())?.toString();
+        debugPrint('TTS| engines: $engines (default: $current)');
+        if (!engines.contains(_preferredEngine)) return;
+        if (current == _preferredEngine) return;
+        await _sink.setEngine(_preferredEngine);
+        debugPrint('TTS| engine switched to $_preferredEngine');
+      } catch (e) {
+        // Pollie going quiet is far worse than Pollie sounding thin.
+        debugPrint('TTS| engine selection failed: $e');
+      }
+    }();
+  }
+
   void _wire() {
     _sink.setCompletionHandler(() => _current?._complete());
     _sink.setCancelHandler(() => _current?._complete());
@@ -76,6 +121,9 @@ class TtsService {
     }
     final session = TtsSession._(this, owner);
     _current = session;
+    // Before anything is configured: switching engines builds a new platform
+    // TextToSpeech on its own defaults, discarding whatever was set first.
+    await _ensureEngine();
     try {
       await _sink.setQueueMode(queueMode);
     } catch (e) {
@@ -162,6 +210,12 @@ class _PluginTts implements TtsSink {
       _tts.setVoice(voice);
   @override
   Future<dynamic> getVoices() => _tts.getVoices;
+  @override
+  Future<dynamic> getEngines() => _tts.getEngines;
+  @override
+  Future<dynamic> getDefaultEngine() => _tts.getDefaultEngine;
+  @override
+  Future<void> setEngine(String engine) async => _tts.setEngine(engine);
   @override
   Future<void> speak(String text) async => _tts.speak(text);
   @override

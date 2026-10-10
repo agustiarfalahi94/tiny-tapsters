@@ -177,6 +177,7 @@ class _FindItScreenState extends State<FindItScreen>
                         children: [
                           for (var i = 0; i < _roundsToWin; i++)
                             Container(
+                              key: ValueKey('round-dot-$i'),
                               width: 16,
                               height: 16,
                               margin: const EdgeInsets.symmetric(horizontal: 3),

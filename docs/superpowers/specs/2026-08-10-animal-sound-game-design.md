@@ -5,6 +5,24 @@ Branch: `feat/animal-sounds-game` → v1.12.0
 Depends on `feat/audio` (win/lose sounds) and `feat/game-timers` (`GameLevel`,
 countdown, loss overlay).
 
+> **Superseded on assets and licensing (v1.17.0).** Two decisions below did not
+> hold:
+>
+> - **"Keys must be members of `kAnimalEmojis`"** (§Assets, §Testing) was
+>   reversed. A listening game needs no food pairing, so requiring one meant a
+>   tiger could have no roar until someone invented its dinner. 🐷 🐦 🐯 now
+>   exist only in this game (`animal_sounds.dart`), and the test checks for
+>   duplicates and consistent emoji instead.
+> - **"CC0 / public-domain only"** and **"a credits screen is out of scope"**
+>   were both dropped. The game ships fifteen calls, fourteen under the Pixabay
+>   Content License and 🐶 under CC0, and `CreditsScreen` exists — see
+>   `ASSET_CREDITS.md` and `lib/data/asset_credits.dart`. The one rule that did
+>   hold is **never ShareAlike**, now enforced by
+>   `animal_sound_test.dart:75`.
+>
+> The game itself (rounds, choices, the unlimited replay, the third player,
+> ducking) shipped as written.
+
 ## Goal
 
 A seventh game: a big speaker button plays an animal call, two to five emoji

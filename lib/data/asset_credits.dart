@@ -1,9 +1,10 @@
 /// Attribution for every animal call in "Which Animal?".
 ///
-/// Some of these are CC BY, which obliges us to credit the author wherever
-/// the work is used — that is what `CreditsScreen` is for. The CC0 and
-/// public-domain entries oblige nothing and are listed anyway, because a
-/// half-filled credits page invites the question of what is missing.
+/// Nothing here obliges attribution: the Pixabay Content License does not
+/// require it and CC0 obliges nothing. `CreditsScreen` shows them anyway,
+/// because provenance is what keeps the licence claim checkable a year from
+/// now — and a half-filled credits page invites the question of what is
+/// missing.
 ///
 /// Keep in step with `ASSET_CREDITS.md`, which covers the music and effects
 /// too. A test checks there is an entry here for every bundled call.

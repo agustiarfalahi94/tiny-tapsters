@@ -1195,6 +1195,9 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   List<Map<dynamic, dynamic>>? _cachedVoices;
 
+  /// The voice dump is a diagnostic, not a running commentary — once a session.
+  bool _loggedVoices = false;
+
   /// `getVoices` hands back the raw platform-channel value: a `List<Object?>`
   /// of `Map<Object?, Object?>`. Casting that straight to
   /// `List<Map<dynamic, dynamic>>` throws — `Object?` is not a `Map` — which
@@ -1213,16 +1216,50 @@ class _CompanionScreenState extends State<CompanionScreen>
   Future<void> _applyBestVoice(String lang) async {
     try {
       _cachedVoices ??= await _loadVoices();
+      // The whole shortlist, once. Without it a thin-sounding Pollie is
+      // indistinguishable from a device that genuinely has nothing better —
+      // and the two have completely different fixes. Read it from a --profile
+      // build; debugPrint does not reach logcat in release (golden rule 11).
+      if (!_loggedVoices) {
+        _loggedVoices = true;
+        final shortlist = (_cachedVoices ?? const [])
+            .where(
+              (v) => (v['locale'] ?? '').toString().toLowerCase().startsWith(
+                lang.split('-').first.toLowerCase(),
+              ),
+            )
+            .map(
+              (v) =>
+                  '${v['name']} [${v['locale']}] q=${v['quality']} '
+                  'net=${v['network_required']} score=${voiceScore(v, lang)}',
+            );
+        debugPrint(
+          'TTS| ${_cachedVoices?.length ?? 0} voices total, '
+          '${shortlist.length} for $lang:',
+        );
+        for (final line in shortlist) {
+          debugPrint('TTS|   $line');
+        }
+      }
       final best = pickBestVoice(_cachedVoices, lang);
-      if (best == null) return;
+      if (best == null) {
+        debugPrint('TTS| no voice for $lang — keeping the engine default');
+        return;
+      }
       // Never trade a working engine default for a voice we know nothing
       // about: without a quality rating there is no reason to think ours is
       // an improvement. (Checking the rating itself, not the score — bonuses
       // alone can lift an unrated voice past any threshold.)
       final quality = (best['quality'] ?? '').toString().toLowerCase();
-      if (!_qualityRank.containsKey(quality)) return;
+      if (!_qualityRank.containsKey(quality)) {
+        debugPrint(
+          'TTS| best for $lang is ${best['name']} but its quality is '
+          '"${best['quality']}" — unrated, so keeping the engine default',
+        );
+        return;
+      }
       debugPrint(
-        'Pollie voice: ${best['name']} (${best['locale']}, '
+        'TTS| voice: ${best['name']} (${best['locale']}, '
         'quality=${best['quality']}, network=${best['network_required']}, '
         'score=${voiceScore(best, lang)})',
       );

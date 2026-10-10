@@ -199,6 +199,23 @@ class FakeTts implements TtsSink {
     return <dynamic>[];
   }
 
+  // Engine selection is covered in tts_engine_test.dart; here it only has to
+  // stay out of the way of the ownership assertions.
+  @override
+  Future<dynamic> getEngines() async {
+    _maybeThrow();
+    return <dynamic>[];
+  }
+
+  @override
+  Future<dynamic> getDefaultEngine() async {
+    _maybeThrow();
+    return null;
+  }
+
+  @override
+  Future<void> setEngine(String engine) async => _maybeThrow();
+
   @override
   void setCompletionHandler(VoidCallback handler) => _onComplete = handler;
   @override
