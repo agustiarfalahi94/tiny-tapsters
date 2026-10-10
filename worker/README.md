@@ -107,9 +107,13 @@ Over a limit both return `429`, and the body says *which* limit was hit:
 Only the second is Pollie being out of words for the day. Reporting every 429
 that way told a child to come back tomorrow when the answer was thirty seconds
 away, which is why `rateLimited()` reads Google's error body before deciding
-(`src/index.ts:287-305`).
+(the `rateLimited()` function in `src/index.ts`).
 
 ## Model updates and recovery
+
+`src/index.ts` owns the HTTP handlers, prompt, safety settings and
+newline-delimited JSON protocol. `src/gemini.ts` owns model selection,
+stable-model discovery, catalog caching and upstream request/stream deadlines.
 
 `GEMINI_MODEL` is an optional Worker variable; the default is
 `gemini-flash-lite-latest`. Google updates this

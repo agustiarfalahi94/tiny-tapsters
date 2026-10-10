@@ -7,6 +7,12 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ## [Unreleased]
 
+### Changed
+- Corrected the Worker module map in agent instructions and the proxy runbook
+  after model selection moved to `worker/src/gemini.ts`; replaced a stale
+  rate-limit line reference with its function name. Documentation only: the
+  published app remains v1.25.8+61.
+
 ## [1.25.8] — 2026-10-10
 
 ### Fixed
