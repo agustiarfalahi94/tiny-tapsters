@@ -7,6 +7,22 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ## [Unreleased]
 
+## [1.25.8] — 2026-10-10
+
+### Fixed
+- Pollie can recover from a missing (`404`), overloaded (`503`), or timed-out Gemini model
+  by discovering compatible stable Flash-Lite alternatives. The rolling alias
+  remains the default; generation is bounded to three attempts and quota/key
+  errors do not trigger rotation. Streaming is never retried after it starts.
+- Removed deprecated sampling parameters and excluded thinking parts from
+  spoken output for compatibility with changing Gemini models.
+
+### Added
+- Worker regression tests and type checks in local and GitHub verification.
+- Weekly live Gemini ping/chat checks, also runnable manually in Actions.
+- Current model-update, rollback, and release instructions; the existing APKs
+  receive model changes from the Worker without reinstalling.
+
 ### Changed
 - Added an Architecture & Security section to the README documenting
   Pollie's Gemini proxy, Cloudflare secrets, local safety filtering, rate

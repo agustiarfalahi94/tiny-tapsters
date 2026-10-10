@@ -33,6 +33,12 @@ case "$test_out" in
   *) echo "TESTS FAILED"; fail=1 ;;
 esac
 
+step "worker typecheck and tests"
+if ! (cd worker && npm ci --no-audit --no-fund && npm run typecheck && npm test); then
+  echo "WORKER CHECKS FAILED"
+  fail=1
+fi
+
 # The ground truth, printed rather than remembered. Every one of these has
 # been stated wrongly by an assistant working from the directory name or from
 # an earlier conversation instead of from the files.
