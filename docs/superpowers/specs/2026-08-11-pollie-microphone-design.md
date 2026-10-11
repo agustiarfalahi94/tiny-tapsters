@@ -2,6 +2,27 @@
 
 Branch: `feature/pollie-mic-v2` → v1.25.0
 
+> **Privacy addendum, v1.25.9+62 (2026-10-10).** The mechanisms and device
+> measurements below describe v1.25.0. Automatic microphone continuation and
+> the TTS watchdog apply only after an explicit mic press enables voice mode.
+> Opening Pollie, typed requests, and suggestion chips never initialize speech
+> or request permission. Text focus/edit/submission, chips, and backgrounding
+> cancel voice and pending restarts; resume alone does not re-enable it.
+> Speech initializes lazily on a mic press, with consent/generation rechecks
+> after awaits. Permission arriving after a quick release opens a tap turn;
+> a released deliberate hold cannot start later. A still-held press retains
+> hold endpointing. Pointer cancellation always discards/revokes the turn at
+> any duration; genuine pointer-up is still tap/release. Retired native events
+> carry originating recognizer/task ownership through the channel and are
+> rejected before Dart speech state changes; current app consent is not event
+> provenance. Normal stop retains terminal results; privacy cancellation retires
+> before successor startup. Stop also revokes any listen still queued behind
+> cancellation, independently of native terminal-result ownership.
+> See `packages/PATCH.md` for the paired native patch.
+> All acoustic, hold-tail, retry, and watchdog timings below
+> remain unchanged. See `docs/pollie-architecture-and-costs.md` for current
+> behavior and `test/pollie_turn_test.dart` for privacy regression coverage.
+
 Four symptoms were reported from real use on the Xiaomi 15:
 
 1. The first one or two words are cut — **not on the first turn**, but from the

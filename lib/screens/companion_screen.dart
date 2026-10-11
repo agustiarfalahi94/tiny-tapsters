@@ -267,6 +267,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   final _history = <ChatMessage>[];
   final _bubbles = <_Bubble>[];
   final _input = TextEditingController();
+  final _inputFocus = FocusNode();
   final _scroll = ScrollController();
   late final TtsService _ttsService = widget.ttsService ?? TtsService.instance;
   TtsSession? _tts;
@@ -275,6 +276,11 @@ class _CompanionScreenState extends State<CompanionScreen>
   bool _waking = false;
   bool _busy = false;
   bool _speechAvailable = false;
+  Future<void>? _speechInitialization;
+  bool _voiceEnabled = false;
+  bool _foreground = true;
+  int _voiceGeneration = 0;
+  bool _micPointerDown = false;
   String _localeId = 'en-US';
   String _partial = '';
   double _soundLevel = 0;
@@ -453,7 +459,7 @@ class _CompanionScreenState extends State<CompanionScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initTts();
-    _initSpeechLocale();
+    _inputFocus.addListener(_onInputFocus);
     if (_pollie.isConfigured) {
       _bubbles.add(_Bubble(role: 'model', text: ''));
       _wakeUp();
@@ -471,6 +477,9 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   @override
   void dispose() {
+    _voiceEnabled = false;
+    _voiceGeneration++;
+    _holdTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     // Never leave the mic, a pending turn, or the TTS engine running after
     // leaving Pollie.
@@ -483,20 +492,25 @@ class _CompanionScreenState extends State<CompanionScreen>
     _vadTicker?.cancel();
     _speakWatchdog?.cancel();
     try {
-      _speech.stop();
+      _speech.cancel();
       _tts?.stop();
     } catch (_) {}
     _tts?.release();
     _pollie.dispose();
     _input.dispose();
+    _inputFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _foreground = true;
     if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _foreground = false;
+      _disableVoice();
       // No mic/TTS while the app is in the background. Drop the turn rather
       // than sending half a sentence the child never finished.
       _turn = TurnState.idle;
@@ -519,6 +533,44 @@ class _CompanionScreenState extends State<CompanionScreen>
         });
       }
     }
+  }
+
+  bool _voiceIsCurrent(int generation) =>
+      mounted && _foreground && _voiceEnabled && generation == _voiceGeneration;
+
+  void _onInputFocus() {
+    if (_inputFocus.hasFocus) _disableVoice();
+  }
+
+  void _disableVoice() {
+    _voiceEnabled = false;
+    _voiceGeneration++;
+    _relisten = false;
+    _micPointerDown = false;
+    _holdTimer?.cancel();
+    _heldLongEnough = false;
+    if (_turnActive) _endTurn(send: false);
+    unawaited(_speech.cancel());
+  }
+
+  void _scheduleListening(Duration delay, int generation) {
+    Future<void>.delayed(delay, () {
+      if (_voiceIsCurrent(generation)) _startListening();
+    });
+  }
+
+  Future<void> _startVoice(int generation) async {
+    if (!_speechAvailable) {
+      // Multiple presses can share a permission prompt, but only the newest
+      // still-consented press may open a turn when it resolves.
+      final initialization = _speechInitialization ??= _initSpeechLocale();
+      await initialization;
+      if (identical(_speechInitialization, initialization)) {
+        _speechInitialization = null;
+      }
+    }
+    if (!_voiceIsCurrent(generation)) return;
+    await _startListening(hold: _micPointerDown);
   }
 
   /// Queue mode 1 is "add to the queue" — without it every new sentence
@@ -681,10 +733,14 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// [hold] means the finger is still down: the child owns the endpoint, so
   /// silence detection is not allowed to end this turn.
   Future<void> _startListening({bool hold = false}) async {
+    if (!_voiceIsCurrent(_voiceGeneration)) return;
     if (_turn != TurnState.idle) return;
     if (_status != _PollieStatus.awake || _busy) return;
     if (!_speechAvailable) {
-      _bubbles.add(_Bubble(role: 'model', text: strings.pollieNoMic));
+      _disableVoice();
+      setState(() {
+        _bubbles.add(_Bubble(role: 'model', text: strings.pollieNoMic));
+      });
       _scrollToBottom();
       return;
     }
@@ -715,14 +771,19 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   /// Opens one recogniser session. The turn spans as many as it takes.
   Future<void> _listenOnce() async {
-    if (!_turnActive || !mounted) return;
+    final generation = _voiceGeneration;
+    if (!_turnActive || !_voiceIsCurrent(generation)) return;
     try {
       await _speech.listen(
         localeId: _localeId,
-        onResult: _onResult,
-        onSoundLevel: _onSoundLevel,
+        onResult: (result) {
+          if (_voiceIsCurrent(generation)) _onResult(result);
+        },
+        onSoundLevel: (level) {
+          if (_voiceIsCurrent(generation)) _onSoundLevel(level);
+        },
       );
-      if (!_turnActive || !mounted) return;
+      if (!_turnActive || !_voiceIsCurrent(generation)) return;
       _turn = TurnState.warming;
       // The plugin says "listening" before it has asked the recogniser to
       // start, so we wait for the patched `ready`. But never forever: a
@@ -730,11 +791,12 @@ class _CompanionScreenState extends State<CompanionScreen>
       _readyTimer?.cancel();
       _readyTimer = Timer(_readyTimeout, () => _onMicReady(guessed: true));
     } catch (e) {
+      if (!_voiceIsCurrent(generation) || !_turnActive) return;
       debugPrint('Listening failed: $e');
       if (_turnActive && _listenRetries < 2) {
         _listenRetries++;
         await Future<void>.delayed(const Duration(milliseconds: 600));
-        if (mounted && _turnActive) await _listenOnce();
+        if (_voiceIsCurrent(generation) && _turnActive) await _listenOnce();
       } else {
         _endTurn(send: true);
       }
@@ -893,7 +955,8 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   /// Re-arms the mic for the same turn after a session ends.
   Future<void> _restartSession() async {
-    if (!_turnActive || !mounted || _restarting) return;
+    final generation = _voiceGeneration;
+    if (!_turnActive || !_voiceIsCurrent(generation) || _restarting) return;
     trace('restart', 'heard=$_heard partial=$_partial');
     _restarting = true;
     // The dying session's guess would otherwise be overwritten by the next
@@ -911,10 +974,10 @@ class _CompanionScreenState extends State<CompanionScreen>
         } catch (_) {}
       }
       await Future<void>.delayed(_restartGap);
-      if (!_turnActive || !mounted) return;
+      if (!_turnActive || !_voiceIsCurrent(generation)) return;
       await _listenOnce();
     } finally {
-      _restarting = false;
+      if (_voiceIsCurrent(generation)) _restarting = false;
     }
   }
 
@@ -970,9 +1033,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       // One retry, then stop: a room that is simply too noisy must not leave
       // the mic cycling open forever.
       if (_emptyTurns < _emptyTurnsBeforeStop) {
-        Future<void>.delayed(const Duration(milliseconds: 400), () {
-          if (mounted && _status == _PollieStatus.awake) _startListening();
-        });
+        _scheduleListening(const Duration(milliseconds: 400), _voiceGeneration);
       }
     }
   }
@@ -986,8 +1047,8 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// listening sets `_busy` — so with the hands-free loop re-opening the mic
   /// after every reply, typed messages were silently dropped.
   void _sendTyped(String raw) {
+    _disableVoice();
     if (raw.trim().isEmpty) return;
-    if (_turnActive) _endTurn(send: false);
     _send(raw);
   }
 
@@ -1012,7 +1073,7 @@ class _CompanionScreenState extends State<CompanionScreen>
   };
 
   void _onSpeechError(SpeechRecognitionError error) {
-    if (!mounted) return;
+    if (!_turnActive || !_voiceIsCurrent(_voiceGeneration)) return;
     final name = error.errorMsg.toLowerCase().trim();
 
     // `error.permanent` is deliberately ignored. The Android plugin hardcodes
@@ -1038,20 +1099,13 @@ class _CompanionScreenState extends State<CompanionScreen>
       _bubbles.add(_Bubble(role: 'model', text: strings.pollieDidntCatch));
       _scrollToBottom();
     }
-    if (_turnActive) {
-      _endTurn(send: true);
-      return;
-    }
-    setState(() {
-      _status = _PollieStatus.awake;
-      _busy = false;
-      _partial = '';
-    });
+    _endTurn(send: true);
   }
 
   Future<void> _send(String raw) async {
     final text = raw.trim();
     if (text.isEmpty || _busy) return;
+    final generation = _voiceGeneration;
 
     // Local safety guard: inappropriate words never reach Gemini (or the
     // conversation history).
@@ -1077,7 +1131,7 @@ class _CompanionScreenState extends State<CompanionScreen>
       // reply built so far.
       var spoken = 0;
       var voiceReady = false;
-      await _beginSpeaking(thenListen: true, more: true);
+      await _beginSpeaking(thenListen: _voiceIsCurrent(generation), more: true);
       await for (final chunk in _pollie.reply(
         _history,
         language:
@@ -1174,10 +1228,8 @@ class _CompanionScreenState extends State<CompanionScreen>
         _busy = false;
       });
       // Keep the conversation going rather than making the child restart it.
-      if (hiccup && _speechAvailable) {
-        Future<void>.delayed(const Duration(milliseconds: 900), () {
-          if (mounted && _status == _PollieStatus.awake) _startListening();
-        });
+      if (hiccup && _speechAvailable && _voiceIsCurrent(generation)) {
+        _scheduleListening(const Duration(milliseconds: 900), generation);
       }
     }
     _scrollToBottom();
@@ -1290,6 +1342,7 @@ class _CompanionScreenState extends State<CompanionScreen>
 
   /// Whether to re-arm the mic once everything queued has been spoken.
   bool _relisten = false;
+  int _relistenGeneration = 0;
 
   /// Last resort for a TTS engine that never reports a completion.
   ///
@@ -1308,7 +1361,8 @@ class _CompanionScreenState extends State<CompanionScreen>
     required bool thenListen,
     required bool more,
   }) async {
-    _relisten = thenListen;
+    _relisten = thenListen && _voiceIsCurrent(_voiceGeneration);
+    _relistenGeneration = _voiceGeneration;
     _moreComing = more;
     if (mounted) setState(() => _status = _PollieStatus.speaking);
   }
@@ -1377,11 +1431,15 @@ class _CompanionScreenState extends State<CompanionScreen>
   void _finishSpeakingIfDone() {
     if (_pending > 0 || _moreComing || !mounted) return;
     setState(() => _status = _PollieStatus.awake);
-    if (_relisten && _speechAvailable && _pollie.isConfigured) {
+    if (_relisten &&
+        _voiceIsCurrent(_relistenGeneration) &&
+        _speechAvailable &&
+        _pollie.isConfigured) {
       _relisten = false;
-      Future<void>.delayed(const Duration(milliseconds: 1200), () {
-        if (mounted && _status == _PollieStatus.awake) _startListening();
-      });
+      _scheduleListening(
+        const Duration(milliseconds: 1200),
+        _relistenGeneration,
+      );
     }
   }
 
@@ -1394,8 +1452,8 @@ class _CompanionScreenState extends State<CompanionScreen>
   }
 
   void _reset() {
+    _disableVoice();
     _history.clear();
-    _stopListening();
     setState(() {
       _bubbles.clear();
       if (_pollie.isConfigured) {
@@ -1468,6 +1526,8 @@ class _CompanionScreenState extends State<CompanionScreen>
   /// and it means hold and tap share one path. Only the *release* differs,
   /// which is what makes "released before the mic was even ready" behave.
   void _onMicDown() {
+    if (!_foreground) return;
+    _micPointerDown = true;
     _heldLongEnough = false;
     _holdTimer?.cancel();
     _holdTimer = Timer(_holdIsDeliberate, () => _heldLongEnough = true);
@@ -1479,7 +1539,9 @@ class _CompanionScreenState extends State<CompanionScreen>
       case _PollieStatus.sleeping:
         _wakeUp();
       case _PollieStatus.awake:
-        _startListening(hold: true);
+        _inputFocus.unfocus();
+        _voiceEnabled = true;
+        _startVoice(++_voiceGeneration);
       case _PollieStatus.thinking:
         break;
       case _PollieStatus.speaking:
@@ -1492,17 +1554,23 @@ class _CompanionScreenState extends State<CompanionScreen>
         _speakWatchdog?.cancel();
         _tts?.stop();
         setState(() => _status = _PollieStatus.awake);
-        _startListening(hold: true);
+        _inputFocus.unfocus();
+        _voiceEnabled = true;
+        _startVoice(++_voiceGeneration);
     }
   }
 
   /// Finger up. The length of the press decides who owns the endpoint.
   void _onMicUp() {
+    _micPointerDown = false;
     _holdTimer?.cancel();
     _holdTimer = null;
     final wasHeld = _heldLongEnough;
     _heldLongEnough = false;
-    if (_turn == TurnState.idle) return;
+    if (_turn == TurnState.idle) {
+      if (wasHeld) _disableVoice();
+      return;
+    }
 
     if (!wasHeld) {
       // That was a tap. If a turn was already running it means "I'm done";
@@ -1522,6 +1590,8 @@ class _CompanionScreenState extends State<CompanionScreen>
       if (_turnActive) _endTurn(send: true);
     });
   }
+
+  void _onMicCancel() => _disableVoice();
 
   @override
   Widget build(BuildContext context) {
@@ -1680,7 +1750,7 @@ class _CompanionScreenState extends State<CompanionScreen>
                         onPointerUp: (_) => _onMicUp(),
                         // A finger dragged off the button must not strand a
                         // hot microphone.
-                        onPointerCancel: (_) => _onMicUp(),
+                        onPointerCancel: (_) => _onMicCancel(),
                         child: Semantics(
                           button: true,
                           label: strings.talkToPollie,
@@ -1734,7 +1804,10 @@ class _CompanionScreenState extends State<CompanionScreen>
                       Expanded(
                         child: TextField(
                           controller: _input,
-                          enabled: !_busy,
+                          focusNode: _inputFocus,
+                          enabled: !_busy || _turnActive,
+                          onTap: _disableVoice,
+                          onChanged: (_) => _disableVoice(),
                           onSubmitted: _sendTyped,
                           textInputAction: TextInputAction.send,
                           style: const TextStyle(fontSize: 17),

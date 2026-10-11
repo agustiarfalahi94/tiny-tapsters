@@ -83,6 +83,14 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
   private var recognizer: SFSpeechRecognizer?
   private var currentRequest: SFSpeechAudioBufferRecognitionRequest?
   private var currentTask: SFSpeechRecognitionTask?
+  // TINY TAPSTERS PATCH — retain the originating task even after normal stop
+  // closes audio, so its terminal result remains eligible until retirement.
+  private class RecognizerSession {
+    let id: Int?
+    init(_ id: Int?) { self.id = id }
+  }
+  private var currentSession: RecognizerSession?
+  private var callbackTask: SFSpeechRecognitionTask?
   private var listeningSound: AVAudioPlayer?
   private var successSound: AVAudioPlayer?
   private var cancelSound: AVAudioPlayer?
@@ -162,6 +170,7 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
         return
       }
       var localeStr: String? = nil
+      let sessionId = argsArr["sessionId"] as? Int
       if let localeParam = argsArr["localeId"] as? String {
         localeStr = localeParam
       }
@@ -183,32 +192,52 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
             let capturedSampleRate = sampleRate
             let capturedAutoPunctuation = autoPunctuation
             let capturedEnableHaptics = enableHaptics
-            Task {
+            DispatchQueue.main.async { [self] in
                 listenForSpeech(
                     result, localeStr: capturedLocaleStr, partialResults: capturedPartialResults, onDevice: capturedOnDevice,
                     listenMode: capturedListenMode, sampleRate: capturedSampleRate, autoPunctuation: capturedAutoPunctuation,
-                    enableHaptics: capturedEnableHaptics)
+                    enableHaptics: capturedEnableHaptics, sessionId: sessionId)
             }
         } else {
             listenForSpeech(
                 result, localeStr: localeStr, partialResults: partialResults, onDevice: onDevice,
                 listenMode: listenMode, sampleRate: sampleRate, autoPunctuation: autoPunctuation,
-                enableHaptics: enableHaptics)
+                enableHaptics: enableHaptics, sessionId: sessionId)
         }
     case SwiftSpeechToTextMethods.stop.rawValue:
+        let args = call.arguments as? [String: Any]
+        let sessionId = args?["sessionId"] as? Int
         if #available(iOS 13.0, *) {
-            Task {
+            DispatchQueue.main.async { [self] in
+                if args != nil && sessionId != currentSession?.id {
+                    sendBoolResult(false, result)
+                    return
+                }
                 stopSpeech(result)
             }
         } else {
+            if args != nil && sessionId != currentSession?.id {
+                sendBoolResult(false, result)
+                return
+            }
             stopSpeech(result)
         }
     case SwiftSpeechToTextMethods.cancel.rawValue:
+        let args = call.arguments as? [String: Any]
+        let sessionId = args?["sessionId"] as? Int
         if #available(iOS 13.0, *) {
-            Task {
+            DispatchQueue.main.async { [self] in
+                if args != nil && sessionId != currentSession?.id {
+                    sendBoolResult(false, result)
+                    return
+                }
                 cancelSpeech(result)
             }
         } else {
+            if args != nil && sessionId != currentSession?.id {
+                sendBoolResult(false, result)
+                return
+            }
             cancelSpeech(result)
         }
     case SwiftSpeechToTextMethods.locales.rawValue:
@@ -387,10 +416,15 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
       return
     }
     stopping = true
+    let owner = currentSession
     stopAllPlayers()
     self.currentTask?.finish()
     if let sound = successSound {
       onPlayEnd = { () -> Void in
+        guard self.currentSession === owner else {
+          self.sendBoolResult(true, result)
+          return
+        }
         self.stopCurrentListen()
         self.sendBoolResult(true, result)
         return
@@ -403,24 +437,16 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
   }
 
   private func cancelSpeech(_ result: @escaping FlutterResult) {
-    if !listening {
-      sendBoolResult(false, result)
-      return
-    }
+    // Retirement is immediate, not delayed by a cancellation sound, and also
+    // covers a task that reported notListening while still delivering results.
+    let retired = callbackTask ?? currentTask
+    currentSession = nil
+    callbackTask = nil
     stopping = true
     stopAllPlayers()
-    self.currentTask?.cancel()
-    if let sound = cancelSound {
-      onPlayEnd = { () -> Void in
-        self.stopCurrentListen()
-        self.sendBoolResult(true, result)
-        return
-      }
-      sound.play()
-    } else {
-      stopCurrentListen()
-      sendBoolResult(true, result)
-    }
+    retired?.cancel()
+    stopCurrentListen()
+    sendBoolResult(true, result)
   }
 
   private func stopAllPlayers() {
@@ -483,12 +509,16 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
   private func listenForSpeech(
     _ result: @escaping FlutterResult, localeStr: String?, partialResults: Bool,
     onDevice: Bool, listenMode: ListenMode, sampleRate: Int, autoPunctuation: Bool,
-    enableHaptics: Bool
+    enableHaptics: Bool, sessionId: Int?
   ) {
     if nil != currentTask || listening {
       sendBoolResult(false, result)
       return
     }
+    callbackTask?.cancel()
+    let owner = RecognizerSession(sessionId)
+    currentSession = owner
+    callbackTask = nil
     do {
       //    let inErrorTest = true
       failedListen = false
@@ -532,6 +562,7 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
       #endif
       if let sound = listeningSound {
         self.onPlayEnd = { () -> Void in
+          guard self.currentSession === owner else { return }
           if !self.failedListen {
             self.listening = true
             self.invokeFlutter(
@@ -574,6 +605,7 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
         currentRequest.addsPunctuation = autoPunctuation
       }
       self.currentTask = self.recognizer?.recognitionTask(with: currentRequest, delegate: self)
+      self.callbackTask = self.currentTask
       let recordingFormat = inputNode?.outputFormat(forBus: self.busForNodeTap)
       var fmt: AVAudioFormat!
       #if os(iOS)
@@ -594,7 +626,7 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
           onBus: self.busForNodeTap, bufferSize: self.speechBufferSize, format: fmt
         ) { (buffer: AVAudioPCMBuffer, when: AVAudioTime) in
           currentRequest.append(buffer)
-          self.updateSoundLevel(buffer: buffer)
+          self.updateSoundLevel(buffer: buffer, owner: owner)
         }
       }
       //    if ( inErrorTest ){
@@ -635,7 +667,7 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
     }
   }
 
-  private func updateSoundLevel(buffer: AVAudioPCMBuffer) {
+  private func updateSoundLevel(buffer: AVAudioPCMBuffer, owner: RecognizerSession) {
     guard
       let channelData = buffer.floatChannelData
     else {
@@ -651,7 +683,7 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
     let frameLength = Float(buffer.frameLength)
     let rms = sqrt(channelDataValueArray.map { $0 * $0 }.reduce(0, +) / frameLength)
     let avgPower = 20 * log10(rms)
-    self.invokeFlutter(SwiftSpeechToTextCallbackMethods.soundLevelChange, arguments: avgPower)
+    self.invokeFlutter(SwiftSpeechToTextCallbackMethods.soundLevelChange, arguments: avgPower, owner: owner)
   }
 
   /// Build a list of localId:name with the current locale first
@@ -717,12 +749,29 @@ public class SpeechToTextPlugin: NSObject, FlutterPlugin {
     return Decimal(string: String(describing: confidence))!
   }
 
-  private func invokeFlutter(_ method: SwiftSpeechToTextCallbackMethods, arguments: Any?) {
+  private func invokeFlutter(_ method: SwiftSpeechToTextCallbackMethods, arguments: Any?,
+                             owner: RecognizerSession? = nil) {
+    let capturedOwner = owner ?? currentSession
+    let payload: Any?
+    if let id = capturedOwner?.id {
+      payload = ["sessionId": id, "payload": arguments ?? NSNull()] as [String: Any]
+    } else {
+      payload = arguments
+    }
     if method != SwiftSpeechToTextCallbackMethods.soundLevelChange {
       os_log("invokeFlutter %{PUBLIC}@", log: pluginLog, type: .debug, method.rawValue)
     }
     DispatchQueue.main.async {
-      self.channel.invokeMethod(method.rawValue, arguments: arguments)
+      if let capturedOwner = capturedOwner, self.currentSession !== capturedOwner { return }
+      self.channel.invokeMethod(method.rawValue, arguments: payload)
+    }
+  }
+
+  private func withCurrentTask(_ task: SFSpeechRecognitionTask,
+                               _ deliver: @escaping () -> Void) {
+    DispatchQueue.main.async {
+      guard self.callbackTask === task, self.currentSession != nil else { return }
+      deliver()
     }
   }
 
@@ -747,24 +796,29 @@ extension SpeechToTextPlugin: SFSpeechRecognitionTaskDelegate {
   }
 
   public func speechRecognitionTaskFinishedReadingAudio(_ task: SFSpeechRecognitionTask) {
+    withCurrentTask(task) { [self] in
     reportError(source: "FinishedReadingAudio", error: task.error)
     os_log("Finished reading audio", log: pluginLog, type: .debug)
     invokeFlutter(
       SwiftSpeechToTextCallbackMethods.notifyStatus,
       arguments: SpeechToTextStatus.notListening.rawValue)
+    }
   }
 
   public func speechRecognitionTaskWasCancelled(_ task: SFSpeechRecognitionTask) {
+    withCurrentTask(task) { [self] in
     reportError(source: "TaskWasCancelled", error: task.error)
     os_log("Canceled reading audio", log: pluginLog, type: .debug)
     invokeFlutter(
       SwiftSpeechToTextCallbackMethods.notifyStatus,
       arguments: SpeechToTextStatus.notListening.rawValue)
+    }
   }
 
   public func speechRecognitionTask(
     _ task: SFSpeechRecognitionTask, didFinishSuccessfully successfully: Bool
   ) {
+    withCurrentTask(task) { [self] in
     reportError(source: "FinishSuccessfully", error: task.error)
     os_log("FinishSuccessfully", log: pluginLog, type: .debug)
     if !successfully {
@@ -808,7 +862,9 @@ extension SpeechToTextPlugin: SFSpeechRecognitionTaskDelegate {
     }
     if !stopping {
       if let sound = successfully ? successSound : cancelSound {
+        let owner = currentSession
         onPlayEnd = { () -> Void in
+          guard self.currentSession === owner else { return }
           self.stopCurrentListen()
         }
         sound.play()
@@ -816,20 +872,24 @@ extension SpeechToTextPlugin: SFSpeechRecognitionTaskDelegate {
         stopCurrentListen()
       }
     }
+    }
   }
 
   public func speechRecognitionTask(
     _ task: SFSpeechRecognitionTask, didHypothesizeTranscription transcription: SFTranscription
   ) {
+    withCurrentTask(task) { [self] in
     os_log("HypothesizeTranscription", log: pluginLog, type: .debug)
     reportError(source: "HypothesizeTranscription", error: task.error)
       handleResult([transcription], isFinal: false, maybeFinal: false)
+    }
   }
 
   public func speechRecognitionTask(
     _ task: SFSpeechRecognitionTask,
     didFinishRecognition recognitionResult: SFSpeechRecognitionResult
   ) {
+    withCurrentTask(task) { [self] in
     reportError(source: "FinishRecognition", error: task.error)
     os_log(
       "FinishRecognition %{PUBLIC}@", log: pluginLog, type: .debug,
@@ -840,6 +900,7 @@ extension SpeechToTextPlugin: SFSpeechRecognitionTaskDelegate {
       }
     let isFinal = recognitionResult.isFinal
       handleResult(recognitionResult.transcriptions, isFinal: isFinal, maybeFinal: pseudoFinal )
+    }
   }
 
   private func reportError(source: String, error: Error?) {

@@ -49,12 +49,20 @@ abstract interface class SpeechSink {
 
   Future<void> stop();
 
+  /// Revokes callback ownership as well as recording. A successor must wait
+  /// for native retirement, unlike a normal stop which preserves final results.
+  Future<void> cancel();
+
   bool get isListening;
 }
 
 /// The real recogniser, driving the vendored plugin.
 class PluginSpeechSink implements SpeechSink {
-  final _speech = SpeechToText();
+  PluginSpeechSink({SpeechToText? speech}) : _speech = speech ?? SpeechToText();
+
+  final SpeechToText _speech;
+  Future<void> _retirement = Future<void>.value();
+  int _consentEpoch = 0;
 
   /// How long a session may run before Android ends it by itself. A cap, not
   /// an endpointer: a session ending no longer ends the child's turn.
@@ -79,11 +87,16 @@ class PluginSpeechSink implements SpeechSink {
   Future<bool> initialize({
     required void Function(SpeechRecognitionError) onError,
     required void Function(String) onStatus,
-  }) => _speech.initialize(
-    onError: onError,
-    onStatus: onStatus,
-    debugLogging: kPollieTrace,
-  );
+  }) {
+    // The process singleton's initialize short-circuits on reopening Pollie.
+    _speech.errorListener = onError;
+    _speech.statusListener = onStatus;
+    return _speech.initialize(
+      onError: onError,
+      onStatus: onStatus,
+      debugLogging: kPollieTrace,
+    );
+  }
 
   @override
   Future<List<String>> localeIds() async {
@@ -96,7 +109,10 @@ class PluginSpeechSink implements SpeechSink {
     required void Function(SpeechRecognitionResult) onResult,
     required void Function(double) onSoundLevel,
     required String localeId,
-  }) {
+  }) async {
+    final epoch = _consentEpoch;
+    await _retirement;
+    if (epoch != _consentEpoch) return;
     trace('listen_call', localeId);
     return _speech.listen(
       onResult: onResult,
@@ -117,7 +133,19 @@ class PluginSpeechSink implements SpeechSink {
   }
 
   @override
-  Future<void> stop() => _speech.stop();
+  Future<void> stop() {
+    // Revoke queued starts, but retain the active native owner's final result.
+    _consentEpoch++;
+    return _speech.stop();
+  }
+
+  @override
+  Future<void> cancel() {
+    _consentEpoch++;
+    // Invoke now so channel ownership is revoked synchronously, even while
+    // an earlier stop is awaiting its native acknowledgement.
+    return _retirement = _speech.cancel();
+  }
 
   /// The status the patched plugin sends when the microphone is genuinely
   /// recording — as opposed to `listening`, which the plugin reports before it
