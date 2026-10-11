@@ -208,6 +208,9 @@ class SpeechToText {
   double _lastSoundLevel = 0;
   Timer? _listenTimer;
   Timer? _notifyFinalTimer;
+  // TINY TAPSTERS PATCH — an old stop/listen acknowledgement must not arm
+  // timers against callbacks installed by a newer session.
+  int _sessionGeneration = 0;
   LocaleName? _systemLocale;
   SpeechRecognitionError? _lastError;
   SpeechRecognitionResult? _lastSpeechResult;
@@ -364,8 +367,10 @@ class SpeechToText {
       return;
     }
     // print('Stop triggered');
+    final generation = _sessionGeneration;
     _shutdownListener();
     await SpeechToTextPlatform.instance.stop();
+    if (generation != _sessionGeneration) return;
     if (_finalTimeout > _minFinalTimeout) {
       _notifyFinalTimer = Timer(_finalTimeout, _onFinalTimeout);
     }
@@ -382,6 +387,7 @@ class SpeechToText {
   /// *Note* Cannot be used until a successful [initialize] call. Should only
   /// be used after a successful [listen] call.
   Future<void> cancel() async {
+    _sessionGeneration++;
     _userEnded = true;
     return _cancel();
   }
@@ -479,6 +485,10 @@ class SpeechToText {
     if (!_initWorked) {
       throw SpeechToTextNotInitializedException();
     }
+    final generation = ++_sessionGeneration;
+    // A native done can rearm without stop(); do not orphan its Dart cap.
+    _listenTimer?.cancel();
+    _listenTimer = null;
     _lastError = null;
     _lastRecognized = '';
     _userEnded = false;
@@ -516,7 +526,7 @@ class SpeechToText {
     try {
       var started = await SpeechToTextPlatform.instance
           .listen(localeId: usedOptions.localeId, options: usedOptions);
-      if (started) {
+      if (started && generation == _sessionGeneration) {
         _listenStartedAt = clock.now().millisecondsSinceEpoch;
         _lastSpeechEventAt = _listenStartedAt;
         _setupListenAndPause(usedOptions.pauseFor, usedOptions.listenFor);

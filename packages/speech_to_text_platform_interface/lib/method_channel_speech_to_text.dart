@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'speech_to_text_platform_interface.dart';
@@ -10,6 +11,14 @@ const MethodChannel _channel =
 
 /// An implementation of [SpeechToTextPlatform] that uses method channels.
 class MethodChannelSpeechToText extends SpeechToTextPlatform {
+  // TINY TAPSTERS PATCH — IDs survive queued native delivery. Filter here,
+  // before SpeechToText changes listening/results/error state.
+  static int _nextSessionId = 0;
+  int? _sessionId;
+  bool get _requiresOwnership =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
   static const String textRecognitionMethod = 'textRecognition';
   static const String notifyErrorMethod = 'notifyError';
   static const String notifyStatusMethod = 'notifyStatus';
@@ -55,7 +64,7 @@ class MethodChannelSpeechToText extends SpeechToTextPlatform {
   /// only be used after a successful [listen] call.
   @override
   Future<void> stop() {
-    return _channel.invokeMethod('stop');
+    return _channel.invokeMethod('stop', {'sessionId': _sessionId});
   }
 
   /// Cancels the current listen for speech if active, does nothing if not.
@@ -70,7 +79,9 @@ class MethodChannelSpeechToText extends SpeechToTextPlatform {
   /// be used after a successful [listen] call.
   @override
   Future<void> cancel() {
-    return _channel.invokeMethod('cancel');
+    final retired = _sessionId;
+    _sessionId = null;
+    return _channel.invokeMethod('cancel', {'sessionId': retired});
   }
 
   /// Starts a listening session for speech and converts it to text.
@@ -104,7 +115,10 @@ class MethodChannelSpeechToText extends SpeechToTextPlatform {
       @deprecated int listenMode = 0,
       @deprecated sampleRate = 0,
       SpeechListenOptions? options}) async {
+    final sessionId = ++_nextSessionId;
+    _sessionId = sessionId;
     Map<String, dynamic> listenParams = {
+      'sessionId': sessionId,
       "partialResults": options?.partialResults ?? partialResults,
       "onDevice": options?.onDevice ?? onDevice,
       "listenMode": options?.listenMode.index ?? listenMode,
@@ -122,7 +136,9 @@ class MethodChannelSpeechToText extends SpeechToTextPlatform {
     if (null != (localeId ?? options?.localeId)) {
       listenParams["localeId"] = (localeId ?? options?.localeId);
     }
-    return await _channel.invokeMethod<bool>('listen', listenParams) ?? false;
+    final started = await _channel.invokeMethod<bool>('listen', listenParams) ?? false;
+    if (!started && _sessionId == sessionId) _sessionId = null;
+    return started;
   }
 
   /// returns the list of speech locales available on the device.
@@ -133,26 +149,33 @@ class MethodChannelSpeechToText extends SpeechToTextPlatform {
   }
 
   Future _handleCallbacks(MethodCall call) async {
-    // print("SpeechToText call: ${call.method} ${call.arguments}");
+    var payload = call.arguments;
+    if (payload is Map) {
+      if (_sessionId == null || payload['sessionId'] != _sessionId) return;
+      payload = payload['payload'];
+    } else if (_requiresOwnership) {
+      // Paired Android/Apple forks must not silently accept untagged events.
+      return;
+    }
     switch (call.method) {
       case textRecognitionMethod:
-        if (call.arguments is String && null != onTextRecognition) {
-          onTextRecognition!(call.arguments);
+        if (payload is String && null != onTextRecognition) {
+          onTextRecognition!(payload);
         }
         break;
       case notifyErrorMethod:
-        if (call.arguments is String && null != onError) {
-          onError!(call.arguments);
+        if (payload is String && null != onError) {
+          onError!(payload);
         }
         break;
       case notifyStatusMethod:
-        if (call.arguments is String && null != onStatus) {
-          onStatus!(call.arguments);
+        if (payload is String && null != onStatus) {
+          onStatus!(payload);
         }
         break;
       case soundLevelChangeMethod:
-        if (call.arguments is double && null != onSoundLevel) {
-          onSoundLevel!(call.arguments);
+        if (payload is double && null != onSoundLevel) {
+          onSoundLevel!(payload);
         }
         break;
       default:

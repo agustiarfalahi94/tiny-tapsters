@@ -7,11 +7,39 @@ Format: **Added** · **Fixed** · **Changed** · **Removed** · **Improved**
 
 ## [Unreleased]
 
+## [1.25.9] — 2026-10-11
+
+### Fixed
+- Opening Pollie, typed questions, and suggestion chips no longer initialize
+  speech recognition or request microphone permission. Spoken text replies,
+  empty replies, brief quota recovery, and the TTS watchdog keep the mic off.
+- Focusing or editing the text field cancels active recognition and deferred
+  voice restarts. The field remains usable while Pollie listens. Backgrounding
+  revokes voice mode, so returning to the app requires a new mic press.
+- Permission initialization is lazy and guarded after it completes. A quick
+  released tap can start a tap turn; a released hold, text input, or background
+  cannot start stale voice. Explicit voice retains hands-free continuation,
+  hold release tails, acoustic VAD, and the TTS watchdog.
+- Pointer cancellation now revokes consent and discards the turn, including a
+  short canceled gesture whose permission prompt is still pending. Genuine
+  pointer-up retains tap behavior and the held-release recording tail.
+- Retired speech ready/done/error/result/level events carry native ownership
+  through the existing vendored channel and are rejected before Dart state
+  changes. Android retires the old recognizer before creating its successor;
+  Apple routes callbacks by their originating task. Old stop/listen
+  acknowledgements cannot arm a successor's timers, and idle speech errors no
+  longer clear the busy state of a pending reply.
+- Finishing a held or tapped turn invalidates a queued speech start still
+  waiting for cancellation to finish, so its acknowledgement cannot reopen the
+  microphone after the turn ends. Normal stop preserves native terminal results.
+
 ### Changed
 - Corrected the Worker module map in agent instructions and the proxy runbook
   after model selection moved to `worker/src/gemini.ts`; replaced a stale
-  rate-limit line reference with its function name. Documentation only: the
-  published app remains v1.25.8+61.
+  rate-limit line reference with its function name. This documentation correction
+  was already present before the microphone fix.
+- Source version is `1.25.9+62`; current Pollie privacy and permission guidance
+  is consistent across the README, architecture notes, and agent instructions.
 
 ## [1.25.8] — 2026-10-10
 

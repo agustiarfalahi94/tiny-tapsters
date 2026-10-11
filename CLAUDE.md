@@ -47,14 +47,30 @@ facts hide. Raw terminal output is the only evidence that counts.
 
 ## Quick facts
 
-- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.25.8+61**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
+- **Tiny Tapsters**: Flutter toddler-games app (`com.inkpebble.tiny_tapsters`), **v1.25.9+62**, Flutter 3.41.6 (stable), Android-first, emoji-based graphics (no image assets).
 - **Dependencies**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. Bundled assets: `assets/sfx/*` (pop, wrong, win_high, win_low, lose), `assets/music/*` (main_theme, game_song) and `assets/animal_sounds/*` (15 calls, the whole basis of "Which Animal?") — `assets/branding/tiny-tapsters-logo.png` is build-time input for the icon generator and is deliberately not in `pubspec.yaml`.
 - **Audio**: `MusicService` (looping music) is separate from `SoundEffects` (one-shots) on purpose — `pop()` stops its player before every play, so one shared player would let every tap kill the music. Track switching lives in `MusicRouteObserver`, not in each screen's `initState`, because popping a game does not re-run `HomeScreen.initState`. Every player must stay on `AudioContextConfigFocus.mixWithOthers` (set once in `main.dart`) — the default `AudioFocus.gain` is exclusive and makes each sound effect stop the music. **Never hand-encode audio** — run `python3 tool/normalize_audio.py <source-dir>`, which rebuilds every asset at one loudness (−16 dBFS RMS, 44.1 kHz). Hand-rolled `afconvert` calls are how the animal calls shipped at 22 kHz and how the mix ended up 20 dB apart.
-- **Permissions**: `INTERNET` + `RECORD_AUDIO` — both exist only for Pollie's voice chat. **All seven games are fully offline**; Pollie is the sole network feature.
+- **Permissions**: `INTERNET` for Pollie's text and voice chat; `RECORD_AUDIO` only for explicitly enabled voice. **All seven games are fully offline**; Pollie is the sole network feature.
 - **Default branch is `develop`**; release = merge to `main` + annotated tag `vX.Y.Z` (push both).
 - **Features go on a dedicated `feature/<name>` branch** off `develop` — never commit feature work straight to `develop`. Plan in chat first, then execute.
 - **Validation before any commit:** `./tool/check.sh` (runs all three and prints the project's facts), or by hand: `flutter analyze` (0 issues), `dart format --set-exit-if-changed lib/ test/`, `flutter test` (**all green, no skips** — the count is deliberately not written down here, it has gone stale five times), `flutter build apk --release` (when native config or deps change).
 - **Never touch/commit**: `android/key.properties`, `android/app/release-keystore.jks`, or any Gemini API key. **The key no longer ships in the app at all** — it lives in the Cloudflare Worker under `worker/` (see its README). The app defaults to the deployed proxy at `https://pollie.inkpebble.workers.dev`; override with `--dart-define=POLLIE_ENDPOINT=...`. A URL is not a secret.
+
+**Pollie privacy (v1.25.9)**: Opening, typing, and suggestion chips never
+initialize speech or request mic permission. Only a mic press enables voice.
+Text focus/edit/submission and chips cancel recognition and pending restarts;
+backgrounding revokes voice, and resume does not restore it. Keep text editable
+while recognition is active. Initialization and every deferred start must
+recheck consent, foreground state, and the voice generation. A quick release
+during permission initialization becomes a tap turn; a released hold cannot
+start later. Pointer cancellation always revokes consent and discards the turn,
+even before the hold threshold; it is not pointer-up. Native callback origin is
+separate from app consent: keep the owned listener/task and channel session ID
+checks in `packages/PATCH.md`, before Dart wrapper state changes. Cancellation
+retires the recognizer before a successor starts; normal stop permits its final
+result. Stop must also revoke a listen still waiting for cancellation to finish;
+queued-start authorization is separate from native terminal-result ownership.
+Preserve voice VAD, hold tails, and TTS watchdog behavior.
 
 ## Multi-part work
 

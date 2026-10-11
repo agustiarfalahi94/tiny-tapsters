@@ -41,10 +41,26 @@ facts hide. Raw terminal output is the only evidence that counts.
 
 ## Project
 
-Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.8+61 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*`, `assets/music/*` and the 15 `assets/animal_sounds/*` calls "Which Animal?" is built on) · Shared signing keystore with the `random_recall` project.
+Tiny Tapsters — Flutter toddler-games app (`com.inkpebble.tiny_tapsters`). v1.25.9+62 · Flutter 3.41.6 · Android-first · Emoji-based graphics (no image assets; bundled audio only: `assets/sfx/*`, `assets/music/*` and the 15 `assets/animal_sounds/*` calls "Which Animal?" is built on) · Shared signing keystore with the `random_recall` project.
 
 **Packages**: `audioplayers` (SFX + music), `flutter_tts` + `speech_to_text` (Pollie companion), `cupertino_icons`; `flutter_lints` in dev. `google_generative_ai` is gone — Pollie talks to the Worker over plain `HttpClient`.
-**Permissions**: `INTERNET` + `RECORD_AUDIO`, both for Pollie's voice chat only. The seven games are fully offline; Pollie is the sole network feature.
+**Permissions**: `INTERNET` for Pollie's text and voice chat; `RECORD_AUDIO` only for explicitly enabled voice. The seven games are fully offline; Pollie is the sole network feature.
+
+**Pollie privacy (v1.25.9)**: Opening, typing, and suggestion chips never
+initialize speech or request mic permission. Only a mic press enables voice.
+Text focus/edit/submission and chips cancel recognition and pending restarts;
+backgrounding revokes voice, and resume does not restore it. Keep text editable
+while recognition is active. Initialization and every deferred start must
+recheck consent, foreground state, and the voice generation. A quick release
+during permission initialization becomes a tap turn; a released hold cannot
+start later. Pointer cancellation always revokes consent and discards the turn,
+even before the hold threshold; it is not pointer-up. Native callback origin is
+separate from app consent: keep the owned listener/task and channel session ID
+checks in `packages/PATCH.md`, before Dart wrapper state changes. Cancellation
+retires the recognizer before a successor starts; normal stop permits its final
+result. Stop must also revoke a listen still waiting for cancellation to finish;
+queued-start authorization is separate from native terminal-result ownership.
+Preserve voice VAD, hold tails, and TTS watchdog behavior.
 
 ## Git flow
 
@@ -69,7 +85,7 @@ flutter build apk --release           # when native config or deps changed
 ## Constraints
 
 - Do NOT commit `android/key.properties` or `android/app/release-keystore.jks` (keystore secrets, git-ignored).
-- Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature. Permissions: INTERNET + RECORD_AUDIO (voice chat).
+- Do NOT add ads, analytics, or tracking. The app is offline EXCEPT the Pollie companion (Gemini) — the only network feature. Permissions: INTERNET (Pollie text/voice) + RECORD_AUDIO (explicit voice only).
 - Never commit a Gemini API key. **It no longer ships in the app at all** — it is a Cloudflare Worker secret (`worker/`, see its README). The app defaults to the deployed proxy at `https://pollie.inkpebble.workers.dev`; override with `--dart-define=POLLIE_ENDPOINT=...`. A URL is not a secret.
 - All games must be playable without reading: big emoji, no required text.
 - Keep CHANGELOG.md + README.md in sync with real changes, and CLAUDE.md consistent with this file.
@@ -105,6 +121,7 @@ flutter build apk --release           # when native config or deps changed
 - `test/tts_ownership_test.dart` — one engine, newest owner wins, and a source scan for a second `FlutterTts`.
 - `test/tts_engine_test.dart` — which Android TTS engine gets bound: prefer Google's when installed, leave an unknown default alone, choose once, and never let engine trouble stop Pollie speaking.
 - `test/speech_plugin_test.dart` — the vendored patch itself: option marshalling and the `readyForSpeech` status, driven through `SpeechToTextPlatform.instance`.
+- `test/speech_channel_ownership_test.dart` — real method-channel ownership filtering before wrapper state changes, retired callback/acknowledgement races, cancellation barriers, terminal stop results and native payload compatibility.
 - `test/count_rows_test.dart` — the random row layouts in Count the Animals.
 - `test/language_test.dart` — every string translated, and the locale ids speech and TTS need.
 - `test/widget_test.dart` — home screen, all-screens-build smoke test, Find It! tint regression, jigsaw snap tests, companion fallback + kid-safety + quota tests, the count-game flow (seeded RNG), and Bubble Pop's target rules (wrong animals rejected, mistakes cost stars, no overshoot past the last catch). The Bubble Pop tests read the live header rather than a hard-coded label — an earlier version asserted on `'Pop 0 more!'` and kept passing after that label was replaced.

@@ -2,6 +2,18 @@
 
 Branch: `feat/pollie` → v1.10.0
 
+> **Privacy supersession, v1.25.9+62 (2026-10-10).** References below to
+> automatic relistening now apply only to explicitly enabled voice mode.
+> Opening, typing, and chips never initialize speech or request mic permission.
+> Text focus/edit/submission, chips, and backgrounding cancel voice and delayed
+> starts. Permission initialization is lazy on the mic press; a quick released
+> tap can proceed after permission, while a released hold cannot start later.
+> The microphone spec's privacy addendum and `packages/PATCH.md` also cover
+> canceled gestures and native callback ownership;
+> retired speech events must not affect a later explicit voice session.
+> `docs/pollie-architecture-and-costs.md` describes current behavior. The original
+> release/design details below remain historical.
+
 > **Superseded on the model (§2).** The plan to pin `gemini-2.5-flash` with
 > `thinkingConfig: { thinkingBudget: 0 }` did not survive contact: that model
 > is no longer served to new API keys (404) and `thinkingBudget` is rejected
